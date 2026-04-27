@@ -1,0 +1,16 @@
+# Claude Code 내부 파일
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 빌드 결과물 (Electron)
+dist/
+node_modules/
+out/
+
+# 환경 설정
+*.local
+.env

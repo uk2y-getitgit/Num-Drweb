@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NumDraw — 시설물 안전점검 넘버링 툴</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- ===== 툴바 ===== -->
+<div id="toolbar">
+  <span class="toolbar-title">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="3"/><path d="M3 12h3M18 12h3M12 3v3M12 18v3"/><path d="M7.05 7.05l2.12 2.12M14.83 14.83l2.12 2.12M7.05 16.95l2.12-2.12M14.83 9.17l2.12-2.12"/></svg>
+    NumDraw
+  </span>
+
+  <!-- 파일 -->
+  <div class="toolbar-group">
+    <span class="toolbar-group-label">파일</span>
+    <button class="btn btn-accent" id="btn-open">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+      도면 열기
+    </button>
+    <input type="file" id="file-input" accept=".pdf,.jpg,.jpeg,.png,.gif,.bmp,.webp" style="display:none">
+    <span id="file-name" style="font-size:11px;color:var(--text-dim);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+  </div>
+
+  <!-- 숨김 직교 토글 -->
+  <input type="checkbox" id="ortho-toggle" style="display:none">
+
+  <!-- 보기 -->
+  <div class="toolbar-group">
+    <span class="toolbar-group-label">보기</span>
+    <button class="btn" id="btn-zoom-in" title="확대">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+    </button>
+    <button class="btn" id="btn-zoom-out" title="축소">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+    </button>
+    <button class="btn" id="btn-fit" title="화면 맞추기 (F5)">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+    </button>
+    <span id="zoom-level" style="font-size:11px;color:var(--text-secondary);padding:0 4px;min-width:36px;text-align:center;">100%</span>
+  </div>
+
+  <!-- 도곽 -->
+  <div class="toolbar-group">
+    <span class="toolbar-group-label">도곽</span>
+    <button class="btn" id="btn-titleblock">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="1"/><line x1="3" y1="17" x2="21" y2="17"/><line x1="11" y1="17" x2="11" y2="21"/></svg>
+      도곽 설정
+    </button>
+    <label class="toggle" title="도곽 표시 ON/OFF" style="margin-left:4px;">
+      <input type="checkbox" id="titleblock-toggle">
+      <span class="toggle-slider"></span>
+    </label>
+  </div>
+
+  <!-- 작업 -->
+  <div class="toolbar-group">
+    <span class="toolbar-group-label">작업</span>
+    <button class="btn" id="btn-auto-layout">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+      자동정렬
+    </button>
+    <button class="btn" id="btn-export-pdf">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="12" y2="12"/><line x1="15" y1="15" x2="12" y2="12"/></svg>
+      PDF 저장
+    </button>
+    <button class="btn btn-danger" id="btn-clear">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+      전체삭제
+    </button>
+  </div>
+
+  <!-- 넘버 카운터 -->
+  <div style="margin-left:auto;display:flex;align-items:center;gap:10px;">
+    <div id="num-counter">
+      넘버링 <span class="count-val">0</span>개
+      <span style="color:var(--text-dim)">|</span>
+      다음: <span id="next-num-display" style="font-size:13px;font-weight:700;color:var(--accent);">1</span>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 메인 ===== -->
+<div id="main">
+
+  <!-- 페이지 패널 (좌측) -->
+  <div id="page-panel">
+    <div id="page-panel-header">
+      <span>페이지</span>
+      <div class="page-header-btns">
+        <span id="page-count-badge">0</span>
+        <button class="page-hdr-btn" id="btn-page-add" title="페이지 추가">+</button>
+        <button class="page-hdr-btn danger" id="btn-page-del" title="현재 페이지 삭제">−</button>
+      </div>
+    </div>
+    <input type="file" id="page-add-input" accept=".jpg,.jpeg,.png,.gif,.bmp,.webp,.pdf" style="display:none">
+    <div id="page-list"></div>
+    <div id="page-panel-loading" class="hidden">
+      <div class="loading-spinner"></div>
+      <span id="page-loading-text">로딩 중...</span>
+    </div>
+  </div>
+
+  <!-- 캔버스 영역 -->
+  <div id="canvas-wrap">
+    <div id="canvas-bg"></div>
+
+    <!-- 드롭존 -->
+    <div id="dropzone">
+      <svg class="drop-icon" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+        <line x1="12" y1="18" x2="12" y2="12"/>
+        <line x1="9" y1="15" x2="12" y2="12"/>
+        <line x1="15" y1="15" x2="12" y2="12"/>
+      </svg>
+      <h2>도면을 여기에 끌어다 놓으세요</h2>
+      <p>PDF (다중 페이지), JPG, PNG 파일을 지원합니다</p>
+      <button class="btn btn-accent drop-btn" id="btn-open-drop">파일 선택</button>
+    </div>
+
+    <!-- 도면 컨테이너 -->
+    <div id="canvas-container">
+      <img id="drawing-img" alt="" draggable="false" style="display:block;user-select:none;">
+      <canvas id="drawing-canvas"></canvas>
+      <canvas id="interaction-layer"></canvas>
+    </div>
+
+    <!-- 상태 바 -->
+    <div id="canvas-status">
+      <span><span class="val" id="cursor-hint">클릭: 지시점 지정</span></span>
+      <span>ESC: 취소 &nbsp;|&nbsp; Q: 직교 &nbsp;|&nbsp; F5: 맞추기 &nbsp;|&nbsp; Ctrl+Z: 되돌리기</span>
+    </div>
+
+    <!-- 줌 컨트롤 -->
+    <div id="zoom-controls">
+      <button class="btn" id="btn-zoom-in2">+</button>
+      <div id="zoom-level-float">100%</div>
+      <button class="btn" id="btn-zoom-out2">−</button>
+    </div>
+  </div>
+
+  <!-- ===== 사이드바 ===== -->
+  <div id="sidebar">
+
+    <!-- 도구 섹션 -->
+    <div class="sidebar-section">
+      <div class="section-header">
+        <h3>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+          도구
+        </h3>
+        <span class="toggle-icon">▾</span>
+      </div>
+      <div class="section-body">
+
+        <div class="sidebar-label">지시점</div>
+        <div class="tool-grid">
+          <button class="tool-btn" data-tool="arrow">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="19" x2="19" y2="5"/><polyline points="12 5 19 5 19 12"/></svg>
+            화살표
+          </button>
+          <button class="tool-btn" data-tool="dot">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="5"/></svg>
+            점
+          </button>
+        </div>
+
+        <div class="sidebar-label">선 스타일</div>
+        <div class="tool-grid" style="grid-template-columns:repeat(4,1fr)">
+          <button class="tool-btn line-btn active" data-line="straight" title="직선">
+            <svg width="22" height="18" viewBox="0 0 22 18"><line x1="2" y1="16" x2="20" y2="2" stroke="currentColor" stroke-width="2"/></svg>
+            직선
+          </button>
+          <button class="tool-btn line-btn" data-line="elbow-h" title="ㄱ자">
+            <svg width="22" height="18" viewBox="0 0 22 18"><polyline points="2,16 2,2 20,2" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+            ㄱ자
+          </button>
+          <button class="tool-btn line-btn" data-line="elbow-v" title="ㄴ자">
+            <svg width="22" height="18" viewBox="0 0 22 18"><polyline points="2,16 20,16 20,2" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+            ㄴ자
+          </button>
+          <button class="tool-btn line-btn" data-line="zigzag" title="번개">
+            <svg width="22" height="18" viewBox="0 0 22 18"><polyline points="2,16 11,16 11,2 20,2" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+            번개
+          </button>
+        </div>
+
+        <div class="option-row">
+          <span class="option-label">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M12 3v18"/></svg>
+            직교모드 (Q)
+          </span>
+          <label class="toggle">
+            <input type="checkbox" id="ortho-toggle-side">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="option-row">
+          <span class="option-label" title="화살표가 지시선 방향 / 반대 방향으로 향함">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+            화살표 반전
+          </span>
+          <label class="toggle">
+            <input type="checkbox" id="arrow-flip-toggle">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="sidebar-label">카테고리</div>
+        <div class="cat-grid">
+          <button class="cat-btn active" data-cat="defect" style="--cat-c:#e05555">
+            <span class="cat-dot-lg" style="background:#e05555"></span>결함
+            <input type="color" id="cat-color-defect" value="#e05555" class="cat-color-picker" title="색상 변경">
+          </button>
+          <button class="cat-btn" data-cat="repair" style="--cat-c:#4a9eff">
+            <span class="cat-dot-lg" style="background:#4a9eff"></span>보수
+            <input type="color" id="cat-color-repair" value="#4a9eff" class="cat-color-picker" title="색상 변경">
+          </button>
+          <button class="cat-btn" data-cat="other" style="--cat-c:#9b59b6">
+            <span class="cat-dot-lg" style="background:#9b59b6"></span>기타
+            <input type="color" id="cat-color-other" value="#9b59b6" class="cat-color-picker" title="색상 변경">
+          </button>
+        </div>
+
+        <div class="sidebar-label">번호 설정</div>
+        <div class="num-input-row">
+          <label for="prefix-num">접두어</label>
+          <input type="text" id="prefix-num" placeholder="예: 1F" style="width:60px;background:var(--bg-card);border:1.5px solid var(--border);border-radius:var(--radius);color:var(--text-primary);padding:4px 6px;font-size:12px;">
+        </div>
+        <div class="num-input-row">
+          <label for="start-num">시작 번호</label>
+          <input type="number" id="start-num" min="1" value="1">
+        </div>
+
+        <div class="color-row">
+          <span class="color-label">번호 글씨 색상</span>
+          <input type="color" id="color-text" value="#ffffff" class="color-swatch" title="글씨 색상">
+        </div>
+
+        <div class="num-input-row">
+          <label for="line-width">선 두께 <span id="line-width-val">1.5</span>px</label>
+          <input type="range" id="line-width" min="0.5" max="4" step="0.5" value="1.5" style="width:80px">
+        </div>
+
+        <div class="sidebar-label" style="margin-top:6px;">넘버링 크기 배율</div>
+        <div class="num-input-row">
+          <label for="annotation-scale"><span id="annotation-scale-val">1.0</span>× (Shift+휠)</label>
+          <input type="range" id="annotation-scale" min="0.5" max="3.0" step="0.1" value="1.0" style="width:80px">
+        </div>
+
+      </div>
+    </div>
+
+    <!-- 탭: 넘버링 / 사진 -->
+    <div class="tab-bar">
+      <button class="tab-btn active" data-tab="nums">넘버링 <span id="num-count" style="font-size:10px;opacity:0.6">0</span></button>
+      <button class="tab-btn" data-tab="photos">사진 <span id="photo-count" style="font-size:10px;opacity:0.6">0</span></button>
+    </div>
+
+    <!-- 넘버링 탭 -->
+    <div class="tab-panel active" id="tab-nums">
+      <div id="num-list-wrap" class="scroll-y">
+        <div class="empty-state">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <span>도면을 클릭해 넘버링을 추가하세요</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 사진 탭 -->
+    <div class="tab-panel" id="tab-photos">
+      <div class="sidebar-section" style="border-bottom:1px solid var(--border);">
+        <div class="section-body">
+          <button class="btn btn-accent" id="btn-select-folder" style="width:100%;justify-content:center;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+            사진 폴더 선택
+          </button>
+          <div id="folder-path" class="folder-path">폴더를 선택하지 않았습니다</div>
+          <input type="text" class="prefix-input" id="prefix-filter" placeholder="파일명 접두어 필터 (예: DSC)">
+          <button class="btn" id="btn-auto-match" style="width:100%;justify-content:center;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+            번호 자동매칭
+          </button>
+        </div>
+      </div>
+      <div id="photo-list-wrap" class="scroll-y">
+        <div class="empty-state">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          <span>폴더를 선택해 사진을 불러오세요</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- 상태 메시지 -->
+<div id="status-msg"></div>
+
+<!-- ===== 도곽 설정 모달 ===== -->
+<div class="modal-overlay hidden" id="modal-titleblock">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h2>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="1"/><line x1="3" y1="17" x2="21" y2="17"/><line x1="11" y1="17" x2="11" y2="21"/></svg>
+        도곽 설정
+      </h2>
+      <button class="modal-close" id="modal-tb-close">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field-row">
+        <label>PROJECT TITLE (프로젝트명)</label>
+        <input type="text" class="field-input" id="tb-project-title" placeholder="예: 00시설물 정기안전점검용역">
+      </div>
+      <div class="field-row">
+        <label>DRAWING NAME (도면명)</label>
+        <input type="text" class="field-input" id="tb-drawing-name" placeholder="예: 외관조사망도(지상1층)">
+      </div>
+      <div class="field-row">
+        <label>SCALE (축척)</label>
+        <input type="text" class="field-input" id="tb-scale" placeholder="예: 1:100 또는 NONE">
+      </div>
+      <div class="field-row">
+        <label>도곽 크기 배율 — <span id="tb-scale-val">1.0</span>×</label>
+        <input type="range" id="tb-scale-slider" min="0.5" max="3.0" step="0.1" value="1.0"
+          style="width:100%;margin-top:4px;">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" id="modal-tb-cancel">취소</button>
+      <button class="btn btn-accent" id="modal-tb-apply">적용</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 스크립트 ===== -->
+<script>
+  (function() {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    s.onload = () => { pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; };
+    document.head.appendChild(s);
+  })();
+  (function() {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+    document.head.appendChild(s);
+  })();
+</script>
+<script src="js/annotation.js"></script>
+<script src="js/canvas.js"></script>
+<script src="js/fileManager.js"></script>
+<script src="js/sidebar.js"></script>
+<script src="js/pageManager.js"></script>
+<script src="js/titleBlock.js"></script>
+<script src="js/app.js"></script>
+
+<script>
+  document.getElementById('btn-open-drop').addEventListener('click', () => document.getElementById('file-input').click());
+  document.getElementById('btn-zoom-in2').addEventListener('click',  () => CanvasManager.zoomIn());
+  document.getElementById('btn-zoom-out2').addEventListener('click', () => CanvasManager.zoomOut());
+  document.getElementById('ortho-toggle-side').addEventListener('change', e => {
+    document.getElementById('ortho-toggle').checked = e.target.checked;
+    document.getElementById('ortho-toggle').dispatchEvent(new Event('change'));
+  });
+  document.getElementById('ortho-toggle').addEventListener('change', e => {
+    const side = document.getElementById('ortho-toggle-side');
+    if (side) side.checked = e.target.checked;
+  });
+</script>
+</body>
+</html>
