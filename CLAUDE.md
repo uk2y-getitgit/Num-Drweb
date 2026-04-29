@@ -233,12 +233,59 @@ Num-Drweb/
 - [x] 넘버링 배율(scale) 전 페이지 동기화 — fromJSON 시 scale·tbScale 보존
 - [x] 페이지 전환 후 넘버링 미표기 — onSwitch 먼저, Annotation 복원 나중
 
-### Phase 3 — Electron 빌드 예정
+### Phase 2-e — 오류 수정 + 기능 보완 완료
+- [x] 페이지 중복 생성 버그 근본 해결
+      - 원인: dropzone이 canvas-wrap 내부에 있어 drop 이벤트 버블링 → _loadFile 2회 호출
+      - 수정: wrap 단일 핸들러로 통합 (stopPropagation 대신 구조 정리)
+      - 추가: PageManager.clearAll() — 이미지 불러오기 시 기존 페이지 완전 초기화
+- [x] 편집화면 A4 고정 규격 (150dpi 기준: portrait 1240×1754 / landscape 1754×1240)
+      - pageManager.js 내부에서 모든 이미지·PDF를 A4 캔버스로 자동 변환
+      - 이미지는 상하좌우 여백(30px) + 하단 도곽 예약(80px) 안에 Contain 모드로 배치
+- [x] 불러오는 이미지 해상도 자동 조정 (A4 내 여백 영역 기준, 중앙 배치)
+- [x] 도곽 개별 항목 수정 기능
+      - 열 너비 비율 (PROJECT TITLE / DRAWING NAME / SCALE) 슬라이더 조정
+      - 라벨·내용 글씨 크기 개별 입력
+      - 표제란 높이 슬라이더 조정
+
+### Phase 3-a — 사진 파일명 변경 (테스트 버전 완료)
+- [x] 사이드바 사진 탭 내 "파일명 변경" 섹션 추가
+- [x] 매칭 번호 입력 → 해당 번호와 매칭된 사진 파일 자동 검색
+- [x] 새 파일명 입력 → 원본 파일 읽기 → 새 파일 생성 → 원본 삭제
+      (File System Access API: readwrite 모드, folderHandle.removeEntry 사용)
+- [x] 변경 결과 실시간 표시 (성공: 초록, 실패: 빨강)
+
+### Phase 3-b — 다음 예정 (UI 개선 3종)
+
+#### 3-b-1. 사이드바 목록 전체 페이지 통합 표시
+- 넘버링 탭: 현재 페이지 목록만 표시 → **전체 페이지** 넘버링 통합 목록으로 변경
+  - 페이지 구분 헤더(예: "P1 — 외관조사망도") 사이에 해당 페이지 넘버링 나열
+  - 페이지 이동 없이 전체 번호 현황 한눈에 파악
+- 사진 탭: 폴더 내 사진을 전체 페이지 넘버링 기준으로 미리보기 표시
+
+#### 3-b-2. 사이드바 사진번호 입력 UX 개선
+- 우측 사이드바 전체 너비 확장 (220px → 260px 검토)
+- `photo-num-input` 크기 확장 (현재 38px → 54px 이상)
+- `type="number"` 숫자 상·하 스핀 버튼 CSS로 숨김
+  (`-webkit-appearance: none` / `-moz-appearance: textfield`)
+- **Tab 키 순차 이동**: 1F-01 사진번호 입력 후 Tab → 1F-02 사진번호 입력칸으로 포커스 이동
+  - sidebar.js `renderNumList` 이벤트에서 keydown Tab 감지 후 다음 `.photo-num-input` focus()
+
+#### 3-b-3. 도곽 설정 팝업 UX 개선
+- 모달 오버레이 배경 제거 (`rgba` 어둡게 막는 overlay → 투명 또는 삭제)
+- 팝업창 위치: 화면 우측 또는 좌측 끝에 고정 (캔버스 영역을 가리지 않도록)
+  - `position: fixed; right: var(--sidebar-w); top: var(--toolbar-h);` 방식 검토
+  - 또는 사이드바 위에 drawer 형태로 슬라이드 표시
+- 팝업 띄운 상태에서 캔버스 완전히 상호작용 가능 (슬라이더 조절 시 즉시 캔버스 확인)
+- 현재 `.modal-overlay { backdrop-filter: blur(2px) }` 제거 대상
+
+### Phase 3-c — 장기 예정
 - [ ] Electron 패키징 (Windows .exe 설치파일)
 - [ ] CDN → 로컬 lib 파일 교체 (오프라인 지원)
 - [ ] Excel 사진첩 보고서 내보내기 (SheetJS)
+  - 넘버링 번호 + 매칭 사진 + 위치 정보 포함
+  - 사진첩 양식 자동 생성 (번호/사진/설명 레이아웃)
 
-### Phase 3 — 온라인 확장
+### Phase 4 — 온라인 확장 (장기)
 - [ ] 프로젝트 클라우드 동기화
 - [ ] 팀 공유 기능
 - [ ] 모바일/태블릿 터치 지원

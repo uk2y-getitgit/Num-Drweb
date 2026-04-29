@@ -4,17 +4,40 @@
 const TitleBlock = (() => {
   let enabled = false;
 
+  const BASE = {
+    margin:  20,   // 외곽 여백(px) — tbScale=1 기준
+    borderW: 1.5,
+  };
+
   let settings = {
     projectTitle: '',
     drawingName:  '',
     scale:        'NONE',
+    /* 열 비율 (0~1, 합계 ≤ 1 — 나머지가 SCALE 열) */
+    col0: 0.42,
+    col1: 0.46,
+    /* 글씨 크기 기준값 (px, tbScale=1 기준) */
+    labelFontSz: 10,
+    valueFontSz: 14,
+    /* 표제란 높이 기준값 (px, tbScale=1 기준) */
+    blockH: 68,
   };
 
   function init() {}
   function setEnabled(v) { enabled = v; }
   function isEnabled()   { return enabled; }
-  function applySettings(patch) { Object.assign(settings, patch); }
-  function getSettings()        { return { ...settings }; }
+
+  function applySettings(patch) {
+    /* col0+col1 합이 0.9 초과하면 col1 자동 보정 */
+    if (patch.col0 !== undefined || patch.col1 !== undefined) {
+      const c0 = patch.col0 !== undefined ? patch.col0 : settings.col0;
+      const c1 = patch.col1 !== undefined ? patch.col1 : settings.col1;
+      if (c0 + c1 > 0.90) patch.col1 = Math.max(0.05, 0.90 - c0);
+    }
+    Object.assign(settings, patch);
+  }
+
+  function getSettings() { return { ...settings }; }
 
   /* ── 도곽 렌더 ──
      canvasW × canvasH 는 A4 비례로 생성된 용지 캔버스 전체 크기.
@@ -26,14 +49,9 @@ const TitleBlock = (() => {
     const tbScale = (typeof Annotation !== 'undefined')
       ? (Annotation.getConfig().tbScale || 1) : 1;
 
-    /* A4 비례 계산 */
-    const landscape = canvasW >= canvasH;
-    const a4W = landscape ? 297 : 210;   // mm
-    const pxMm = canvasW / a4W;          // pixels per mm
-
-    const M  = Math.round(10 * pxMm);                    // 10mm 여백
-    const BH = Math.round(20 * pxMm * tbScale);           // 표제란 높이 20mm × 배율
-    const LW = Math.max(0.5, Math.round(pxMm * 4) / 10); // 선 두께 ~0.4mm
+    const M  = Math.round(BASE.margin        * tbScale);
+    const BH = Math.round(settings.blockH    * tbScale);
+    const LW = BASE.borderW;
 
     ctx.save();
     ctx.strokeStyle = '#111';
@@ -49,67 +67,63 @@ const TitleBlock = (() => {
     ctx.fillStyle = '#fff';
     ctx.fillRect(bx, by, bw, bh);
 
-    /* 표제란 상단 구분선 (굵게) */
-    ctx.lineWidth = LW * 2;
+    /* 표제란 상단 구분선 */
+    ctx.strokeStyle = '#111';
+    ctx.lineWidth   = LW * 1.5;
     ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx + bw, by); ctx.stroke();
     ctx.lineWidth = LW;
 
-    /* ③ 열 비율: [PT 42%] | [DN 46%] | [SC 12%] */
-    const c0 = Math.round(bw * 0.42);
-    const c1 = Math.round(bw * 0.46);
+    /* ③ 열 비율 적용 */
+    const c0 = Math.round(bw * settings.col0);
+    const c1 = Math.round(bw * settings.col1);
     const c2 = bw - c0 - c1;
 
-    [[c0], [c0 + c1]].forEach(([dx]) => {
+    /* 세로 구분선 */
+    [c0, c0 + c1].forEach(dx => {
       ctx.beginPath();
       ctx.moveTo(bx + dx, by);
       ctx.lineTo(bx + dx, by + bh);
       ctx.stroke();
     });
 
-    /* ④ 셀 내용 렌더 — tScale: mm → px 변환 + 텍스트 배율 */
-    const tScale = pxMm * tbScale;
-    _renderCell(ctx, bx,           by, c0, bh, 'PROJECT TITLE', settings.projectTitle, tScale);
-    _renderCell(ctx, bx + c0,      by, c1, bh, 'DRAWING NAME',  settings.drawingName,  tScale);
-    _renderScaleCell(ctx, bx + c0 + c1, by, c2, bh, settings.scale || 'NONE', tScale);
+    /* ④ 각 셀 렌더 */
+    _renderCell(ctx, bx,           by, c0, bh, 'PROJECT TITLE', settings.projectTitle, tbScale);
+    _renderCell(ctx, bx + c0,      by, c1, bh, 'DRAWING NAME',  settings.drawingName,  tbScale);
+    _renderScaleCell(ctx, bx + c0 + c1, by, c2, bh, settings.scale || 'NONE', tbScale);
 
     ctx.restore();
   }
 
   /* 라벨 + 내용 셀 */
-  function _renderCell(ctx, cx, cy, cw, ch, label, value, tScale) {
-    const PAD     = Math.max(4, Math.round(2.0 * tScale));
-    /* 폰트 크기를 셀 높이의 일정 비율로 제한해 넘침 방지 */
-    const labelSz = Math.max(7, Math.min(Math.round(2.6 * tScale), Math.round(ch * 0.22)));
-    const labelH  = labelSz + Math.round(1.4 * tScale);
-    const valueSz = Math.max(10, Math.min(Math.round(4.8 * tScale), Math.round(ch * 0.50)));
-    const valueArea = ch - labelH;
+  function _renderCell(ctx, cx, cy, cw, ch, label, value, tbScale) {
+    const PAD     = Math.max(5, Math.round(8 * tbScale));
+    const labelSz = Math.max(6, Math.round(settings.labelFontSz * tbScale));
+    const labelH  = labelSz + Math.round(4 * tbScale);
+    const valueSz = Math.max(8, Math.round(settings.valueFontSz * tbScale));
+    const valArea = ch - labelH;
 
-    /* 라벨 */
     ctx.font         = `600 ${labelSz}px "Malgun Gothic","Arial",sans-serif`;
     ctx.fillStyle    = '#666';
     ctx.textAlign    = 'left';
     ctx.textBaseline = 'top';
     ctx.fillText(label, cx + PAD, cy + Math.round(1.4 * tScale));
 
-    /* 내용 — 세로 중앙 정렬 */
     ctx.font      = `700 ${valueSz}px "Malgun Gothic","Arial",sans-serif`;
     ctx.fillStyle = '#111';
-    const maxW  = cw - PAD * 2;
-    const lines = _wrapText(ctx, value || '', maxW, 2);
-    const lineH = valueSz * 1.25;
-    const textH = lines.length * lineH;
-    const startY = cy + labelH + (valueArea - textH) / 2 + valueSz * 0.1;
+    const maxW    = cw - PAD * 2;
+    const lines   = _wrapText(ctx, value || '', maxW, 2);
+    const lineH   = valueSz * 1.25;
+    const textH   = lines.length * lineH;
+    const startY  = cy + labelH + (valArea - textH) / 2 + valueSz * 0.1;
 
     ctx.textBaseline = 'top';
-    lines.forEach((line, i) => {
-      ctx.fillText(line, cx + PAD, startY + i * lineH);
-    });
+    lines.forEach((line, i) => ctx.fillText(line, cx + PAD, startY + i * lineH));
   }
 
   /* SCALE 셀 */
-  function _renderScaleCell(ctx, cx, cy, cw, ch, value, tScale) {
-    const labelSz = Math.max(7, Math.min(Math.round(2.6 * tScale), Math.round(ch * 0.22)));
-    const valueSz = Math.max(9, Math.min(Math.round(4.2 * tScale), Math.round(ch * 0.45)));
+  function _renderScaleCell(ctx, cx, cy, cw, ch, value, tbScale) {
+    const labelSz = Math.max(6,  Math.round(settings.labelFontSz * tbScale));
+    const valueSz = Math.max(8,  Math.round((settings.valueFontSz - 1) * tbScale));
 
     ctx.font         = `600 ${labelSz}px "Malgun Gothic","Arial",sans-serif`;
     ctx.fillStyle    = '#666';
@@ -128,7 +142,7 @@ const TitleBlock = (() => {
     if (!text) return [''];
     const words = text.split(/\s+/);
     const lines = [];
-    let   line  = '';
+    let line = '';
     for (const w of words) {
       const test = line ? line + ' ' + w : w;
       if (ctx.measureText(test).width > maxW && line) { lines.push(line); line = w; }
@@ -145,5 +159,17 @@ const TitleBlock = (() => {
     return lines;
   }
 
-  return { init, setEnabled, isEnabled, applySettings, getSettings, render };
+  /* 합성 Canvas */
+  function compositeCanvas(imgEl, annotationCanvas, imgW, imgH) {
+    const comp = document.createElement('canvas');
+    comp.width  = imgW;
+    comp.height = imgH;
+    const ctx   = comp.getContext('2d');
+    ctx.drawImage(imgEl, 0, 0, imgW, imgH);
+    ctx.drawImage(annotationCanvas, 0, 0);
+    render(ctx, imgW, imgH);
+    return comp;
+  }
+
+  return { init, setEnabled, isEnabled, applySettings, getSettings, render, compositeCanvas };
 })();

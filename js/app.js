@@ -3,19 +3,19 @@
 
 document.addEventListener('DOMContentLoaded', () => {
   /* ── DOM 참조 ── */
-  const wrap             = document.getElementById('canvas-wrap');
-  const container        = document.getElementById('canvas-container');
-  const imgEl            = document.getElementById('drawing-img');
-  const drawCanvas       = document.getElementById('drawing-canvas');
+  const wrap           = document.getElementById('canvas-wrap');   // 드래그앤드롭용
+  const canvasArea     = document.getElementById('canvas-area');   // CanvasManager용 (D)
+  const container      = document.getElementById('canvas-container');
+  const imgEl          = document.getElementById('drawing-img');
+  const drawCanvas     = document.getElementById('drawing-canvas');
   const interactionLayer = document.getElementById('interaction-layer');
-  const dropzone         = document.getElementById('dropzone');
-  const statusMsg        = document.getElementById('status-msg');
-  const orthoToggle      = document.getElementById('ortho-toggle');
+  const dropzone       = document.getElementById('dropzone');
+  const statusMsg      = document.getElementById('status-msg');
+  const orthoToggle    = document.getElementById('ortho-toggle');
 
-  /* ── CanvasManager 초기화 (Annotation보다 먼저) ── */
-  CanvasManager.init(wrap, container, imgEl, drawCanvas, interactionLayer);
+  /* ── CanvasManager 초기화 (canvas-area 전달 — D) ── */
+  CanvasManager.init(canvasArea, container, imgEl, drawCanvas, interactionLayer);
 
-  /* afterRender 콜백 — renderAnnotations 완료 후 항상 도곽 오버레이 */
   CanvasManager.setAfterRender((ctx, w, h) => {
     if (TitleBlock.isEnabled() && w) TitleBlock.render(ctx, w, h);
   });
@@ -23,10 +23,9 @@ document.addEventListener('DOMContentLoaded', () => {
   /* ── Annotation 초기화 ── */
   Annotation.init(() => {
     const items = Annotation.getAll();
-    /* renderAnnotations → afterRender(도곽) 자동 포함 */
+    FileManager.autoMatch(items);           // customPhotoNum 반영 후
     CanvasManager.renderAnnotations(items);
     Sidebar.renderNumList(items);
-    Sidebar.renderPhotoList(FileManager.getPhotos(), items);
     const cv = document.querySelector('.count-val');
     if (cv) cv.textContent = items.length;
     _updateNextNumDisplay();
@@ -37,19 +36,19 @@ document.addEventListener('DOMContentLoaded', () => {
   Sidebar.init({
     onSelectNum:  () => {},
     onDeleteNum:  (id) => { Annotation.remove(id); showMsg('넘버링 삭제됨', 'warn'); },
-    onMatchPhoto: (name) => { showMsg(name + ' 선택됨', 'info'); },
+    onMatchPhoto: () => {},
   });
 
   /* ── FileManager 초기화 ── */
   FileManager.init((photos) => {
-    Sidebar.renderPhotoList(photos, Annotation.getAll());
+    /* 폴더 로드 시 자동매칭 + 미리보기 갱신 */
     FileManager.autoMatch(Annotation.getAll());
     Sidebar.renderNumList(Annotation.getAll());
+    _refreshRenamePreview();
   });
 
   CanvasManager.onAdd((p1, p2, type) => {
     Annotation.add(p1, p2, type);
-    _autoMatchAndRender();
     showMsg('넘버 ' + (Annotation.getNextNum() - 1) + ' 추가', 'success');
   });
 
@@ -63,8 +62,9 @@ document.addEventListener('DOMContentLoaded', () => {
       CanvasManager.loadImage(page.imgSrc, page.imgW, page.imgH);
       dropzone.classList.add('has-file');
       document.getElementById('file-name').textContent = page.name;
-      /* 페이지별 설정 동기화 */
       _syncSettingsUI();
+      /* B: 페이지별 Drawing Name 적용 */
+      TitleBlock.applySettings({ drawingName: page.drawingName || '' });
     },
     /* onListChange */ () => { _renderPageList(); }
   );
@@ -72,7 +72,7 @@ document.addEventListener('DOMContentLoaded', () => {
   /* ── TitleBlock 초기화 ── */
   TitleBlock.init();
 
-  /* ── 페이지 추가 / 삭제 ── */
+  /* ── 페이지 패널 추가(+) / 삭제(−) ── */
   const pageAddInput = document.getElementById('page-add-input');
 
   document.getElementById('btn-page-add').addEventListener('click', () => pageAddInput.click());
@@ -84,23 +84,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const ext = file.name.split('.').pop().toLowerCase();
 
     if (ext === 'pdf') {
-      /* PDF → 각 페이지를 별도 페이지로 추가 */
       if (!window.pdfjsLib) { showMsg('PDF.js 로드 대기 중', 'warn'); return; }
-      const loading = document.getElementById('page-panel-loading');
+      const loading  = document.getElementById('page-panel-loading');
       const loadText = document.getElementById('page-loading-text');
       loading.classList.remove('hidden');
-      const buf = await file.arrayBuffer();
+      const buf    = await file.arrayBuffer();
       const pdfDoc = await pdfjsLib.getDocument({ data: buf }).promise;
-      for (let i = 1; i <= pdfDoc.numPages; i++) {
-        if (loadText) loadText.textContent = `추가 중 ${i}/${pdfDoc.numPages}`;
-        const page  = await pdfDoc.getPage(i);
-        const vp    = page.getViewport({ scale: 2 });
-        const off   = document.createElement('canvas');
-        off.width = vp.width; off.height = vp.height;
-        await page.render({ canvasContext: off.getContext('2d'), viewport: vp }).promise;
-        PageManager.addImagePage(off.toDataURL('image/png'), vp.width, vp.height,
-          file.name.replace(/\.[^.]+$/, '') + (pdfDoc.numPages > 1 ? `-P${i}` : ''));
-      }
+      await PageManager.loadPDFPages(pdfDoc, (cur, total) => {
+        if (loadText) loadText.textContent = `추가 중 ${cur}/${total}`;
+      }, true);
       loading.classList.add('hidden');
       showMsg(file.name + ' 페이지 추가 완료', 'success');
     } else {
@@ -121,28 +113,27 @@ document.addEventListener('DOMContentLoaded', () => {
     showMsg('페이지 삭제됨', 'warn');
   });
 
-  /* ── 파일 불러오기 ── */
+  /* ── 파일 불러오기 (도면 열기 버튼) ── */
   document.getElementById('btn-open').addEventListener('click', () => document.getElementById('file-input').click());
   document.getElementById('file-input').addEventListener('change', e => {
     const file = e.target.files[0];
-    if (file) _loadFile(file);
+    if (file) _loadFile(file, false);
     e.target.value = '';
   });
 
-  /* dragover/dragleave 는 양쪽에서 시각 효과 처리 */
-  [wrap, dropzone].forEach(el => {
-    el.addEventListener('dragover',  e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
-    el.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
+  /* ── 드래그앤드롭: wrap 단일 핸들러 ── */
+  wrap.addEventListener('dragover',  e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
+  wrap.addEventListener('dragleave', e => {
+    if (!wrap.contains(e.relatedTarget)) dropzone.classList.remove('drag-over');
   });
-  /* drop 핸들러는 wrap 에만 — dropzone 이 wrap 내부에 있어 이벤트 버블링으로 중복 실행 방지 */
   wrap.addEventListener('drop', e => {
-    e.preventDefault(); dropzone.classList.remove('drag-over');
+    e.preventDefault();
+    dropzone.classList.remove('drag-over');
     const file   = e.dataTransfer.files[0];
     const append = PageManager.hasPages();
     if (file) _loadFile(file, append);
   });
 
-  /* append=true이면 기존 페이지 유지 후 끝에 추가 */
   async function _loadFile(file, append = false) {
     const ext = file.name.split('.').pop().toLowerCase();
     if (ext === 'pdf') {
@@ -155,17 +146,11 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function _loadImageFile(file, append = false) {
-    const reader = new FileReader();
-    reader.onload = e => {
-      const img = new Image();
-      img.onload = () => {
-        if (!append) Annotation.clear();
-        PageManager.addImagePage(e.target.result, img.naturalWidth, img.naturalHeight, file.name);
-        showMsg(file.name + (append ? ' 페이지 추가됨' : ' 불러오기 완료'), 'success');
-      };
-      img.src = e.target.result;
-    };
-    reader.readAsDataURL(file);
+    if (!append) PageManager.clearAll();
+    PageManager.addPageFromFile(file, status => {
+      if (status === 'ok') showMsg(file.name + (append ? ' 페이지 추가됨' : ' 불러오기 완료'), 'success');
+      else showMsg('지원하지 않는 파일 형식입니다', 'warn');
+    });
   }
 
   async function _loadPDF(file, append = false) {
@@ -175,7 +160,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loading.classList.remove('hidden');
 
     const arrayBuffer = await file.arrayBuffer();
-    const pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const pdfDoc      = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
     await PageManager.loadPDFPages(pdfDoc, (cur, total) => {
       if (loadText) loadText.textContent = `${cur} / ${total} 페이지`;
@@ -265,7 +250,7 @@ document.addEventListener('DOMContentLoaded', () => {
     CanvasManager.setLineWidth(parseFloat(e.target.value));
   });
 
-  /* ── 크기 축척 슬라이더 ── */
+  /* ── 넘버링 크기 배율 슬라이더 ── */
   document.getElementById('annotation-scale').addEventListener('input', e => {
     const v = parseFloat(e.target.value);
     document.getElementById('annotation-scale-val').textContent = v.toFixed(1);
@@ -299,13 +284,44 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   /* ── 키보드 단축키 ── */
+  const LINE_STYLES = ['straight', 'elbow-h', 'elbow-v', 'zigzag'];
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape')                           CanvasManager.cancelDraw();
-    if (e.key === 'F5')                             { e.preventDefault(); CanvasManager.fitToView(); }
-    if ((e.ctrlKey||e.metaKey) && e.key === 'z')   { e.preventDefault(); _undo(); }
+    const tag = e.target.tagName;
+    const isInput = tag === 'INPUT' || tag === 'TEXTAREA';
+
+    if (e.key === 'Escape') { CanvasManager.cancelDraw(); return; }
+    if (e.key === 'F5')     { e.preventDefault(); CanvasManager.fitToView(); return; }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); _undo(); return; }
+
+    if (isInput) return; // 이하 단축키: 입력 필드에서는 무시
+
+    /* Q: 직교모드 */
     if (e.key === 'q' || e.key === 'Q') {
       orthoToggle.checked = !orthoToggle.checked;
       orthoToggle.dispatchEvent(new Event('change'));
+    }
+
+    /* R: 화살표 반전 (A-3) */
+    if (e.key === 'r' || e.key === 'R') {
+      const flipToggle = document.getElementById('arrow-flip-toggle');
+      if (flipToggle) {
+        flipToggle.checked = !flipToggle.checked;
+        flipToggle.dispatchEvent(new Event('change'));
+      }
+    }
+
+    /* Tab: 선 스타일 로테이션 (A-4) */
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const cfg  = Annotation.getConfig();
+      const cur  = LINE_STYLES.indexOf(cfg.lineStyle || 'straight');
+      const next = LINE_STYLES[(cur + 1) % LINE_STYLES.length];
+      Annotation.setConfig({ lineStyle: next });
+      document.querySelectorAll('.line-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.line === next);
+      });
+      const labels = { straight:'직선', 'elbow-h':'ㄱ자', 'elbow-v':'ㄴ자', zigzag:'번개' };
+      showMsg(labels[next] + ' 선 선택', 'info');
     }
   });
 
@@ -319,38 +335,132 @@ document.addEventListener('DOMContentLoaded', () => {
     const name = await FileManager.selectFolder();
     if (name) { Sidebar.setFolderPath(name); showMsg(name + ' 폴더 로드됨', 'success'); }
   });
-  document.getElementById('prefix-filter').addEventListener('input', e => FileManager.filterByPrefix(e.target.value));
-  document.getElementById('btn-auto-match').addEventListener('click', () => {
-    FileManager.autoMatch(Annotation.getAll());
-    const items = Annotation.getAll();
-    Sidebar.renderNumList(items);
-    Sidebar.renderPhotoList(FileManager.getPhotos(), items);
-    showMsg('자동매칭 완료', 'success');
+
+  /* ── 파일명 미리보기 새로고침 (C-3) ── */
+  document.getElementById('btn-preview-refresh').addEventListener('click', () => {
+    _refreshRenamePreview();
+    showMsg('미리보기 갱신', 'info');
   });
 
-  /* ── 도곽 설정 모달 ── */
+  /* ── 파일명 일괄 변경 (C-3) ── */
+  document.getElementById('btn-rename-all').addEventListener('click', async () => {
+    const annotations = Annotation.getAll();
+    if (!annotations.length) { showMsg('넘버링이 없습니다', 'warn'); return; }
+    if (!confirm('미리보기의 [▶ 준비] 항목을 모두 파일명 변경하시겠습니까?')) return;
+
+    showMsg('파일명 변경 중...', 'info');
+    try {
+      const results = await FileManager.renameAll(annotations);
+      const ok      = results.filter(r => r.status === 'ok').length;
+      const err     = results.filter(r => r.status === 'error').length;
+      FileManager.autoMatch(annotations);
+      Sidebar.renderNumList(annotations);
+      _refreshRenamePreview();
+      showMsg(`변경 완료: ${ok}건 성공${err ? ', ' + err + '건 오류' : ''}`, ok ? 'success' : 'warn');
+    } catch (e) {
+      showMsg('변경 실패: ' + e.message, 'warn');
+    }
+  });
+
+  /* ── 도곽 설정 모달 열기 ── */
   document.getElementById('btn-titleblock').addEventListener('click', () => {
-    const s    = TitleBlock.getSettings();
-    const cfg  = Annotation.getConfig();
+    const s   = TitleBlock.getSettings();
+    const cfg = Annotation.getConfig();
+
     document.getElementById('tb-project-title').value = s.projectTitle;
-    document.getElementById('tb-drawing-name').value  = s.drawingName;
-    document.getElementById('tb-scale').value         = s.scale || 'NONE';
-    /* 도곽 배율 슬라이더 현재값 반영 */
+
+    /* B: 현재 페이지의 drawingName 로드 */
+    const activePage = PageManager.getActivePage();
+    document.getElementById('tb-drawing-name').value = activePage?.drawingName || s.drawingName || '';
+
+    document.getElementById('tb-scale').value = s.scale || 'NONE';
+
+    /* 도곽 배율 */
+    const cur = cfg.tbScale || 1.0;
     const tbSlider = document.getElementById('tb-scale-slider');
     const tbLabel  = document.getElementById('tb-scale-val');
-    const cur = cfg.tbScale || 1.0;
     if (tbSlider) tbSlider.value = cur;
     if (tbLabel)  tbLabel.textContent = cur.toFixed(1);
+
+    /* 열 비율 */
+    _setTbColUI(s.col0, s.col1);
+
+    /* 글씨 크기 슬라이더 (A-2) */
+    const lSz    = document.getElementById('tb-label-sz');
+    const vSz    = document.getElementById('tb-value-sz');
+    const lSzVal = document.getElementById('tb-label-sz-val');
+    const vSzVal = document.getElementById('tb-value-sz-val');
+    if (lSz) lSz.value = s.labelFontSz;
+    if (vSz) vSz.value = s.valueFontSz;
+    if (lSzVal) lSzVal.textContent = s.labelFontSz;
+    if (vSzVal) vSzVal.textContent = s.valueFontSz;
+
+    /* 표제란 높이 */
+    const bhSlider = document.getElementById('tb-blockh');
+    const bhLabel  = document.getElementById('tb-blockh-val');
+    if (bhSlider) bhSlider.value = s.blockH;
+    if (bhLabel)  bhLabel.textContent = s.blockH;
+
     document.getElementById('modal-titleblock').classList.remove('hidden');
   });
 
-  /* 도곽 배율 슬라이더 — 실시간 미리보기 */
+  /* ── 도곽 배율 슬라이더 실시간 미리보기 ── */
   document.getElementById('tb-scale-slider').addEventListener('input', e => {
     const v = parseFloat(e.target.value);
     document.getElementById('tb-scale-val').textContent = v.toFixed(1);
-    Annotation.setConfig({ tbScale: v }); // onChange → _renderTitleBlock 자동 호출
+    Annotation.setConfig({ tbScale: v });
+    _renderTitleBlock();
   });
 
+  /* ── 열 비율 슬라이더 실시간 미리보기 (A-1) ── */
+  document.getElementById('tb-col0').addEventListener('input', e => {
+    const c0 = parseInt(e.target.value, 10) / 100;
+    const c1 = TitleBlock.getSettings().col1;
+    _setTbColUI(c0, c1);
+    TitleBlock.applySettings({ col0: c0, col1: Math.min(c1, 0.90 - c0) });
+    _renderTitleBlock();
+  });
+  document.getElementById('tb-col1').addEventListener('input', e => {
+    const c0 = TitleBlock.getSettings().col0;
+    const c1 = parseInt(e.target.value, 10) / 100;
+    _setTbColUI(c0, c1);
+    TitleBlock.applySettings({ col0: c0, col1: Math.min(c1, 0.90 - c0) });
+    _renderTitleBlock();
+  });
+
+  function _setTbColUI(c0, c1) {
+    const clampedC1 = Math.min(c1, 0.90 - c0);
+    const c2        = Math.max(0.05, 1 - c0 - clampedC1);
+    document.getElementById('tb-col0').value      = Math.round(c0 * 100);
+    document.getElementById('tb-col0-val').textContent = Math.round(c0 * 100);
+    document.getElementById('tb-col1').value      = Math.round(clampedC1 * 100);
+    document.getElementById('tb-col1-val').textContent = Math.round(clampedC1 * 100);
+    document.getElementById('tb-col2-val').textContent = Math.round(c2 * 100);
+  }
+
+  /* ── 표제란 높이 슬라이더 실시간 미리보기 (A-1) ── */
+  document.getElementById('tb-blockh').addEventListener('input', e => {
+    const v = parseInt(e.target.value, 10);
+    document.getElementById('tb-blockh-val').textContent = v;
+    TitleBlock.applySettings({ blockH: v });
+    _renderTitleBlock();
+  });
+
+  /* ── 글씨 크기 슬라이더 실시간 미리보기 (A-2) ── */
+  document.getElementById('tb-label-sz').addEventListener('input', e => {
+    const v = parseInt(e.target.value, 10);
+    document.getElementById('tb-label-sz-val').textContent = v;
+    TitleBlock.applySettings({ labelFontSz: v });
+    _renderTitleBlock();
+  });
+  document.getElementById('tb-value-sz').addEventListener('input', e => {
+    const v = parseInt(e.target.value, 10);
+    document.getElementById('tb-value-sz-val').textContent = v;
+    TitleBlock.applySettings({ valueFontSz: v });
+    _renderTitleBlock();
+  });
+
+  /* ── 모달 닫기 ── */
   ['modal-tb-close','modal-tb-cancel'].forEach(id => {
     document.getElementById(id).addEventListener('click', () => {
       document.getElementById('modal-titleblock').classList.add('hidden');
@@ -361,18 +471,33 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.target === e.currentTarget) e.currentTarget.classList.add('hidden');
   });
 
+  /* ── 도곽 설정 적용 ── */
   document.getElementById('modal-tb-apply').addEventListener('click', () => {
+    const c0 = parseInt(document.getElementById('tb-col0').value, 10) / 100;
+    const c1 = parseInt(document.getElementById('tb-col1').value, 10) / 100;
+
+    /* B: drawingName은 현재 페이지에만 저장 */
+    const drawingNameInput = document.getElementById('tb-drawing-name').value;
+    const activePage = PageManager.getActivePage();
+    if (activePage) activePage.drawingName = drawingNameInput;
+
+    /* 나머지는 전체 공통 적용 */
     TitleBlock.applySettings({
       projectTitle: document.getElementById('tb-project-title').value,
-      drawingName:  document.getElementById('tb-drawing-name').value,
+      drawingName:  drawingNameInput,  // 현재 페이지에 즉시 반영
       scale:        document.getElementById('tb-scale').value || 'NONE',
+      col0:         c0,
+      col1:         c1,
+      labelFontSz:  parseInt(document.getElementById('tb-label-sz').value, 10) || 10,
+      valueFontSz:  parseInt(document.getElementById('tb-value-sz').value, 10) || 14,
+      blockH:       parseInt(document.getElementById('tb-blockh').value, 10)   || 68,
     });
     document.getElementById('modal-titleblock').classList.add('hidden');
     _renderTitleBlock();
     showMsg('도곽 설정 적용됨', 'success');
   });
 
-  /* 도곽 ON/OFF 토글 */
+  /* ── 도곽 ON/OFF ── */
   document.getElementById('titleblock-toggle').addEventListener('change', e => {
     TitleBlock.setEnabled(e.target.checked);
     _renderTitleBlock();
@@ -389,28 +514,48 @@ document.addEventListener('DOMContentLoaded', () => {
 
     showMsg('PDF 생성 중...', 'info');
 
-    /* 현재 페이지 — drawCanvas 에 배경+이미지+넘버링+도곽이 이미 합성되어 있음 */
+    const comp    = TitleBlock.compositeCanvas(imgEl, drawCanvas, w, h);
+    const imgData = comp.toDataURL('image/jpeg', 0.95);
+
     const { jsPDF } = window.jspdf;
     const orient = w >= h ? 'landscape' : 'portrait';
     const pdf    = new jsPDF({ orientation: orient, unit: 'px', format: [w, h] });
-    pdf.addImage(CanvasManager.getCanvas().toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, w, h);
+    pdf.addImage(imgData, 'JPEG', 0, 0, w, h);
 
-    /* 다중 페이지 처리 */
+    /* 다중 페이지 */
     if (PageManager.hasPages() && PageManager.getPages().length > 1) {
-      const pages    = PageManager.getPages();
+      const allPages = PageManager.getPages();
       const activeId = PageManager.getActiveId();
 
-      for (const page of pages) {
+      for (const page of allPages) {
         if (page.id === Number(activeId)) continue;
-        const { canvas: pc, w: pw, h: ph } = await CanvasManager.createPageExport(
-          page.imgSrc, page.imgW, page.imgH, page.annJSON
-        );
-        pdf.addPage([pw, ph], pw >= ph ? 'landscape' : 'portrait');
-        pdf.addImage(pc.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, pw, ph);
+        const offImg = new Image();
+        await new Promise(resolve => { offImg.onload = resolve; offImg.src = page.imgSrc; });
+        const off  = document.createElement('canvas');
+        off.width  = page.imgW; off.height = page.imgH;
+        const octx = off.getContext('2d');
+        octx.drawImage(offImg, 0, 0);
+        if (page.annJSON) {
+          const saved = Annotation.toJSON();
+          Annotation.fromJSON(page.annJSON);
+          CanvasManager.renderAnnotations(Annotation.getAll());
+          octx.drawImage(drawCanvas, 0, 0);
+          Annotation.fromJSON(saved);
+          CanvasManager.renderAnnotations(Annotation.getAll());
+        }
+        /* B: 페이지별 drawingName 적용 후 도곽 렌더 */
+        const savedDrawingName = TitleBlock.getSettings().drawingName;
+        TitleBlock.applySettings({ drawingName: page.drawingName || '' });
+        TitleBlock.render(octx, page.imgW, page.imgH);
+        TitleBlock.applySettings({ drawingName: savedDrawingName });
+
+        const po = page.imgW >= page.imgH ? 'landscape' : 'portrait';
+        pdf.addPage([page.imgW, page.imgH], po);
+        pdf.addImage(off.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, page.imgW, page.imgH);
       }
     }
 
-    const s = TitleBlock.getSettings();
+    const s    = TitleBlock.getSettings();
     const fname = (s.projectTitle || 'numdraw') + '_' + (s.drawingName || 'drawing') + '.pdf';
     pdf.save(fname.replace(/[\\/:*?"<>|]/g, '_'));
     showMsg('PDF 저장 완료', 'success');
@@ -434,15 +579,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  /* ── 섹션 접기/펼치기 ── */
-  document.querySelectorAll('.section-header').forEach(header => {
-    header.addEventListener('click', () => {
-      header.classList.toggle('collapsed');
-      const body = header.nextElementSibling;
-      if (body) body.classList.toggle('collapsed');
-    });
-  });
-
   /* ── 페이지 목록 렌더 ── */
   function _renderPageList() {
     const list   = document.getElementById('page-list');
@@ -458,7 +594,6 @@ document.addEventListener('DOMContentLoaded', () => {
       card.className = 'page-card' + (page.id === active ? ' active' : '');
       card.dataset.id = page.id;
 
-      /* 썸네일 */
       const thumb = document.createElement('div');
       thumb.className = 'page-thumb';
       const tImg = document.createElement('img');
@@ -466,7 +601,6 @@ document.addEventListener('DOMContentLoaded', () => {
       tImg.style.cssText = 'max-width:100%;max-height:100%;object-fit:contain;';
       thumb.appendChild(tImg);
 
-      /* 삭제 버튼 (썸네일 위) */
       const delBtn = document.createElement('button');
       delBtn.className = 'page-del-btn';
       delBtn.textContent = '✕';
@@ -480,7 +614,6 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       thumb.appendChild(delBtn);
 
-      /* 정보 */
       const info = document.createElement('div');
       info.className = 'page-info';
 
@@ -491,7 +624,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const numBadge = document.createElement('div');
       numBadge.className = 'page-num-badge';
-      /* 해당 페이지 넘버링 개수 계산 */
       let annCount = 0;
       if (page.id === active) {
         annCount = Annotation.getAll().length;
@@ -505,10 +637,8 @@ document.addEventListener('DOMContentLoaded', () => {
       card.appendChild(thumb);
       card.appendChild(info);
 
-      /* 클릭: 페이지 전환 */
       card.addEventListener('click', () => PageManager.switchTo(page.id));
 
-      /* 더블클릭: 이름 편집 */
       nameEl.addEventListener('dblclick', e => {
         e.stopPropagation();
         const input = document.createElement('input');
@@ -516,50 +646,48 @@ document.addEventListener('DOMContentLoaded', () => {
         input.className = 'page-name-input';
         input.value = page.name;
         nameEl.replaceWith(input);
-        input.focus();
-        input.select();
+        input.focus(); input.select();
         const commit = () => {
           const newName = input.value.trim() || page.name;
           PageManager.renamePage(page.id, newName);
         };
-        input.addEventListener('blur',   commit);
-        input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); if (e.key === 'Escape') { input.value = page.name; input.blur(); } });
+        input.addEventListener('blur', commit);
+        input.addEventListener('keydown', e => {
+          if (e.key === 'Enter') input.blur();
+          if (e.key === 'Escape') { input.value = page.name; input.blur(); }
+        });
       });
 
       list.appendChild(card);
     });
   }
 
-  /* ── 도곽 렌더 (도면 위에 오버레이) ── */
+  /* ── 도곽 렌더 ── */
   function _renderTitleBlock() {
-    /* renderAnnotations → afterRenderCb(도곽) 이 자동으로 실행됨 */
     CanvasManager.renderAnnotations(Annotation.getAll());
   }
 
   /* ── 설정 UI 동기화 ── */
   function _syncSettingsUI() {
     const cfg = Annotation.getConfig();
-    const el = document.getElementById('prefix-num');
+    const el  = document.getElementById('prefix-num');
     if (el) el.value = cfg.prefix || '';
     const tc = document.getElementById('color-text');
     if (tc) tc.value = cfg.textColor || '#ffffff';
-    /* 넘버링 배율 */
     const scSlider = document.getElementById('annotation-scale');
     const scLabel  = document.getElementById('annotation-scale-val');
     if (scSlider) scSlider.value = cfg.scale || 1.0;
     if (scLabel)  scLabel.textContent = (cfg.scale || 1.0).toFixed(1);
-    /* 도곽 배율 */
     const tbSlider = document.getElementById('tb-scale-slider');
     const tbLabel  = document.getElementById('tb-scale-val');
     if (tbSlider) tbSlider.value = cfg.tbScale || 1.0;
     if (tbLabel)  tbLabel.textContent = (cfg.tbScale || 1.0).toFixed(1);
   }
 
-  /* ── 헬퍼 ── */
-  function _autoMatchAndRender() {
-    FileManager.autoMatch(Annotation.getAll());
-    Sidebar.renderNumList(Annotation.getAll());
-    Sidebar.renderPhotoList(FileManager.getPhotos(), Annotation.getAll());
+  /* ── 파일명 미리보기 헬퍼 ── */
+  function _refreshRenamePreview() {
+    const preview = FileManager.buildRenamePreview(Annotation.getAll());
+    Sidebar.renderRenamePreview(preview);
   }
 
   function _updateNextNumDisplay() {

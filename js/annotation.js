@@ -43,7 +43,8 @@ const Annotation = (() => {
       textColor:  config.textColor,
       p1: { ...p1 },
       p2: { ...p2 },
-      photoName: null,
+      photoName:      null,
+      customPhotoNum: null,
     };
     items.push(item);
     if (onChange) onChange();

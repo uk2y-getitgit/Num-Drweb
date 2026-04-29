@@ -2,12 +2,20 @@
 'use strict';
 
 const PageManager = (() => {
-  /* 페이지 구조: { id, name, imgSrc, imgW, imgH, annJSON, nextNum, nextId } */
+  /* 페이지 구조: { id, name, imgSrc, imgW, imgH, annJSON } */
   let pages       = [];
   let activeId    = null;
-  let onSwitch    = null;   // (page) 콜백 — 캔버스 전환 시 호출
-  let onListChange = null;  // () 콜백 — 목록 UI 갱신 시 호출
+  let onSwitch    = null;
+  let onListChange = null;
   let nextPageId  = 1;
+
+  /* A4 기준 치수 (150dpi) — 이미지 배치 영역 계산용 */
+  const A4 = {
+    portrait:  { w: 1240, h: 1754 },
+    landscape: { w: 1754, h: 1240 },
+    imgMargin: 30,   // 이미지와 A4 외곽 사이 여백(px)
+    tbReserve: 80,   // 하단 도곽 예약 영역 높이(px)
+  };
 
   function init(switchCb, listCb) {
     onSwitch     = switchCb;
@@ -22,7 +30,7 @@ const PageManager = (() => {
     _activate(page.id);
   }
 
-  /* ── 페이지 추가 (파일 선택 후 호출) ── */
+  /* ── 파일 객체에서 페이지 추가 (A4 자동 맞춤 포함) ── */
   function addPageFromFile(file, callback) {
     const ext = file.name.split('.').pop().toLowerCase();
     if (!['jpg','jpeg','png','gif','bmp','webp'].includes(ext)) {
@@ -33,7 +41,8 @@ const PageManager = (() => {
     reader.onload = e => {
       const img = new Image();
       img.onload = () => {
-        addImagePage(e.target.result, img.naturalWidth, img.naturalHeight, file.name);
+        const { dataURL, w, h } = _fitImageToA4(img, img.naturalWidth, img.naturalHeight);
+        addImagePage(dataURL, w, h, file.name);
         if (callback) callback('ok');
       };
       img.src = e.target.result;
@@ -43,17 +52,18 @@ const PageManager = (() => {
 
   /* ── PDF 전 페이지 일괄 추가 ──
      append=true : 기존 페이지 유지 후 끝에 추가
-     append=false: 기존 페이지 초기화 후 새로 시작 (기본) */
+     append=false: 기존 페이지 초기화 후 새로 시작 */
   async function loadPDFPages(pdfDoc, progressCb, append = false) {
-    _saveCurrentAnnotations();
-
     if (!append) {
-      pages = [];
+      pages      = [];
       nextPageId = 1;
+      Annotation.clear();
+    } else {
+      _saveCurrentAnnotations();
     }
 
-    const total     = pdfDoc.numPages;
-    const firstNew  = pages.length; // append 모드에서 첫 신규 페이지 인덱스
+    const total    = pdfDoc.numPages;
+    const firstNew = pages.length;
 
     for (let i = 1; i <= total; i++) {
       if (progressCb) progressCb(i, total);
@@ -62,8 +72,15 @@ const PageManager = (() => {
       pages.push(_createPage(defaultName, dataURL, w, h));
     }
 
-    /* append 시 첫 번째 신규 페이지로 이동, 신규 시 첫 페이지로 이동 */
     if (pages.length) _activate(pages[firstNew].id);
+  }
+
+  /* ── 전체 초기화 ── */
+  function clearAll() {
+    pages      = [];
+    nextPageId = 1;
+    activeId   = null;
+    Annotation.clear();
   }
 
   /* ── 페이지 전환 ── */
@@ -81,7 +98,7 @@ const PageManager = (() => {
 
   /* ── 페이지 삭제 ── */
   function removePage(id) {
-    if (pages.length <= 1) return false; // 마지막 페이지 삭제 불가
+    if (pages.length <= 1) return false;
     const idx = pages.findIndex(p => p.id === id);
     if (idx === -1) return false;
     pages.splice(idx, 1);
@@ -107,8 +124,8 @@ const PageManager = (() => {
   function fromJSON(json) {
     try {
       const d = JSON.parse(json);
-      pages      = d.pages       || [];
-      nextPageId = d.nextPageId  || pages.length + 1;
+      pages      = d.pages      || [];
+      nextPageId = d.nextPageId || pages.length + 1;
       const targetId = d.activeId || (pages[0] && pages[0].id);
       if (targetId) _activate(targetId, true /* skipSave */);
       if (onListChange) onListChange();
@@ -117,7 +134,7 @@ const PageManager = (() => {
 
   /* ── 내부 헬퍼 ── */
   function _createPage(name, imgSrc, imgW, imgH) {
-    return { id: nextPageId++, name, imgSrc, imgW, imgH, annJSON: null };
+    return { id: nextPageId++, name, imgSrc, imgW, imgH, annJSON: null, drawingName: null };
   }
 
   function _getById(id) { return pages.find(p => p.id === id); }
@@ -130,14 +147,11 @@ const PageManager = (() => {
   function _activate(id, skipSave = false) {
     if (!skipSave) _saveCurrentAnnotations();
     activeId = id;
-    const p = _getById(id);
+    const p  = _getById(id);
     if (!p) return;
 
-    /* ① 이미지 먼저 로드 — loadImage()가 drawCanvas.width를 재설정해 캔버스를 초기화하므로
-          반드시 Annotation 복원보다 앞서야 한다 */
     if (onSwitch) onSwitch(p);
 
-    /* ② 캔버스 크기 확정 후 Annotation 복원 → onChange → renderAnnotations() */
     if (p.annJSON) {
       Annotation.fromJSON(p.annJSON);
     } else {
@@ -147,19 +161,63 @@ const PageManager = (() => {
     if (onListChange) onListChange();
   }
 
-  /* PDF 페이지를 dataURL로 렌더 */
+  /* PDF 페이지 → A4 캔버스 dataURL */
   async function _renderPDFPage(pdfDoc, pageNum) {
     const page     = await pdfDoc.getPage(pageNum);
     const viewport = page.getViewport({ scale: 2 });
-    const canvas   = document.createElement('canvas');
-    canvas.width   = viewport.width;
-    canvas.height  = viewport.height;
-    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
-    return { dataURL: canvas.toDataURL('image/png'), w: viewport.width, h: viewport.height };
+    const raw      = document.createElement('canvas');
+    raw.width      = viewport.width;
+    raw.height     = viewport.height;
+    await page.render({ canvasContext: raw.getContext('2d'), viewport }).promise;
+    return _fitCanvasToA4(raw, viewport.width, viewport.height);
+  }
+
+  /* Image 객체 → A4 캔버스 */
+  function _fitImageToA4(imgEl, natW, natH) {
+    const isLandscape = natW > natH;
+    const { w: a4w, h: a4h } = isLandscape ? A4.landscape : A4.portrait;
+    const out = document.createElement('canvas');
+    out.width  = a4w;
+    out.height = a4h;
+    const ctx  = out.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, a4w, a4h);
+    const { x, y, w, h } = _calcFitRect(natW, natH, a4w, a4h);
+    ctx.drawImage(imgEl, x, y, w, h);
+    return { dataURL: out.toDataURL('image/png'), w: a4w, h: a4h };
+  }
+
+  /* Canvas 소스 → A4 캔버스 */
+  function _fitCanvasToA4(srcCanvas, natW, natH) {
+    const isLandscape = natW > natH;
+    const { w: a4w, h: a4h } = isLandscape ? A4.landscape : A4.portrait;
+    const out = document.createElement('canvas');
+    out.width  = a4w;
+    out.height = a4h;
+    const ctx  = out.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, a4w, a4h);
+    const { x, y, w, h } = _calcFitRect(natW, natH, a4w, a4h);
+    ctx.drawImage(srcCanvas, x, y, w, h);
+    return { dataURL: out.toDataURL('image/png'), w: a4w, h: a4h };
+  }
+
+  /* 이미지를 A4 내부 여백 영역(Contain)에 배치하는 좌표 계산 */
+  function _calcFitRect(natW, natH, a4w, a4h) {
+    const M   = A4.imgMargin;
+    const TB  = A4.tbReserve;
+    const avW = a4w - M * 2;
+    const avH = a4h - M * 2 - TB;
+    const scl = Math.min(avW / natW, avH / natH);
+    const w   = Math.round(natW * scl);
+    const h   = Math.round(natH * scl);
+    const x   = Math.round((a4w - w) / 2);
+    const y   = Math.round(M + (avH - h) / 2);
+    return { x, y, w, h };
   }
 
   return {
-    init, addImagePage, addPageFromFile, loadPDFPages,
+    init, addImagePage, addPageFromFile, loadPDFPages, clearAll,
     switchTo, renamePage, removePage,
     getPages, getActivePage, getActiveId, hasPages,
     toJSON, fromJSON,

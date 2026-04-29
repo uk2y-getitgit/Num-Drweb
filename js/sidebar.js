@@ -36,13 +36,15 @@ const Sidebar = (() => {
     const cfg  = Annotation.getConfig();
 
     wrap.innerHTML = items.map(item => {
-      const prefix  = cfg.prefix ? cfg.prefix + '-' : '';
-      const numStr  = String(item.num).padStart(2, '0');
-      const label   = prefix + numStr;
-      const catInfo = cats[item.category];
+      const prefix   = cfg.prefix ? cfg.prefix + '-' : '';
+      const numStr   = String(item.num).padStart(2, '0');
+      const label    = prefix + numStr;
+      const catInfo  = cats[item.category];
       const catColor = catInfo?.color || item.color || 'var(--accent)';
       const catLabel = catInfo?.label || item.category || '기타';
       const isSelected = String(item.id) === String(selectedId);
+      const customVal  = (item.customPhotoNum !== null && item.customPhotoNum !== undefined)
+                         ? item.customPhotoNum : '';
 
       return `
         <div class="num-item ${isSelected ? 'selected' : ''}" data-id="${item.id}">
@@ -54,14 +56,16 @@ const Sidebar = (() => {
             </div>
             <div class="num-photo">${item.photoName || '<span style="color:var(--text-placeholder)">미매칭</span>'}</div>
           </div>
+          <input type="number" class="photo-num-input" value="${customVal}"
+            placeholder="${item.num}" data-id="${item.id}" title="사진 매칭 번호 (빈칸: 기본)">
           <button class="num-del" data-id="${item.id}" title="삭제">✕</button>
         </div>`;
     }).join('');
 
-    /* 이벤트 — 삭제 버튼은 Number(dataset.id) 로 전달 */
+    /* 이벤트 */
     wrap.querySelectorAll('.num-item').forEach(el => {
       el.addEventListener('click', e => {
-        if (e.target.closest('.num-del')) return;
+        if (e.target.closest('.num-del') || e.target.closest('.photo-num-input')) return;
         selectedId = el.dataset.id;
         if (onSelectNum) onSelectNum(Number(el.dataset.id));
         renderNumList(items);
@@ -74,44 +78,52 @@ const Sidebar = (() => {
         if (onDeleteNum) onDeleteNum(Number(btn.dataset.id));
       });
     });
+
+    wrap.querySelectorAll('.photo-num-input').forEach(input => {
+      input.addEventListener('click', e => e.stopPropagation());
+      input.addEventListener('change', e => {
+        e.stopPropagation();
+        const id  = Number(e.target.dataset.id);
+        const val = e.target.value.trim();
+        Annotation.updateItem(id, { customPhotoNum: val !== '' ? Number(val) : null });
+      });
+    });
   }
 
-  /* ── 사진 목록 렌더 ── */
-  function renderPhotoList(photos, annotations) {
-    const wrap = document.getElementById('photo-list-wrap');
+  /* ── 파일명 변환 미리보기 렌더 (C-3) ── */
+  function renderRenamePreview(preview) {
+    const wrap  = document.getElementById('rename-preview-list');
+    const btnAll = document.getElementById('btn-rename-all');
+    if (!wrap) return;
 
-    if (!photos.length) {
+    if (!preview || !preview.length) {
       wrap.innerHTML = `
         <div class="empty-state">
           <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
-            <polyline points="21 15 16 10 5 21"/>
+            <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
           </svg>
-          <span>폴더를 선택해 사진을 불러오세요</span>
+          <span>넘버링을 추가하거나 폴더를 선택하세요</span>
         </div>`;
+      if (btnAll) btnAll.disabled = true;
       return;
     }
 
-    const countEl = document.getElementById('photo-count');
-    if (countEl) countEl.textContent = photos.length;
+    const hasReady = preview.some(r => r.status === 'ready');
+    if (btnAll) btnAll.disabled = !hasReady;
 
-    wrap.innerHTML = photos.map(p => {
-      const isMatched = annotations.some(a => a.photoName === p.name);
+    wrap.innerHTML = preview.map(row => {
+      const { label, oldName, newName, status } = row;
+      const cls = { ready:'rp-ready', same:'rp-same', nomatch:'rp-nomatch', ok:'rp-ok', error:'rp-error' }[status] || '';
+      const statusText = { ready:'▶', same:'=', nomatch:'−', ok:'✓', error:'✗' }[status] || '';
       return `
-        <div class="photo-item ${isMatched ? 'matched' : ''}" data-name="${p.name}" data-num="${p.num ?? ''}">
-          <div class="photo-num">${p.num !== null && p.num !== undefined ? p.num : '?'}</div>
-          <div class="photo-name" title="${p.name}">${p.name}</div>
-          ${isMatched ? '<span class="photo-match-badge">✓</span>' : ''}
+        <div class="rename-preview-row ${cls}">
+          <span class="rp-label">${label}</span>
+          <span class="rp-old">${oldName || '미매칭'}</span>
+          <span class="rp-arrow">→</span>
+          <span class="rp-new">${newName || row.newBaseName}</span>
+          <span class="rp-status">${statusText}</span>
         </div>`;
     }).join('');
-
-    wrap.querySelectorAll('.photo-item').forEach(el => {
-      el.addEventListener('click', () => {
-        wrap.querySelectorAll('.photo-item').forEach(e => e.classList.remove('selected'));
-        el.classList.add('selected');
-        if (onMatchPhoto) onMatchPhoto(el.dataset.name, el.dataset.num);
-      });
-    });
   }
 
   /* ── 카테고리 버튼 상태 갱신 ── */
@@ -119,12 +131,6 @@ const Sidebar = (() => {
     document.querySelectorAll('.cat-btn').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.cat === activeKey);
     });
-  }
-
-  /* ── 카테고리 색상 피커 값 갱신 ── */
-  function updateCategoryColorPicker(key, color) {
-    const picker = document.getElementById(`cat-color-${key}`);
-    if (picker) picker.value = color;
   }
 
   function setFolderPath(name) {
@@ -141,5 +147,5 @@ const Sidebar = (() => {
     el.textContent = state === 'saved' ? '● 저장됨' : '● 미저장';
   }
 
-  return { init, renderNumList, renderPhotoList, updateCategoryUI, updateCategoryColorPicker, setFolderPath, setSaveState };
+  return { init, renderNumList, renderRenamePreview, updateCategoryUI, setFolderPath, setSaveState };
 })();
