@@ -23,9 +23,9 @@ document.addEventListener('DOMContentLoaded', () => {
   /* ── Annotation 초기화 ── */
   Annotation.init(() => {
     const items = Annotation.getAll();
-    FileManager.autoMatch(items);           // customPhotoNum 반영 후
+    FileManager.autoMatch(items);
     CanvasManager.renderAnnotations(items);
-    Sidebar.renderNumList(items);
+    Sidebar.renderNumList(items, _collectAllPagesData());
     const cv = document.querySelector('.count-val');
     if (cv) cv.textContent = items.length;
     _updateNextNumDisplay();
@@ -41,9 +41,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   /* ── FileManager 초기화 ── */
   FileManager.init((photos) => {
-    /* 폴더 로드 시 자동매칭 + 미리보기 갱신 */
     FileManager.autoMatch(Annotation.getAll());
-    Sidebar.renderNumList(Annotation.getAll());
+    Sidebar.renderNumList(Annotation.getAll(), _collectAllPagesData());
     _refreshRenamePreview();
   });
 
@@ -235,7 +234,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('prefix-num').addEventListener('input', e => {
     Annotation.setConfig({ prefix: e.target.value.trim() });
     CanvasManager.renderAnnotations(Annotation.getAll());
-    Sidebar.renderNumList(Annotation.getAll());
+    Sidebar.renderNumList(Annotation.getAll(), _collectAllPagesData());
   });
 
   /* ── 글씨 색상 ── */
@@ -354,7 +353,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const ok      = results.filter(r => r.status === 'ok').length;
       const err     = results.filter(r => r.status === 'error').length;
       FileManager.autoMatch(annotations);
-      Sidebar.renderNumList(annotations);
+      Sidebar.renderNumList(annotations, _collectAllPagesData());
       _refreshRenamePreview();
       showMsg(`변경 완료: ${ok}건 성공${err ? ', ' + err + '건 오류' : ''}`, ok ? 'success' : 'warn');
     } catch (e) {
@@ -684,9 +683,31 @@ document.addEventListener('DOMContentLoaded', () => {
     if (tbLabel)  tbLabel.textContent = (cfg.tbScale || 1.0).toFixed(1);
   }
 
-  /* ── 파일명 미리보기 헬퍼 ── */
+  /* ── 전체 페이지 넘버링 데이터 수집 ── */
+  function _collectAllPagesData() {
+    const pages    = PageManager.getPages();
+    const activeId = PageManager.getActiveId();
+    return pages.map(page => {
+      let pageItems;
+      if (page.id === activeId) {
+        pageItems = Annotation.getAll();
+      } else if (page.annJSON) {
+        try {
+          const parsed = JSON.parse(page.annJSON);
+          pageItems = parsed.items || [];
+          FileManager.autoMatch(pageItems);
+        } catch { pageItems = []; }
+      } else {
+        pageItems = [];
+      }
+      return { id: page.id, name: page.name, isActive: page.id === activeId, items: pageItems };
+    });
+  }
+
+  /* ── 파일명 미리보기 헬퍼 (전 페이지 항목 사용) ── */
   function _refreshRenamePreview() {
-    const preview = FileManager.buildRenamePreview(Annotation.getAll());
+    const allItems = _collectAllPagesData().flatMap(p => p.items);
+    const preview  = FileManager.buildRenamePreview(allItems);
     Sidebar.renderRenamePreview(preview);
   }
 

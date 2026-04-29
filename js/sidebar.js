@@ -13,15 +13,29 @@ const Sidebar = (() => {
     onMatchPhoto = callbacks.onMatchPhoto;
   }
 
-  /* ── 넘버링 목록 렌더 ── */
-  function renderNumList(items) {
+  /* ── 넘버링 목록 렌더 ──
+     items    : 현재 페이지 항목 (toolbar 카운터 갱신용)
+     allPages : [{ id, name, isActive, items[] }] — 전달 시 전 페이지 통합 표시 */
+  function renderNumList(items, allPages) {
     const wrap    = document.getElementById('num-list-wrap');
     const counter = document.getElementById('num-count');
     if (counter) counter.textContent = items.length;
     const cv = document.querySelector('.count-val');
     if (cv)  cv.textContent = items.length;
 
-    if (!items.length) {
+    const cats = Annotation.getCategories();
+    const cfg  = Annotation.getConfig();
+
+    /* 표시할 페이지 그룹 구성 */
+    const pagesWithData = allPages
+      ? allPages.filter(p => p.items.length > 0)
+      : null;
+
+    const totalCount = pagesWithData
+      ? pagesWithData.reduce((n, p) => n + p.items.length, 0)
+      : items.length;
+
+    if (!totalCount) {
       wrap.innerHTML = `
         <div class="empty-state">
           <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -32,43 +46,35 @@ const Sidebar = (() => {
       return;
     }
 
-    const cats = Annotation.getCategories();
-    const cfg  = Annotation.getConfig();
+    let html = '';
 
-    wrap.innerHTML = items.map(item => {
-      const prefix   = cfg.prefix ? cfg.prefix + '-' : '';
-      const numStr   = String(item.num).padStart(2, '0');
-      const label    = prefix + numStr;
-      const catInfo  = cats[item.category];
-      const catColor = catInfo?.color || item.color || 'var(--accent)';
-      const catLabel = catInfo?.label || item.category || '기타';
-      const isSelected = String(item.id) === String(selectedId);
-      const customVal  = (item.customPhotoNum !== null && item.customPhotoNum !== undefined)
-                         ? item.customPhotoNum : '';
+    if (pagesWithData && pagesWithData.length > 1) {
+      /* 다중 페이지 — 페이지 헤더 + 그룹 */
+      html = pagesWithData.map(pg => `
+        <div class="page-section-hdr${pg.isActive ? ' active' : ''}" data-page-id="${pg.id}">
+          <span class="psh-name">${pg.name}</span>
+          <span class="psh-count">${pg.items.length}</span>
+        </div>
+        ${pg.items.map(item => _renderNumItem(item, cfg, cats, pg.isActive)).join('')}
+      `).join('');
+    } else if (pagesWithData && pagesWithData.length === 1) {
+      /* 데이터 있는 페이지가 1개뿐 — 헤더 없이 렌더 */
+      const pg = pagesWithData[0];
+      html = pg.items.map(item => _renderNumItem(item, cfg, cats, pg.isActive)).join('');
+    } else {
+      /* allPages 없음 — 현재 페이지 항목만 */
+      html = items.map(item => _renderNumItem(item, cfg, cats, true)).join('');
+    }
 
-      return `
-        <div class="num-item ${isSelected ? 'selected' : ''}" data-id="${item.id}">
-          <div class="num-badge" style="background:${catColor};color:#fff;">${label}</div>
-          <div class="num-info">
-            <div class="num-type">
-              <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${catColor};flex-shrink:0;"></span>
-              ${catLabel} · ${item.type === 'arrow' ? '화살표' : '점'}
-            </div>
-            <div class="num-photo">${item.photoName || '<span style="color:var(--text-placeholder)">미매칭</span>'}</div>
-          </div>
-          <input type="number" class="photo-num-input" value="${customVal}"
-            placeholder="${item.num}" data-id="${item.id}" title="사진 매칭 번호 (빈칸: 기본)">
-          <button class="num-del" data-id="${item.id}" title="삭제">✕</button>
-        </div>`;
-    }).join('');
+    wrap.innerHTML = html;
 
-    /* 이벤트 */
-    wrap.querySelectorAll('.num-item').forEach(el => {
+    /* ── 이벤트 바인딩 (현재 페이지 활성 항목만) ── */
+    wrap.querySelectorAll('.num-item[data-active="true"]').forEach(el => {
       el.addEventListener('click', e => {
         if (e.target.closest('.num-del') || e.target.closest('.photo-num-input')) return;
         selectedId = el.dataset.id;
         if (onSelectNum) onSelectNum(Number(el.dataset.id));
-        renderNumList(items);
+        renderNumList(items, allPages);
       });
     });
 
@@ -79,7 +85,7 @@ const Sidebar = (() => {
       });
     });
 
-    wrap.querySelectorAll('.photo-num-input').forEach(input => {
+    wrap.querySelectorAll('.photo-num-input').forEach((input, _i, arr) => {
       input.addEventListener('click', e => e.stopPropagation());
       input.addEventListener('change', e => {
         e.stopPropagation();
@@ -87,10 +93,64 @@ const Sidebar = (() => {
         const val = e.target.value.trim();
         Annotation.updateItem(id, { customPhotoNum: val !== '' ? Number(val) : null });
       });
+      /* Tab 키 순차 이동 */
+      input.addEventListener('keydown', e => {
+        if (e.key !== 'Tab') return;
+        e.preventDefault();
+        const inputs = Array.from(wrap.querySelectorAll('.photo-num-input'));
+        const idx  = inputs.indexOf(e.target);
+        const next = inputs[idx + (e.shiftKey ? -1 : 1)];
+        if (next) next.focus();
+      });
     });
   }
 
-  /* ── 파일명 변환 미리보기 렌더 (C-3) ── */
+  /* ── 넘버 항목 HTML 생성 ── */
+  function _renderNumItem(item, cfg, cats, isActive) {
+    const prefix   = cfg.prefix ? cfg.prefix + '-' : '';
+    const numStr   = String(item.num).padStart(2, '0');
+    const label    = prefix + numStr;
+    const catInfo  = cats[item.category];
+    const catColor = catInfo?.color || item.color || 'var(--accent)';
+    const catLabel = catInfo?.label || item.category || '기타';
+    const isSelected = isActive && String(item.id) === String(selectedId);
+    const customVal  = (item.customPhotoNum !== null && item.customPhotoNum !== undefined)
+                       ? item.customPhotoNum : '';
+    const photoStr   = item.photoName
+      ? item.photoName
+      : '<span style="color:var(--text-placeholder)">미매칭</span>';
+
+    if (!isActive) {
+      return `
+        <div class="num-item num-item-readonly" data-id="${item.id}" data-active="false">
+          <div class="num-badge" style="background:${catColor};color:#fff;">${label}</div>
+          <div class="num-info">
+            <div class="num-type">
+              <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${catColor};flex-shrink:0;"></span>
+              ${catLabel} · ${item.type === 'arrow' ? '화살표' : '점'}
+            </div>
+            <div class="num-photo">${photoStr}</div>
+          </div>
+        </div>`;
+    }
+
+    return `
+      <div class="num-item ${isSelected ? 'selected' : ''}" data-id="${item.id}" data-active="true">
+        <div class="num-badge" style="background:${catColor};color:#fff;">${label}</div>
+        <div class="num-info">
+          <div class="num-type">
+            <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${catColor};flex-shrink:0;"></span>
+            ${catLabel} · ${item.type === 'arrow' ? '화살표' : '점'}
+          </div>
+          <div class="num-photo">${photoStr}</div>
+        </div>
+        <input type="number" class="photo-num-input" value="${customVal}"
+          placeholder="${item.num}" data-id="${item.id}" title="사진 매칭 번호 (빈칸: 기본)">
+        <button class="num-del" data-id="${item.id}" title="삭제">✕</button>
+      </div>`;
+  }
+
+  /* ── 파일명 변환 미리보기 렌더 ── */
   function renderRenamePreview(preview) {
     const wrap  = document.getElementById('rename-preview-list');
     const btnAll = document.getElementById('btn-rename-all');
