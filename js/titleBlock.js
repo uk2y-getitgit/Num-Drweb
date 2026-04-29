@@ -4,24 +4,40 @@
 const TitleBlock = (() => {
   let enabled = false;
 
-  /* 기준치 (tbScale=1.0 일 때) */
   const BASE = {
-    margin:    20,   // 외곽 여백(px)
-    blockH:    68,   // 표제란 높이(px)
-    borderW:   1.5,  // 선 두께
+    margin:  20,   // 외곽 여백(px) — tbScale=1 기준
+    borderW: 1.5,
   };
 
   let settings = {
     projectTitle: '',
     drawingName:  '',
     scale:        'NONE',
+    /* 열 비율 (0~1, 합계 ≤ 1 — 나머지가 SCALE 열) */
+    col0: 0.42,
+    col1: 0.46,
+    /* 글씨 크기 기준값 (px, tbScale=1 기준) */
+    labelFontSz: 10,
+    valueFontSz: 14,
+    /* 표제란 높이 기준값 (px, tbScale=1 기준) */
+    blockH: 68,
   };
 
   function init() {}
   function setEnabled(v) { enabled = v; }
   function isEnabled()   { return enabled; }
-  function applySettings(patch) { Object.assign(settings, patch); }
-  function getSettings()        { return { ...settings }; }
+
+  function applySettings(patch) {
+    /* col0+col1 합이 0.9 초과하면 col1 자동 보정 */
+    if (patch.col0 !== undefined || patch.col1 !== undefined) {
+      const c0 = patch.col0 !== undefined ? patch.col0 : settings.col0;
+      const c1 = patch.col1 !== undefined ? patch.col1 : settings.col1;
+      if (c0 + c1 > 0.90) patch.col1 = Math.max(0.05, 0.90 - c0);
+    }
+    Object.assign(settings, patch);
+  }
+
+  function getSettings() { return { ...settings }; }
 
   /* ── 도곽 렌더 ── */
   function render(ctx, imgW, imgH) {
@@ -30,8 +46,8 @@ const TitleBlock = (() => {
     const tbScale = (typeof Annotation !== 'undefined')
       ? (Annotation.getConfig().tbScale || 1) : 1;
 
-    const M  = Math.round(BASE.margin  * tbScale);   // 외곽 여백
-    const BH = Math.round(BASE.blockH  * tbScale);   // 표제란 높이
+    const M  = Math.round(BASE.margin        * tbScale);
+    const BH = Math.round(settings.blockH    * tbScale);
     const LW = BASE.borderW;
 
     ctx.save();
@@ -45,30 +61,29 @@ const TitleBlock = (() => {
     /* ② 표제란 */
     const bx = ox, by = oy + oh - BH, bw = ow, bh = BH;
 
-    /* 표제란 배경 */
     ctx.fillStyle = '#fff';
     ctx.fillRect(bx, by, bw, bh);
 
-    /* 표제란 상단 구분선 (굵게) */
+    /* 표제란 상단 구분선 */
     ctx.strokeStyle = '#111';
     ctx.lineWidth   = LW * 1.5;
     ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx + bw, by); ctx.stroke();
     ctx.lineWidth = LW;
 
-    /* ③ 열 비율: [PT라벨+내용 42%] | [DN라벨+내용 46%] | [SC라벨+값 12%] */
-    const c0 = Math.round(bw * 0.42);
-    const c1 = Math.round(bw * 0.46);
+    /* ③ 열 비율 적용 */
+    const c0 = Math.round(bw * settings.col0);
+    const c1 = Math.round(bw * settings.col1);
     const c2 = bw - c0 - c1;
 
     /* 세로 구분선 */
-    [[c0, 0], [c0 + c1, 0]].forEach(([dx]) => {
+    [c0, c0 + c1].forEach(dx => {
       ctx.beginPath();
       ctx.moveTo(bx + dx, by);
       ctx.lineTo(bx + dx, by + bh);
       ctx.stroke();
     });
 
-    /* ④ 각 셀 내용 렌더 */
+    /* ④ 각 셀 렌더 */
     _renderCell(ctx, bx,           by, c0, bh, 'PROJECT TITLE', settings.projectTitle, tbScale);
     _renderCell(ctx, bx + c0,      by, c1, bh, 'DRAWING NAME',  settings.drawingName,  tbScale);
     _renderScaleCell(ctx, bx + c0 + c1, by, c2, bh, settings.scale || 'NONE', tbScale);
@@ -76,41 +91,36 @@ const TitleBlock = (() => {
     ctx.restore();
   }
 
-  /* 라벨 + 내용 셀 (PROJECT TITLE / DRAWING NAME) */
+  /* 라벨 + 내용 셀 */
   function _renderCell(ctx, cx, cy, cw, ch, label, value, tbScale) {
-    const PAD      = Math.max(5, Math.round(8 * tbScale));
-    const labelSz  = Math.max(8, Math.round(10 * tbScale));
-    const labelH   = labelSz + Math.round(4 * tbScale);   // 라벨 영역 높이
-    const valueSz  = Math.max(11, Math.round(14 * tbScale));
-    const valueArea = ch - labelH;                         // 내용 영역 높이
+    const PAD     = Math.max(5, Math.round(8 * tbScale));
+    const labelSz = Math.max(6, Math.round(settings.labelFontSz * tbScale));
+    const labelH  = labelSz + Math.round(4 * tbScale);
+    const valueSz = Math.max(8, Math.round(settings.valueFontSz * tbScale));
+    const valArea = ch - labelH;
 
-    /* 라벨 */
     ctx.font         = `600 ${labelSz}px "Malgun Gothic","Arial",sans-serif`;
     ctx.fillStyle    = '#666';
     ctx.textAlign    = 'left';
     ctx.textBaseline = 'top';
     ctx.fillText(label, cx + PAD, cy + Math.round(4 * tbScale));
 
-    /* 내용 — 세로 중앙 정렬, 긴 텍스트 2줄 처리 */
     ctx.font      = `700 ${valueSz}px "Malgun Gothic","Arial",sans-serif`;
     ctx.fillStyle = '#111';
     const maxW    = cw - PAD * 2;
     const lines   = _wrapText(ctx, value || '', maxW, 2);
     const lineH   = valueSz * 1.25;
     const textH   = lines.length * lineH;
-    const startY  = cy + labelH + (valueArea - textH) / 2 + valueSz * 0.1;
+    const startY  = cy + labelH + (valArea - textH) / 2 + valueSz * 0.1;
 
     ctx.textBaseline = 'top';
-    lines.forEach((line, i) => {
-      ctx.fillText(line, cx + PAD, startY + i * lineH);
-    });
+    lines.forEach((line, i) => ctx.fillText(line, cx + PAD, startY + i * lineH));
   }
 
   /* SCALE 셀 */
   function _renderScaleCell(ctx, cx, cy, cw, ch, value, tbScale) {
-    const labelSz = Math.max(8,  Math.round(10 * tbScale));
-    const valueSz = Math.max(10, Math.round(13 * tbScale));
-    const PAD     = Math.max(4,  Math.round(6  * tbScale));
+    const labelSz = Math.max(6,  Math.round(settings.labelFontSz * tbScale));
+    const valueSz = Math.max(8,  Math.round((settings.valueFontSz - 1) * tbScale));
 
     ctx.font         = `600 ${labelSz}px "Malgun Gothic","Arial",sans-serif`;
     ctx.fillStyle    = '#666';
@@ -124,21 +134,19 @@ const TitleBlock = (() => {
     ctx.fillText(value, cx + cw / 2, cy + ch * 0.62);
   }
 
-  /* 텍스트 줄 분할 (최대 maxLines줄, 초과 시 말줄임) */
+  /* 텍스트 줄 분할 */
   function _wrapText(ctx, text, maxW, maxLines) {
     if (!text) return [''];
-    const words  = text.split(/\s+/);
-    const lines  = [];
-    let   line   = '';
+    const words = text.split(/\s+/);
+    const lines = [];
+    let line = '';
     for (const w of words) {
       const test = line ? line + ' ' + w : w;
       if (ctx.measureText(test).width > maxW && line) { lines.push(line); line = w; }
       else line = test;
     }
     if (line) lines.push(line);
-
     if (lines.length > maxLines) lines.length = maxLines;
-    /* 마지막 줄 말줄임 */
     let last = lines[lines.length - 1];
     if (ctx.measureText(last).width > maxW) {
       while (last.length > 1 && ctx.measureText(last + '…').width > maxW)
@@ -151,8 +159,9 @@ const TitleBlock = (() => {
   /* 합성 Canvas */
   function compositeCanvas(imgEl, annotationCanvas, imgW, imgH) {
     const comp = document.createElement('canvas');
-    comp.width = imgW; comp.height = imgH;
-    const ctx  = comp.getContext('2d');
+    comp.width  = imgW;
+    comp.height = imgH;
+    const ctx   = comp.getContext('2d');
     ctx.drawImage(imgEl, 0, 0, imgW, imgH);
     ctx.drawImage(annotationCanvas, 0, 0);
     render(ctx, imgW, imgH);

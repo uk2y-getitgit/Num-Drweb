@@ -1075,3 +1075,51 @@ input[type=range]::-webkit-slider-thumb {
 .scroll-y::-webkit-scrollbar { width: 4px; }
 .scroll-y::-webkit-scrollbar-track { background: transparent; }
 .scroll-y::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* ============================================================
+   파일명 변경 섹션
+   ============================================================ */
+.rename-hint {
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.5;
+  margin-bottom: 8px;
+  padding: 6px 8px;
+  background: var(--bg-card);
+  border-radius: var(--radius-sm);
+}
+.rename-result {
+  font-size: 11px;
+  margin-top: 6px;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  min-height: 18px;
+  word-break: break-all;
+}
+.rename-result.success {
+  color: var(--success);
+  background: var(--success-dim);
+}
+.rename-result.error {
+  color: var(--danger);
+  background: var(--danger-dim);
+}
+
+/* ============================================================
+   도곽 모달 — 섹션 구분 타이틀
+   ============================================================ */
+.modal-section-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  padding: 10px 0 4px;
+  border-top: 1px solid var(--border-light);
+  margin-top: 4px;
+}
+.modal-section-title:first-child {
+  border-top: none;
+  padding-top: 0;
+  margin-top: 0;
+}

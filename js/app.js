@@ -12,10 +12,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const statusMsg        = document.getElementById('status-msg');
   const orthoToggle      = document.getElementById('ortho-toggle');
 
-  /* ── CanvasManager 초기화 (Annotation보다 먼저) ── */
+  /* ── CanvasManager 초기화 ── */
   CanvasManager.init(wrap, container, imgEl, drawCanvas, interactionLayer);
 
-  /* afterRender 콜백 — renderAnnotations 완료 후 항상 도곽 오버레이 */
   CanvasManager.setAfterRender((ctx, w, h) => {
     if (TitleBlock.isEnabled() && w) TitleBlock.render(ctx, w, h);
   });
@@ -23,7 +22,6 @@ document.addEventListener('DOMContentLoaded', () => {
   /* ── Annotation 초기화 ── */
   Annotation.init(() => {
     const items = Annotation.getAll();
-    /* renderAnnotations → afterRender(도곽) 자동 포함 */
     CanvasManager.renderAnnotations(items);
     Sidebar.renderNumList(items);
     Sidebar.renderPhotoList(FileManager.getPhotos(), items);
@@ -63,7 +61,6 @@ document.addEventListener('DOMContentLoaded', () => {
       CanvasManager.loadImage(page.imgSrc, page.imgW, page.imgH);
       dropzone.classList.add('has-file');
       document.getElementById('file-name').textContent = page.name;
-      /* 페이지별 설정 동기화 */
       _syncSettingsUI();
     },
     /* onListChange */ () => { _renderPageList(); }
@@ -72,7 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
   /* ── TitleBlock 초기화 ── */
   TitleBlock.init();
 
-  /* ── 페이지 추가 / 삭제 ── */
+  /* ── 페이지 패널 추가(+) / 삭제(−) ── */
   const pageAddInput = document.getElementById('page-add-input');
 
   document.getElementById('btn-page-add').addEventListener('click', () => pageAddInput.click());
@@ -84,26 +81,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const ext = file.name.split('.').pop().toLowerCase();
 
     if (ext === 'pdf') {
-      /* PDF → 각 페이지를 별도 페이지로 추가 */
       if (!window.pdfjsLib) { showMsg('PDF.js 로드 대기 중', 'warn'); return; }
-      const loading = document.getElementById('page-panel-loading');
+      const loading  = document.getElementById('page-panel-loading');
       const loadText = document.getElementById('page-loading-text');
       loading.classList.remove('hidden');
-      const buf = await file.arrayBuffer();
+      const buf    = await file.arrayBuffer();
       const pdfDoc = await pdfjsLib.getDocument({ data: buf }).promise;
-      for (let i = 1; i <= pdfDoc.numPages; i++) {
-        if (loadText) loadText.textContent = `추가 중 ${i}/${pdfDoc.numPages}`;
-        const page  = await pdfDoc.getPage(i);
-        const vp    = page.getViewport({ scale: 2 });
-        const off   = document.createElement('canvas');
-        off.width = vp.width; off.height = vp.height;
-        await page.render({ canvasContext: off.getContext('2d'), viewport: vp }).promise;
-        PageManager.addImagePage(off.toDataURL('image/png'), vp.width, vp.height,
-          file.name.replace(/\.[^.]+$/, '') + (pdfDoc.numPages > 1 ? `-P${i}` : ''));
-      }
+      /* PageManager.loadPDFPages(append=true) 로 통일 — A4 맞춤 자동 적용 */
+      await PageManager.loadPDFPages(pdfDoc, (cur, total) => {
+        if (loadText) loadText.textContent = `추가 중 ${cur}/${total}`;
+      }, true);
       loading.classList.add('hidden');
       showMsg(file.name + ' 페이지 추가 완료', 'success');
     } else {
+      /* 이미지 — addPageFromFile 내부에서 A4 맞춤 자동 적용 */
       PageManager.addPageFromFile(file, status => {
         if (status === 'ok') showMsg(file.name + ' 페이지 추가됨', 'success');
         else showMsg('지원하지 않는 파일 형식입니다', 'warn');
@@ -121,27 +112,28 @@ document.addEventListener('DOMContentLoaded', () => {
     showMsg('페이지 삭제됨', 'warn');
   });
 
-  /* ── 파일 불러오기 ── */
+  /* ── 파일 불러오기 (도면 열기 버튼) ── */
   document.getElementById('btn-open').addEventListener('click', () => document.getElementById('file-input').click());
   document.getElementById('file-input').addEventListener('change', e => {
     const file = e.target.files[0];
-    if (file) _loadFile(file);
+    if (file) _loadFile(file, false);
     e.target.value = '';
   });
 
-  [wrap, dropzone].forEach(el => {
-    el.addEventListener('dragover',  e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
-    el.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
-    el.addEventListener('drop', e => {
-      e.preventDefault(); dropzone.classList.remove('drag-over');
-      /* 드롭 파일 — 기존 페이지가 있으면 append 모드 */
-      const file   = e.dataTransfer.files[0];
-      const append = PageManager.hasPages();
-      if (file) _loadFile(file, append);
-    });
+  /* ── 드래그앤드롭: wrap 단일 핸들러 (dropzone이 wrap 내부에 있어 이벤트 버블링 중복 방지) ── */
+  wrap.addEventListener('dragover',  e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
+  wrap.addEventListener('dragleave', e => {
+    if (!wrap.contains(e.relatedTarget)) dropzone.classList.remove('drag-over');
+  });
+  wrap.addEventListener('drop', e => {
+    e.preventDefault();
+    dropzone.classList.remove('drag-over');
+    const file   = e.dataTransfer.files[0];
+    const append = PageManager.hasPages();
+    if (file) _loadFile(file, append);
   });
 
-  /* append=true이면 기존 페이지 유지 후 끝에 추가 */
+  /* append=false → 기존 페이지 전체 교체, append=true → 뒤에 추가 */
   async function _loadFile(file, append = false) {
     const ext = file.name.split('.').pop().toLowerCase();
     if (ext === 'pdf') {
@@ -154,17 +146,12 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function _loadImageFile(file, append = false) {
-    const reader = new FileReader();
-    reader.onload = e => {
-      const img = new Image();
-      img.onload = () => {
-        if (!append) Annotation.clear();
-        PageManager.addImagePage(e.target.result, img.naturalWidth, img.naturalHeight, file.name);
-        showMsg(file.name + (append ? ' 페이지 추가됨' : ' 불러오기 완료'), 'success');
-      };
-      img.src = e.target.result;
-    };
-    reader.readAsDataURL(file);
+    if (!append) PageManager.clearAll();
+    /* addPageFromFile 내부에서 A4 맞춤 + 페이지 추가 자동 처리 */
+    PageManager.addPageFromFile(file, status => {
+      if (status === 'ok') showMsg(file.name + (append ? ' 페이지 추가됨' : ' 불러오기 완료'), 'success');
+      else showMsg('지원하지 않는 파일 형식입니다', 'warn');
+    });
   }
 
   async function _loadPDF(file, append = false) {
@@ -174,7 +161,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loading.classList.remove('hidden');
 
     const arrayBuffer = await file.arrayBuffer();
-    const pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const pdfDoc      = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
     await PageManager.loadPDFPages(pdfDoc, (cur, total) => {
       if (loadText) loadText.textContent = `${cur} / ${total} 페이지`;
@@ -264,7 +251,7 @@ document.addEventListener('DOMContentLoaded', () => {
     CanvasManager.setLineWidth(parseFloat(e.target.value));
   });
 
-  /* ── 크기 축척 슬라이더 ── */
+  /* ── 넘버링 크기 배율 슬라이더 ── */
   document.getElementById('annotation-scale').addEventListener('input', e => {
     const v = parseFloat(e.target.value);
     document.getElementById('annotation-scale-val').textContent = v.toFixed(1);
@@ -299,9 +286,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   /* ── 키보드 단축키 ── */
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape')                           CanvasManager.cancelDraw();
-    if (e.key === 'F5')                             { e.preventDefault(); CanvasManager.fitToView(); }
-    if ((e.ctrlKey||e.metaKey) && e.key === 'z')   { e.preventDefault(); _undo(); }
+    if (e.key === 'Escape')                          CanvasManager.cancelDraw();
+    if (e.key === 'F5')                            { e.preventDefault(); CanvasManager.fitToView(); }
+    if ((e.ctrlKey||e.metaKey) && e.key === 'z')  { e.preventDefault(); _undo(); }
     if (e.key === 'q' || e.key === 'Q') {
       orthoToggle.checked = !orthoToggle.checked;
       orthoToggle.dispatchEvent(new Event('change'));
@@ -327,29 +314,103 @@ document.addEventListener('DOMContentLoaded', () => {
     showMsg('자동매칭 완료', 'success');
   });
 
-  /* ── 도곽 설정 모달 ── */
+  /* ── 파일명 변경 ── */
+  document.getElementById('btn-rename-photo').addEventListener('click', async () => {
+    const numInput  = document.getElementById('rename-num');
+    const nameInput = document.getElementById('rename-newname');
+    const resultEl  = document.getElementById('rename-result');
+    const num       = parseInt(numInput.value, 10);
+    const newName   = nameInput.value.trim();
+
+    if (!num || isNaN(num)) { showMsg('변경할 번호를 입력하세요', 'warn'); return; }
+    if (!newName)           { showMsg('새 파일명을 입력하세요', 'warn'); return; }
+
+    try {
+      const { oldName, newName: renamed } = await FileManager.renamePhoto(num, newName);
+      resultEl.textContent = oldName + ' → ' + renamed;
+      resultEl.className   = 'rename-result success';
+      nameInput.value      = '';
+      showMsg('파일명 변경 완료', 'success');
+      Sidebar.renderPhotoList(FileManager.getPhotos(), Annotation.getAll());
+      FileManager.autoMatch(Annotation.getAll());
+      Sidebar.renderNumList(Annotation.getAll());
+    } catch (e) {
+      resultEl.textContent = e.message;
+      resultEl.className   = 'rename-result error';
+      showMsg('변경 실패: ' + e.message, 'warn');
+    }
+  });
+
+  /* ── 도곽 설정 모달 열기 ── */
   document.getElementById('btn-titleblock').addEventListener('click', () => {
-    const s    = TitleBlock.getSettings();
-    const cfg  = Annotation.getConfig();
+    const s   = TitleBlock.getSettings();
+    const cfg = Annotation.getConfig();
+
     document.getElementById('tb-project-title').value = s.projectTitle;
     document.getElementById('tb-drawing-name').value  = s.drawingName;
     document.getElementById('tb-scale').value         = s.scale || 'NONE';
-    /* 도곽 배율 슬라이더 현재값 반영 */
+
+    /* 도곽 배율 */
+    const cur = cfg.tbScale || 1.0;
     const tbSlider = document.getElementById('tb-scale-slider');
     const tbLabel  = document.getElementById('tb-scale-val');
-    const cur = cfg.tbScale || 1.0;
     if (tbSlider) tbSlider.value = cur;
     if (tbLabel)  tbLabel.textContent = cur.toFixed(1);
+
+    /* 열 비율 */
+    _setTbColUI(s.col0, s.col1);
+
+    /* 글씨 크기 */
+    const lSz = document.getElementById('tb-label-sz');
+    const vSz = document.getElementById('tb-value-sz');
+    if (lSz) lSz.value = s.labelFontSz;
+    if (vSz) vSz.value = s.valueFontSz;
+
+    /* 표제란 높이 */
+    const bhSlider = document.getElementById('tb-blockh');
+    const bhLabel  = document.getElementById('tb-blockh-val');
+    if (bhSlider) bhSlider.value = s.blockH;
+    if (bhLabel)  bhLabel.textContent = s.blockH;
+
     document.getElementById('modal-titleblock').classList.remove('hidden');
   });
 
-  /* 도곽 배율 슬라이더 — 실시간 미리보기 */
+  /* 도곽 배율 슬라이더 실시간 미리보기 */
   document.getElementById('tb-scale-slider').addEventListener('input', e => {
     const v = parseFloat(e.target.value);
     document.getElementById('tb-scale-val').textContent = v.toFixed(1);
-    Annotation.setConfig({ tbScale: v }); // onChange → _renderTitleBlock 자동 호출
+    Annotation.setConfig({ tbScale: v });
   });
 
+  /* 열 비율 슬라이더 */
+  document.getElementById('tb-col0').addEventListener('input', e => {
+    const c0 = parseInt(e.target.value, 10) / 100;
+    const c1 = TitleBlock.getSettings().col1;
+    _setTbColUI(c0, c1);
+  });
+  document.getElementById('tb-col1').addEventListener('input', e => {
+    const c0 = TitleBlock.getSettings().col0;
+    const c1 = parseInt(e.target.value, 10) / 100;
+    _setTbColUI(c0, c1);
+  });
+
+  function _setTbColUI(c0, c1) {
+    /* 합이 0.90 초과하면 c1 클램핑 */
+    const clampedC1 = Math.min(c1, 0.90 - c0);
+    const c2        = Math.max(0.05, 1 - c0 - clampedC1);
+    document.getElementById('tb-col0').value      = Math.round(c0 * 100);
+    document.getElementById('tb-col0-val').textContent = Math.round(c0 * 100);
+    document.getElementById('tb-col1').value      = Math.round(clampedC1 * 100);
+    document.getElementById('tb-col1-val').textContent = Math.round(clampedC1 * 100);
+    document.getElementById('tb-col2-val').textContent = Math.round(c2 * 100);
+  }
+
+  /* 표제란 높이 슬라이더 */
+  document.getElementById('tb-blockh').addEventListener('input', e => {
+    document.getElementById('tb-blockh-val').textContent = e.target.value;
+  });
+
+  /* 모달 닫기 */
   ['modal-tb-close','modal-tb-cancel'].forEach(id => {
     document.getElementById(id).addEventListener('click', () => {
       document.getElementById('modal-titleblock').classList.add('hidden');
@@ -360,25 +421,33 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.target === e.currentTarget) e.currentTarget.classList.add('hidden');
   });
 
+  /* 도곽 설정 적용 */
   document.getElementById('modal-tb-apply').addEventListener('click', () => {
+    const c0 = parseInt(document.getElementById('tb-col0').value, 10) / 100;
+    const c1 = parseInt(document.getElementById('tb-col1').value, 10) / 100;
     TitleBlock.applySettings({
       projectTitle: document.getElementById('tb-project-title').value,
       drawingName:  document.getElementById('tb-drawing-name').value,
       scale:        document.getElementById('tb-scale').value || 'NONE',
+      col0:         c0,
+      col1:         c1,
+      labelFontSz:  parseInt(document.getElementById('tb-label-sz').value, 10) || 10,
+      valueFontSz:  parseInt(document.getElementById('tb-value-sz').value, 10) || 14,
+      blockH:       parseInt(document.getElementById('tb-blockh').value, 10)   || 68,
     });
     document.getElementById('modal-titleblock').classList.add('hidden');
     _renderTitleBlock();
     showMsg('도곽 설정 적용됨', 'success');
   });
 
-  /* 도곽 ON/OFF 토글 */
+  /* 도곽 ON/OFF */
   document.getElementById('titleblock-toggle').addEventListener('change', e => {
     TitleBlock.setEnabled(e.target.checked);
     _renderTitleBlock();
     showMsg('도곽 ' + (e.target.checked ? 'ON' : 'OFF'), 'info');
   });
 
-  /* ── PDF 저장 (T08) ── */
+  /* ── PDF 저장 ── */
   document.getElementById('btn-export-pdf').addEventListener('click', _exportPDF);
 
   async function _exportPDF() {
@@ -388,29 +457,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
     showMsg('PDF 생성 중...', 'info');
 
-    const comp   = TitleBlock.compositeCanvas(imgEl, drawCanvas, w, h);
+    const comp    = TitleBlock.compositeCanvas(imgEl, drawCanvas, w, h);
     const imgData = comp.toDataURL('image/jpeg', 0.95);
 
     const { jsPDF } = window.jspdf;
-    const orient  = w >= h ? 'landscape' : 'portrait';
-    const pdf     = new jsPDF({ orientation: orient, unit: 'px', format: [w, h] });
+    const orient = w >= h ? 'landscape' : 'portrait';
+    const pdf    = new jsPDF({ orientation: orient, unit: 'px', format: [w, h] });
     pdf.addImage(imgData, 'JPEG', 0, 0, w, h);
 
-    /* 다중 페이지 처리 */
+    /* 다중 페이지 */
     if (PageManager.hasPages() && PageManager.getPages().length > 1) {
-      const pages   = PageManager.getPages();
+      const allPages = PageManager.getPages();
       const activeId = PageManager.getActiveId();
 
-      for (const page of pages) {
-        if (page.id === Number(activeId)) continue; // 첫 페이지는 이미 추가됨
-        /* 임시 캔버스에 해당 페이지 렌더 */
+      for (const page of allPages) {
+        if (page.id === Number(activeId)) continue;
         const offImg = new Image();
         await new Promise(resolve => { offImg.onload = resolve; offImg.src = page.imgSrc; });
-        const off = document.createElement('canvas');
-        off.width = page.imgW; off.height = page.imgH;
+        const off  = document.createElement('canvas');
+        off.width  = page.imgW; off.height = page.imgH;
         const octx = off.getContext('2d');
         octx.drawImage(offImg, 0, 0);
-        /* 해당 페이지 annotation 렌더 */
         if (page.annJSON) {
           const saved = Annotation.toJSON();
           Annotation.fromJSON(page.annJSON);
@@ -420,13 +487,13 @@ document.addEventListener('DOMContentLoaded', () => {
           CanvasManager.renderAnnotations(Annotation.getAll());
         }
         TitleBlock.render(octx, page.imgW, page.imgH);
-        const pageOrient = page.imgW >= page.imgH ? 'landscape' : 'portrait';
-        pdf.addPage([page.imgW, page.imgH], pageOrient);
+        const po = page.imgW >= page.imgH ? 'landscape' : 'portrait';
+        pdf.addPage([page.imgW, page.imgH], po);
         pdf.addImage(off.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, page.imgW, page.imgH);
       }
     }
 
-    const s   = TitleBlock.getSettings();
+    const s    = TitleBlock.getSettings();
     const fname = (s.projectTitle || 'numdraw') + '_' + (s.drawingName || 'drawing') + '.pdf';
     pdf.save(fname.replace(/[\\/:*?"<>|]/g, '_'));
     showMsg('PDF 저장 완료', 'success');
@@ -474,7 +541,6 @@ document.addEventListener('DOMContentLoaded', () => {
       card.className = 'page-card' + (page.id === active ? ' active' : '');
       card.dataset.id = page.id;
 
-      /* 썸네일 */
       const thumb = document.createElement('div');
       thumb.className = 'page-thumb';
       const tImg = document.createElement('img');
@@ -482,7 +548,6 @@ document.addEventListener('DOMContentLoaded', () => {
       tImg.style.cssText = 'max-width:100%;max-height:100%;object-fit:contain;';
       thumb.appendChild(tImg);
 
-      /* 삭제 버튼 (썸네일 위) */
       const delBtn = document.createElement('button');
       delBtn.className = 'page-del-btn';
       delBtn.textContent = '✕';
@@ -496,7 +561,6 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       thumb.appendChild(delBtn);
 
-      /* 정보 */
       const info = document.createElement('div');
       info.className = 'page-info';
 
@@ -507,7 +571,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const numBadge = document.createElement('div');
       numBadge.className = 'page-num-badge';
-      /* 해당 페이지 넘버링 개수 계산 */
       let annCount = 0;
       if (page.id === active) {
         annCount = Annotation.getAll().length;
@@ -521,10 +584,8 @@ document.addEventListener('DOMContentLoaded', () => {
       card.appendChild(thumb);
       card.appendChild(info);
 
-      /* 클릭: 페이지 전환 */
       card.addEventListener('click', () => PageManager.switchTo(page.id));
 
-      /* 더블클릭: 이름 편집 */
       nameEl.addEventListener('dblclick', e => {
         e.stopPropagation();
         const input = document.createElement('input');
@@ -532,39 +593,38 @@ document.addEventListener('DOMContentLoaded', () => {
         input.className = 'page-name-input';
         input.value = page.name;
         nameEl.replaceWith(input);
-        input.focus();
-        input.select();
+        input.focus(); input.select();
         const commit = () => {
           const newName = input.value.trim() || page.name;
           PageManager.renamePage(page.id, newName);
         };
-        input.addEventListener('blur',   commit);
-        input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); if (e.key === 'Escape') { input.value = page.name; input.blur(); } });
+        input.addEventListener('blur', commit);
+        input.addEventListener('keydown', e => {
+          if (e.key === 'Enter') input.blur();
+          if (e.key === 'Escape') { input.value = page.name; input.blur(); }
+        });
       });
 
       list.appendChild(card);
     });
   }
 
-  /* ── 도곽 렌더 (도면 위에 오버레이) ── */
+  /* ── 도곽 렌더 ── */
   function _renderTitleBlock() {
-    /* renderAnnotations → afterRenderCb(도곽) 이 자동으로 실행됨 */
     CanvasManager.renderAnnotations(Annotation.getAll());
   }
 
   /* ── 설정 UI 동기화 ── */
   function _syncSettingsUI() {
     const cfg = Annotation.getConfig();
-    const el = document.getElementById('prefix-num');
+    const el  = document.getElementById('prefix-num');
     if (el) el.value = cfg.prefix || '';
     const tc = document.getElementById('color-text');
     if (tc) tc.value = cfg.textColor || '#ffffff';
-    /* 넘버링 배율 */
     const scSlider = document.getElementById('annotation-scale');
     const scLabel  = document.getElementById('annotation-scale-val');
     if (scSlider) scSlider.value = cfg.scale || 1.0;
     if (scLabel)  scLabel.textContent = (cfg.scale || 1.0).toFixed(1);
-    /* 도곽 배율 */
     const tbSlider = document.getElementById('tb-scale-slider');
     const tbLabel  = document.getElementById('tb-scale-val');
     if (tbSlider) tbSlider.value = cfg.tbScale || 1.0;
