@@ -129,16 +129,17 @@ document.addEventListener('DOMContentLoaded', () => {
     e.target.value = '';
   });
 
+  /* dragover/dragleave 는 양쪽에서 시각 효과 처리 */
   [wrap, dropzone].forEach(el => {
     el.addEventListener('dragover',  e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
     el.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
-    el.addEventListener('drop', e => {
-      e.preventDefault(); dropzone.classList.remove('drag-over');
-      /* 드롭 파일 — 기존 페이지가 있으면 append 모드 */
-      const file   = e.dataTransfer.files[0];
-      const append = PageManager.hasPages();
-      if (file) _loadFile(file, append);
-    });
+  });
+  /* drop 핸들러는 wrap 에만 — dropzone 이 wrap 내부에 있어 이벤트 버블링으로 중복 실행 방지 */
+  wrap.addEventListener('drop', e => {
+    e.preventDefault(); dropzone.classList.remove('drag-over');
+    const file   = e.dataTransfer.files[0];
+    const append = PageManager.hasPages();
+    if (file) _loadFile(file, append);
   });
 
   /* append=true이면 기존 페이지 유지 후 끝에 추가 */
@@ -378,7 +379,7 @@ document.addEventListener('DOMContentLoaded', () => {
     showMsg('도곽 ' + (e.target.checked ? 'ON' : 'OFF'), 'info');
   });
 
-  /* ── PDF 저장 (T08) ── */
+  /* ── PDF 저장 ── */
   document.getElementById('btn-export-pdf').addEventListener('click', _exportPDF);
 
   async function _exportPDF() {
@@ -388,45 +389,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
     showMsg('PDF 생성 중...', 'info');
 
-    const comp   = TitleBlock.compositeCanvas(imgEl, drawCanvas, w, h);
-    const imgData = comp.toDataURL('image/jpeg', 0.95);
-
+    /* 현재 페이지 — drawCanvas 에 배경+이미지+넘버링+도곽이 이미 합성되어 있음 */
     const { jsPDF } = window.jspdf;
-    const orient  = w >= h ? 'landscape' : 'portrait';
-    const pdf     = new jsPDF({ orientation: orient, unit: 'px', format: [w, h] });
-    pdf.addImage(imgData, 'JPEG', 0, 0, w, h);
+    const orient = w >= h ? 'landscape' : 'portrait';
+    const pdf    = new jsPDF({ orientation: orient, unit: 'px', format: [w, h] });
+    pdf.addImage(CanvasManager.getCanvas().toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, w, h);
 
     /* 다중 페이지 처리 */
     if (PageManager.hasPages() && PageManager.getPages().length > 1) {
-      const pages   = PageManager.getPages();
+      const pages    = PageManager.getPages();
       const activeId = PageManager.getActiveId();
 
       for (const page of pages) {
-        if (page.id === Number(activeId)) continue; // 첫 페이지는 이미 추가됨
-        /* 임시 캔버스에 해당 페이지 렌더 */
-        const offImg = new Image();
-        await new Promise(resolve => { offImg.onload = resolve; offImg.src = page.imgSrc; });
-        const off = document.createElement('canvas');
-        off.width = page.imgW; off.height = page.imgH;
-        const octx = off.getContext('2d');
-        octx.drawImage(offImg, 0, 0);
-        /* 해당 페이지 annotation 렌더 */
-        if (page.annJSON) {
-          const saved = Annotation.toJSON();
-          Annotation.fromJSON(page.annJSON);
-          CanvasManager.renderAnnotations(Annotation.getAll());
-          octx.drawImage(drawCanvas, 0, 0);
-          Annotation.fromJSON(saved);
-          CanvasManager.renderAnnotations(Annotation.getAll());
-        }
-        TitleBlock.render(octx, page.imgW, page.imgH);
-        const pageOrient = page.imgW >= page.imgH ? 'landscape' : 'portrait';
-        pdf.addPage([page.imgW, page.imgH], pageOrient);
-        pdf.addImage(off.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, page.imgW, page.imgH);
+        if (page.id === Number(activeId)) continue;
+        const { canvas: pc, w: pw, h: ph } = await CanvasManager.createPageExport(
+          page.imgSrc, page.imgW, page.imgH, page.annJSON
+        );
+        pdf.addPage([pw, ph], pw >= ph ? 'landscape' : 'portrait');
+        pdf.addImage(pc.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, pw, ph);
       }
     }
 
-    const s   = TitleBlock.getSettings();
+    const s = TitleBlock.getSettings();
     const fname = (s.projectTitle || 'numdraw') + '_' + (s.drawingName || 'drawing') + '.pdf';
     pdf.save(fname.replace(/[\\/:*?"<>|]/g, '_'));
     showMsg('PDF 저장 완료', 'success');
