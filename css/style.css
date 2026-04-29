@@ -57,7 +57,7 @@
 
   /* ── 크기 ── */
   --toolbar-h:    48px;
-  --sidebar-w:    272px;
+  --sidebar-w:    220px;
   --page-panel-w: 90px;
 
   /* ── 폰트 ── */
@@ -444,9 +444,97 @@ body {
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ============================================================
-   CANVAS AREA
+   CANVAS WRAP + CONTROL BAR (Bundle D)
    ============================================================ */
 #canvas-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── 캔버스 상단 컨트롤 바 ── */
+#canvas-control-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 6px;
+  padding: 5px 10px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  box-shadow: var(--shadow-xs);
+  z-index: 50;
+}
+
+.ctrl-group {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.ctrl-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  padding-right: 2px;
+}
+
+.ctrl-sep {
+  width: 1px;
+  height: 22px;
+  background: var(--border);
+  flex-shrink: 0;
+  margin: 0 2px;
+}
+
+.ctrl-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  padding: 2px 0;
+}
+
+.ctrl-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+/* 컨트롤 바 내 tool-btn: 가로 배치 */
+#canvas-control-bar .tool-btn {
+  flex-direction: row;
+  padding: 4px 8px;
+  height: 28px;
+  font-size: 11px;
+  gap: 3px;
+}
+#canvas-control-bar .line-btn {
+  padding: 4px 6px;
+  height: 28px;
+  font-size: 10px;
+  gap: 2px;
+}
+#canvas-control-bar .cat-btn {
+  padding: 4px 8px;
+  height: 28px;
+  font-size: 11px;
+}
+
+/* ============================================================
+   CANVAS AREA (실제 캔버스 영역)
+   ============================================================ */
+#canvas-area {
   flex: 1;
   position: relative;
   overflow: hidden;
@@ -927,19 +1015,22 @@ input[type=range]::-webkit-slider-thumb {
 }
 .folder-path.has-path { color: var(--text-secondary); font-weight: 500; }
 
-.prefix-input {
-  width: 100%;
-  background: var(--bg-panel);
+/* ── 사진 매칭 번호 입력 (C-1) ── */
+.photo-num-input {
+  width: 38px;
+  background: var(--bg-card);
   border: 1.5px solid var(--border);
-  border-radius: var(--radius);
-  color: var(--text-primary);
-  padding: 6px 10px;
-  font-size: 12px;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  padding: 2px 3px;
+  font-size: 10px;
+  text-align: center;
+  flex-shrink: 0;
   font-family: var(--font);
   transition: border-color 0.12s;
 }
-.prefix-input:focus { outline: none; border-color: var(--accent); }
-.prefix-input::placeholder { color: var(--text-placeholder); }
+.photo-num-input:focus { outline: none; border-color: var(--accent); }
+.photo-num-input::placeholder { color: var(--text-placeholder); }
 
 /* ── 도곽 설정 버튼 영역 ── */
 #toolbar .toggle { margin-left: 2px; }
@@ -1104,6 +1195,47 @@ input[type=range]::-webkit-slider-thumb {
   color: var(--danger);
   background: var(--danger-dim);
 }
+
+/* ============================================================
+   파일명 변환 미리보기 (C-3)
+   ============================================================ */
+#rename-preview-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 8px 10px;
+}
+#rename-preview-list::-webkit-scrollbar { width: 4px; }
+#rename-preview-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.rename-preview-row {
+  display: grid;
+  grid-template-columns: 52px 1fr 14px 1fr 16px;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  font-size: 10px;
+  margin-bottom: 2px;
+  border: 1px solid transparent;
+}
+.rename-preview-row.rp-ready   { background: var(--accent-dim); border-color: rgba(91,91,214,0.2); }
+.rename-preview-row.rp-same    { background: var(--bg-card); color: var(--text-dim); }
+.rename-preview-row.rp-nomatch { background: var(--warning-dim); color: var(--warning); }
+.rename-preview-row.rp-ok      { background: var(--success-dim); color: var(--success); }
+.rename-preview-row.rp-error   { background: var(--danger-dim); color: var(--danger); }
+
+.rp-label  { font-weight: 700; color: var(--accent); white-space: nowrap; }
+.rp-old    { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary); }
+.rp-arrow  { text-align: center; color: var(--text-dim); font-weight: 600; }
+.rp-new    { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: var(--text-primary); }
+.rp-status { text-align: center; font-weight: 700; }
+
+.rename-preview-row.rp-ready   .rp-label,
+.rename-preview-row.rp-ready   .rp-new   { color: var(--accent); }
+.rename-preview-row.rp-nomatch .rp-label { color: var(--warning); }
+.rename-preview-row.rp-ok      .rp-label,
+.rename-preview-row.rp-ok      .rp-new   { color: var(--success); }
+.rename-preview-row.rp-error   .rp-label { color: var(--danger); }
 
 /* ============================================================
    도곽 모달 — 섹션 구분 타이틀
