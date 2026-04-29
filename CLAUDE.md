@@ -254,7 +254,31 @@ Num-Drweb/
       (File System Access API: readwrite 모드, folderHandle.removeEntry 사용)
 - [x] 변경 결과 실시간 표시 (성공: 초록, 실패: 빨강)
 
-### Phase 3-b — 다음 예정
+### Phase 3-b — 다음 예정 (UI 개선 3종)
+
+#### 3-b-1. 사이드바 목록 전체 페이지 통합 표시
+- 넘버링 탭: 현재 페이지 목록만 표시 → **전체 페이지** 넘버링 통합 목록으로 변경
+  - 페이지 구분 헤더(예: "P1 — 외관조사망도") 사이에 해당 페이지 넘버링 나열
+  - 페이지 이동 없이 전체 번호 현황 한눈에 파악
+- 사진 탭: 폴더 내 사진을 전체 페이지 넘버링 기준으로 미리보기 표시
+
+#### 3-b-2. 사이드바 사진번호 입력 UX 개선
+- 우측 사이드바 전체 너비 확장 (220px → 260px 검토)
+- `photo-num-input` 크기 확장 (현재 38px → 54px 이상)
+- `type="number"` 숫자 상·하 스핀 버튼 CSS로 숨김
+  (`-webkit-appearance: none` / `-moz-appearance: textfield`)
+- **Tab 키 순차 이동**: 1F-01 사진번호 입력 후 Tab → 1F-02 사진번호 입력칸으로 포커스 이동
+  - sidebar.js `renderNumList` 이벤트에서 keydown Tab 감지 후 다음 `.photo-num-input` focus()
+
+#### 3-b-3. 도곽 설정 팝업 UX 개선
+- 모달 오버레이 배경 제거 (`rgba` 어둡게 막는 overlay → 투명 또는 삭제)
+- 팝업창 위치: 화면 우측 또는 좌측 끝에 고정 (캔버스 영역을 가리지 않도록)
+  - `position: fixed; right: var(--sidebar-w); top: var(--toolbar-h);` 방식 검토
+  - 또는 사이드바 위에 drawer 형태로 슬라이드 표시
+- 팝업 띄운 상태에서 캔버스 완전히 상호작용 가능 (슬라이더 조절 시 즉시 캔버스 확인)
+- 현재 `.modal-overlay { backdrop-filter: blur(2px) }` 제거 대상
+
+### Phase 3-c — 장기 예정
 - [ ] Electron 패키징 (Windows .exe 설치파일)
 - [ ] CDN → 로컬 lib 파일 교체 (오프라인 지원)
 - [ ] Excel 사진첩 보고서 내보내기 (SheetJS)
