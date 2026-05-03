@@ -228,6 +228,17 @@ body {
 }
 #save-indicator.saved   { color: var(--success); }
 #save-indicator.unsaved { color: var(--warning); }
+#save-indicator.saving  { color: var(--text-dim); }
+#save-indicator .save-dot {
+  font-size: 10px;
+  line-height: 1;
+  min-width: 10px;
+}
+#save-indicator .save-text {
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+}
 
 /* ── 토글 스위치 ── */
 .toggle {

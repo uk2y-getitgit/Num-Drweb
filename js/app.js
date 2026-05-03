@@ -1,7 +1,7 @@
 /* app.js — 메인 진입점 & 이벤트 연결 */
 'use strict';
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   /* ── DOM 참조 ── */
   const wrap           = document.getElementById('canvas-wrap');   // 드래그앤드롭용
   const canvasArea     = document.getElementById('canvas-area');   // CanvasManager용 (D)
@@ -30,6 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (cv) cv.textContent = items.length;
     _updateNextNumDisplay();
     _renderPageList();
+    if (!_isRestoring) StorageManager.markDirty();
   });
 
   /* ── Sidebar 초기화 ── */
@@ -222,6 +223,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const dot = btn.querySelector('.cat-dot-lg');
         if (dot) dot.style.background = e.target.value;
       }
+      if (!_isRestoring) StorageManager.markDirty();
     });
   });
 
@@ -243,6 +245,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (activePage) activePage.prefix = v;
     CanvasManager.renderAnnotations(Annotation.getAll());
     Sidebar.renderNumList(Annotation.getAll(), _collectAllPagesData());
+    if (!_isRestoring) StorageManager.markDirty();
   });
 
   /* ── 글씨 색상 ── */
@@ -352,23 +355,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    /* Shift+1/2/3: 카테고리 선택 또는 선택된 항목 카테고리 변경 */
-    const catMap = { '1': 'defect', '2': 'repair', '3': 'other' };
-    const catLabels = { defect:'결함', repair:'보수', other:'기타' };
-    if (e.shiftKey && catMap[e.key]) {
-      const cat = catMap[e.key];
-      const sid = CanvasManager.getSelectedId();
-      if (sid !== null) {
-        const cats = Annotation.getCategories();
-        Annotation.updateItem(sid, { category: cat, color: cats[cat].color });
-        showMsg(catLabels[cat] + ' 구분으로 변경', 'info');
-      } else {
-        document.querySelectorAll('.cat-btn').forEach(b => b.classList.toggle('active', b.dataset.cat === cat));
-        Annotation.setActiveCategory(cat);
-        showMsg(catLabels[cat] + ' 카테고리', 'info');
-      }
-    }
-
     /* Q: 직교모드 */
     if (e.key === 'q' || e.key === 'Q') {
       orthoToggle.checked = !orthoToggle.checked;
@@ -470,6 +456,16 @@ document.addEventListener('DOMContentLoaded', () => {
                   (skip ? `, ${skip}건 건너뜀` : '') +
                   (err  ? `, ${err}건 오류`    : '');
       showMsg(msg, ok ? 'success' : 'warn');
+
+      // 변환 완료 안내 영역 표시
+      if (ok > 0) {
+        const notice = document.getElementById('rename-done-notice');
+        const folderEl = document.getElementById('rename-done-folder');
+        if (notice && folderEl) {
+          folderEl.textContent = FileManager.getFolderName() || '선택된 폴더';
+          notice.style.display = 'block';
+        }
+      }
     } catch (e) {
       showMsg('변경 실패: ' + e.message, 'warn');
     }
@@ -607,6 +603,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.getElementById('modal-titleblock').classList.add('hidden');
     _renderTitleBlock();
+    if (!_isRestoring) StorageManager.markDirty();
     showMsg('도곽 설정 적용됨', 'success');
   });
 
@@ -614,7 +611,39 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('titleblock-toggle').addEventListener('change', e => {
     TitleBlock.setEnabled(e.target.checked);
     _renderTitleBlock();
+    if (!_isRestoring) StorageManager.markDirty();
     showMsg('도곽 ' + (e.target.checked ? 'ON' : 'OFF'), 'info');
+  });
+
+  /* ── 프로젝트 저장 (.numdraw) ── */
+  document.getElementById('btn-save-project').addEventListener('click', async () => {
+    try {
+      const saved = await StorageManager.exportFile();
+      if (saved !== false) showMsg('프로젝트 저장 완료', 'success');
+    } catch (e) {
+      showMsg('저장 실패: ' + e.message, 'warn');
+    }
+  });
+
+  /* ── 프로젝트 불러오기 (.numdraw) ── */
+  document.getElementById('btn-load-project').addEventListener('click', () => {
+    document.getElementById('numdraw-file-input').click();
+  });
+
+  document.getElementById('numdraw-file-input').addEventListener('change', async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    e.target.value = '';
+    try {
+      showMsg('프로젝트 불러오는 중...', 'info');
+      const data = await StorageManager.importFile(file);
+      if (!confirm('현재 작업을 지우고 저장된 프로젝트를 불러오시겠습니까?')) return;
+      await _restoreFromData(data);
+      await StorageManager.saveSession();
+      showMsg('프로젝트 불러오기 완료', 'success');
+    } catch (e) {
+      showMsg('불러오기 실패: ' + e.message, 'warn');
+    }
   });
 
   /* ── PDF 저장 ── */
@@ -846,6 +875,109 @@ document.addEventListener('DOMContentLoaded', () => {
     clearTimeout(msgTimer);
     msgTimer = setTimeout(() => { statusMsg.className = ''; }, 2500);
   }
+
+  /* ── 저장 기능 ── */
+  let _isRestoring = false;
+
+  function _onSaveStatusChange(state) {
+    const el = document.getElementById('save-indicator');
+    if (!el) return;
+    const dot = el.querySelector('.save-dot');
+    const txt = el.querySelector('.save-text');
+
+    el.className = 'save-indicator';
+
+    if (state === 'unsaved') {
+      el.classList.add('unsaved');
+      if (dot) dot.textContent = '●';
+      if (txt) txt.textContent = '미저장';
+    } else if (state === 'saving') {
+      if (dot) dot.textContent = '○';
+      if (txt) txt.textContent = '저장 중...';
+    } else if (state === 'saved') {
+      el.classList.add('saved');
+      if (dot) dot.textContent = '✓';
+      const time = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+      if (txt) txt.textContent = time + ' 저장됨';
+    }
+  }
+
+  async function _restoreFromData(data) {
+    _isRestoring = true;
+    try {
+      // 1. 전체 초기화
+      PageManager.clearAll();
+      dropzone.classList.remove('has-file');
+
+      // 2. globalConfig 복원 (scale, tbScale, categories)
+      if (data.globalConfig) {
+        const { scale, tbScale, categories } = data.globalConfig;
+        Annotation.setConfig({ scale: scale || 1.0, tbScale: tbScale || 1.0 });
+        if (categories) {
+          ['defect', 'repair', 'other'].forEach(key => {
+            if (categories[key]) {
+              Annotation.setCategoryColor(key, categories[key].color);
+              const picker = document.getElementById('cat-color-' + key);
+              const btn    = document.querySelector('.cat-btn[data-cat="' + key + '"]');
+              if (picker) picker.value = categories[key].color;
+              if (btn) {
+                btn.style.setProperty('--cat-c', categories[key].color);
+                const dot = btn.querySelector('.cat-dot-lg');
+                if (dot) dot.style.background = categories[key].color;
+              }
+            }
+          });
+        }
+        _syncSettingsUI();
+      }
+
+      // 3. 페이지 복원
+      PageManager.fromJSON(data.pages);
+
+      // 4. TitleBlock 복원
+      if (data.titleBlock) {
+        TitleBlock.setEnabled(data.titleBlock.enabled || false);
+        TitleBlock.applySettings(data.titleBlock.settings || {});
+        const tbToggle = document.getElementById('titleblock-toggle');
+        if (tbToggle) tbToggle.checked = data.titleBlock.enabled || false;
+      }
+
+      // 5. 화면 갱신
+      const activePage = PageManager.getActivePage();
+      if (activePage) {
+        dropzone.classList.add('has-file');
+        document.getElementById('file-name').textContent = activePage.name;
+        CanvasManager.loadImage(activePage.imgSrc, activePage.imgW, activePage.imgH);
+      }
+      _renderPageList();
+      CanvasManager.renderAnnotations(Annotation.getAll());
+      _updateNextNumDisplay();
+    } finally {
+      _isRestoring = false;
+    }
+  }
+
+  /* ── StorageManager 초기화 & 세션 복원 ── */
+  await StorageManager.init(_onSaveStatusChange);
+
+  const savedSession = await StorageManager.loadSession();
+  if (savedSession) {
+    const restored = confirm(
+      `저장된 작업이 있습니다.\n마지막 저장: ${new Date(savedSession.updatedAt).toLocaleString()}\n\n불러오시겠습니까?`
+    );
+    if (restored) {
+      await _restoreFromData(savedSession);
+      showMsg('이전 작업을 불러왔습니다', 'success');
+    }
+  }
+
+  /* ── beforeunload 경고 ── */
+  window.addEventListener('beforeunload', e => {
+    if (StorageManager.isDirty()) {
+      e.preventDefault();
+      e.returnValue = '';
+    }
+  });
 
   /* ── 초기 상태 ── */
   document.querySelector('.tool-btn[data-tool="arrow"]').classList.add('active');
