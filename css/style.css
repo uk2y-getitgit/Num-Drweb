@@ -1038,6 +1038,17 @@ input[type=range]::-webkit-slider-thumb {
 .photo-num-input:focus { outline: none; border-color: var(--accent); }
 .photo-num-input::placeholder { color: var(--text-placeholder); }
 
+/* ── 사진 매칭 번호 표시 (비활성 페이지 읽기 전용) ── */
+.photo-num-display {
+  flex: 0 0 auto;
+  width: 52px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-primary);
+  padding: 4px 0;
+}
+
 /* ── 페이지 섹션 헤더 (전 페이지 통합 목록) ── */
 .page-section-hdr {
   display: flex;
@@ -1066,6 +1077,22 @@ input[type=range]::-webkit-slider-thumb {
   flex-shrink: 0;
 }
 .page-section-hdr.active .psh-count { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+
+/* ── 넘버링 목록 열 헤더 ── */
+.num-list-header {
+  display: flex;
+  align-items: center;
+  padding: 3px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--border-light);
+  letter-spacing: 0.04em;
+  user-select: none;
+}
+.nlh-num  { flex: 0 0 auto; min-width: 52px; }
+.nlh-type { flex: 1; }
+.nlh-photo { flex: 0 0 auto; width: 52px; text-align: center; }
 
 /* ── 비활성 페이지 항목 (읽기 전용) ── */
 .num-item-readonly {

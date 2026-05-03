@@ -48,22 +48,30 @@ const Sidebar = (() => {
 
     let html = '';
 
+    const COL_HEADER = `
+      <div class="num-list-header">
+        <span class="nlh-num">결함번호</span>
+        <span class="nlh-type">결함종류</span>
+        <span class="nlh-photo">매칭번호</span>
+      </div>`;
+
     if (pagesWithData && pagesWithData.length > 1) {
-      /* 다중 페이지 — 페이지 헤더 + 그룹 */
+      /* 다중 페이지 — 페이지 헤더 + 열 헤더 + 그룹 */
       html = pagesWithData.map(pg => `
         <div class="page-section-hdr${pg.isActive ? ' active' : ''}" data-page-id="${pg.id}">
           <span class="psh-name">${pg.name}</span>
           <span class="psh-count">${pg.items.length}</span>
         </div>
-        ${pg.items.map(item => _renderNumItem(item, cfg, cats, pg.isActive)).join('')}
+        ${COL_HEADER}
+        ${pg.items.map(item => _renderNumItem(item, cfg, cats, pg.isActive, pg.prefix)).join('')}
       `).join('');
     } else if (pagesWithData && pagesWithData.length === 1) {
-      /* 데이터 있는 페이지가 1개뿐 — 헤더 없이 렌더 */
+      /* 데이터 있는 페이지가 1개뿐 */
       const pg = pagesWithData[0];
-      html = pg.items.map(item => _renderNumItem(item, cfg, cats, pg.isActive)).join('');
+      html = COL_HEADER + pg.items.map(item => _renderNumItem(item, cfg, cats, pg.isActive, pg.prefix)).join('');
     } else {
       /* allPages 없음 — 현재 페이지 항목만 */
-      html = items.map(item => _renderNumItem(item, cfg, cats, true)).join('');
+      html = COL_HEADER + items.map(item => _renderNumItem(item, cfg, cats, true, cfg.prefix)).join('');
     }
 
     wrap.innerHTML = html;
@@ -87,29 +95,36 @@ const Sidebar = (() => {
 
     wrap.querySelectorAll('.photo-num-input').forEach((input, _i, arr) => {
       input.addEventListener('click', e => e.stopPropagation());
-      input.addEventListener('change', e => {
-        e.stopPropagation();
+      input.addEventListener('blur', e => {
         const id  = Number(e.target.dataset.id);
         const val = e.target.value.trim();
         Annotation.updateItem(id, { customPhotoNum: val !== '' ? Number(val) : null });
       });
-      /* Tab 키 순차 이동 */
+      /* Tab 키 순차 이동 — blur로 DOM 재구성 후 포커스 복구 */
       input.addEventListener('keydown', e => {
         if (e.key !== 'Tab') return;
         e.preventDefault();
         const inputs = Array.from(wrap.querySelectorAll('.photo-num-input'));
         const idx  = inputs.indexOf(e.target);
         const next = inputs[idx + (e.shiftKey ? -1 : 1)];
-        if (next) next.focus();
+        if (!next) return;
+        const nextId = next.dataset.id;
+        next.focus(); // blur 발생 → updateItem → renderNumList(DOM 재구성)
+        // DOM 재구성 완료 후 해당 id의 input에 포커스 복구
+        setTimeout(() => {
+          const restored = wrap.querySelector(`.photo-num-input[data-id="${nextId}"]`);
+          if (restored) restored.focus();
+        }, 0);
       });
     });
   }
 
   /* ── 넘버 항목 HTML 생성 ── */
-  function _renderNumItem(item, cfg, cats, isActive) {
-    const prefix   = cfg.prefix ? cfg.prefix + '-' : '';
+  function _renderNumItem(item, cfg, cats, isActive, pagePrefix) {
+    const prefix   = (pagePrefix !== undefined ? pagePrefix : cfg.prefix);
+    const prefixStr = prefix ? prefix + '-' : '';
     const numStr   = String(item.num).padStart(2, '0');
-    const label    = prefix + numStr;
+    const label    = prefixStr + numStr;
     const catInfo  = cats[item.category];
     const catColor = catInfo?.color || item.color || 'var(--accent)';
     const catLabel = catInfo?.label || item.category || '기타';
@@ -121,6 +136,9 @@ const Sidebar = (() => {
       : '<span style="color:var(--text-placeholder)">미매칭</span>';
 
     if (!isActive) {
+      const displayNum = item.customPhotoNum !== null && item.customPhotoNum !== undefined
+                         ? item.customPhotoNum
+                         : '';
       return `
         <div class="num-item num-item-readonly" data-id="${item.id}" data-active="false">
           <div class="num-badge" style="background:${catColor};color:#fff;">${label}</div>
@@ -131,6 +149,7 @@ const Sidebar = (() => {
             </div>
             <div class="num-photo">${photoStr}</div>
           </div>
+          <span class="photo-num-display">${displayNum || '-'}</span>
         </div>`;
     }
 

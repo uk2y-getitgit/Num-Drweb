@@ -106,7 +106,7 @@ const TitleBlock = (() => {
     ctx.fillStyle    = '#666';
     ctx.textAlign    = 'left';
     ctx.textBaseline = 'top';
-    ctx.fillText(label, cx + PAD, cy + Math.round(1.4 * tScale));
+    ctx.fillText(label, cx + PAD, cy + Math.round(1.4 * tbScale));
 
     ctx.font      = `700 ${valueSz}px "Malgun Gothic","Arial",sans-serif`;
     ctx.fillStyle = '#111';
@@ -129,7 +129,7 @@ const TitleBlock = (() => {
     ctx.fillStyle    = '#666';
     ctx.textAlign    = 'center';
     ctx.textBaseline = 'top';
-    ctx.fillText('SCALE', cx + cw / 2, cy + Math.round(1.4 * tScale));
+    ctx.fillText('SCALE', cx + cw / 2, cy + Math.round(1.4 * tbScale));
 
     ctx.font         = `700 ${valueSz}px "Malgun Gothic","Arial",sans-serif`;
     ctx.fillStyle    = '#111';

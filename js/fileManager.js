@@ -58,6 +58,7 @@ const FileManager = (() => {
 
   /* ── 자동 매칭 (customPhotoNum 우선) ── */
   function autoMatch(annotations) {
+    if (!photos.length) return; /* 폴더 미선택 시 기존 photoName 유지 */
     annotations.forEach(item => {
       const matchNum = item.customPhotoNum != null ? item.customPhotoNum : item.num;
       const matched  = photos.find(p => p.num === Number(matchNum));
@@ -67,10 +68,10 @@ const FileManager = (() => {
 
   /* ── 파일명 변환 미리보기 (순수 함수, 파일 조작 없음) ── */
   function buildRenamePreview(annotations) {
-    const cfg    = (typeof Annotation !== 'undefined') ? Annotation.getConfig() : {};
-    const prefix = cfg.prefix ? cfg.prefix + '-' : '';
-
     return annotations.map(item => {
+      /* 각 item의 _pagePrefix 사용 (페이지별로 다른 접두어 지원) */
+      const itemPrefix = item._pagePrefix !== undefined ? item._pagePrefix : '';
+      const prefix     = itemPrefix ? itemPrefix + '-' : '';
       const matchNum   = item.customPhotoNum != null ? item.customPhotoNum : item.num;
       const photo      = photos.find(p => p.num === Number(matchNum));
       const numStr     = String(item.num).padStart(2, '0');
@@ -98,12 +99,20 @@ const FileManager = (() => {
     if (!folderHandle) throw new Error('폴더가 선택되지 않았습니다');
     const preview = buildRenamePreview(annotations);
     const results = [];
+    const processedOldNames = new Set(); /* 중복 원본 파일 재처리 방지 */
 
     for (const row of preview) {
       if (row.status !== 'ready') {
         results.push({ ...row });
         continue;
       }
+
+      /* 이미 이번 배치에서 처리한 원본 파일 → 건너뜀 */
+      if (processedOldNames.has(row.oldName)) {
+        results.push({ ...row, status: 'skip' });
+        continue;
+      }
+
       const photo = photos.find(p => p.name === row.oldName);
       if (!photo) { results.push({ ...row, status: 'error', error: '파일을 찾을 수 없음' }); continue; }
 
@@ -119,8 +128,10 @@ const FileManager = (() => {
         photo.name   = row.newName;
         photo.handle = newHandle;
         photo.num    = _extractNum(row.newName);
+        processedOldNames.add(row.oldName); /* 처리 완료 기록 */
         results.push({ ...row, status: 'ok' });
       } catch (e) {
+        /* 개별 파일 오류는 기록 후 다음 항목으로 계속 진행 */
         results.push({ ...row, status: 'error', error: e.message });
       }
     }

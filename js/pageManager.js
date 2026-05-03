@@ -134,7 +134,7 @@ const PageManager = (() => {
 
   /* ── 내부 헬퍼 ── */
   function _createPage(name, imgSrc, imgW, imgH) {
-    return { id: nextPageId++, name, imgSrc, imgW, imgH, annJSON: null, drawingName: null };
+    return { id: nextPageId++, name, imgSrc, imgW, imgH, annJSON: null, drawingName: null, prefix: '' };
   }
 
   function _getById(id) { return pages.find(p => p.id === id); }

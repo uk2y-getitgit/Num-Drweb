@@ -61,6 +61,8 @@ document.addEventListener('DOMContentLoaded', () => {
       CanvasManager.loadImage(page.imgSrc, page.imgW, page.imgH);
       dropzone.classList.add('has-file');
       document.getElementById('file-name').textContent = page.name;
+      /* 페이지별 접두어 복원 */
+      Annotation.setConfig({ prefix: page.prefix || '' });
       _syncSettingsUI();
       /* B: 페이지별 Drawing Name 적용 */
       TitleBlock.applySettings({ drawingName: page.drawingName || '' });
@@ -232,7 +234,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   /* ── 접두어 ── */
   document.getElementById('prefix-num').addEventListener('input', e => {
-    Annotation.setConfig({ prefix: e.target.value.trim() });
+    const v = e.target.value.trim();
+    Annotation.setConfig({ prefix: v });
+    /* 현재 페이지에도 prefix 저장 */
+    const activePage = PageManager.getActivePage();
+    if (activePage) activePage.prefix = v;
     CanvasManager.renderAnnotations(Annotation.getAll());
     Sidebar.renderNumList(Annotation.getAll(), _collectAllPagesData());
   });
@@ -309,8 +315,8 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    /* Tab: 선 스타일 로테이션 (A-4) */
-    if (e.key === 'Tab') {
+    /* W: 선 스타일 로테이션 (A-4) — Tab은 사진번호 입력 시 사용 */
+    if (e.key === 'w' || e.key === 'W') {
       e.preventDefault();
       const cfg  = Annotation.getConfig();
       const cur  = LINE_STYLES.indexOf(cfg.lineStyle || 'straight');
@@ -343,19 +349,47 @@ document.addEventListener('DOMContentLoaded', () => {
 
   /* ── 파일명 일괄 변경 (C-3) ── */
   document.getElementById('btn-rename-all').addEventListener('click', async () => {
-    const annotations = Annotation.getAll();
-    if (!annotations.length) { showMsg('넘버링이 없습니다', 'warn'); return; }
-    if (!confirm('미리보기의 [▶ 준비] 항목을 모두 파일명 변경하시겠습니까?')) return;
+    /* 전체 페이지 항목 수집 (페이지별 접두어 포함) */
+    const pagesData = _collectAllPagesData();
+    const allItemsWithPrefix = pagesData.flatMap(p =>
+      p.items.map(item => ({ ...item, _pagePrefix: p.prefix }))
+    );
+
+    if (!allItemsWithPrefix.length) { showMsg('넘버링이 없습니다', 'warn'); return; }
+
+    /* 미매칭 항목 확인 팝업 */
+    const nomatchItems = allItemsWithPrefix.filter(item => !item.photoName);
+    if (nomatchItems.length > 0) {
+      const nomatchLabels = nomatchItems.map(item => {
+        const pfx = item._pagePrefix ? item._pagePrefix + '-' : '';
+        return pfx + String(item.num).padStart(2, '0');
+      }).join(', ');
+      const proceed = confirm(
+        `매칭되지 않은 넘버링 ${nomatchItems.length}건이 있습니다.\n` +
+        `[${nomatchLabels}]\n\n` +
+        `해당 항목은 변경에서 제외됩니다. 계속 진행하시겠습니까?`
+      );
+      if (!proceed) return;
+    } else {
+      if (!confirm('미리보기의 [▶ 준비] 항목을 모두 파일명 변경하시겠습니까?')) return;
+    }
 
     showMsg('파일명 변경 중...', 'info');
     try {
-      const results = await FileManager.renameAll(annotations);
-      const ok      = results.filter(r => r.status === 'ok').length;
-      const err     = results.filter(r => r.status === 'error').length;
-      FileManager.autoMatch(annotations);
-      Sidebar.renderNumList(annotations, _collectAllPagesData());
+      const results = await FileManager.renameAll(allItemsWithPrefix);
+      const ok   = results.filter(r => r.status === 'ok').length;
+      const err  = results.filter(r => r.status === 'error').length;
+      const skip = results.filter(r => r.status === 'skip').length;
+
+      /* 전체 페이지 autoMatch 갱신 */
+      pagesData.forEach(p => FileManager.autoMatch(p.items));
+      Sidebar.renderNumList(Annotation.getAll(), _collectAllPagesData());
       _refreshRenamePreview();
-      showMsg(`변경 완료: ${ok}건 성공${err ? ', ' + err + '건 오류' : ''}`, ok ? 'success' : 'warn');
+
+      const msg = `변경 완료: ${ok}건 성공` +
+                  (skip ? `, ${skip}건 건너뜀` : '') +
+                  (err  ? `, ${err}건 오류`    : '');
+      showMsg(msg, ok ? 'success' : 'warn');
     } catch (e) {
       showMsg('변경 실패: ' + e.message, 'warn');
     }
@@ -700,14 +734,17 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         pageItems = [];
       }
-      return { id: page.id, name: page.name, isActive: page.id === activeId, items: pageItems };
+      return { id: page.id, name: page.name, isActive: page.id === activeId, items: pageItems, prefix: page.prefix || '' };
     });
   }
 
-  /* ── 파일명 미리보기 헬퍼 (전 페이지 항목 사용) ── */
+  /* ── 파일명 미리보기 헬퍼 (전 페이지 항목 사용 + 각 항목의 pagePrefix 포함) ── */
   function _refreshRenamePreview() {
-    const allItems = _collectAllPagesData().flatMap(p => p.items);
-    const preview  = FileManager.buildRenamePreview(allItems);
+    const pagesWithPrefix = _collectAllPagesData();
+    const allItemsWithPrefix = pagesWithPrefix.flatMap(p =>
+      p.items.map(item => ({ ...item, _pagePrefix: p.prefix }))
+    );
+    const preview  = FileManager.buildRenamePreview(allItemsWithPrefix);
     Sidebar.renderRenamePreview(preview);
   }
 

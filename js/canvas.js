@@ -69,20 +69,18 @@ const CanvasManager = (() => {
   }
 
   /* ── 이미지 배치 동적 계산 ──
-     tbScale 변경 시 캔버스 크기는 유지하면서 표제란 높이와 이미지 위치만 재산출.
+     A4 용지의 고정 배치: 여백 10mm + 이미지 영역 + 도곽 20mm
+     tbScale은 도곽의 텍스트·선 크기만 조절하고, 이미지 배치 공간은 항상 고정.
   */
   function _computeImageLayout() {
     if (!paperW || !imgW) return null;
-
-    const tbScale = (typeof Annotation !== 'undefined')
-      ? (Annotation.getConfig().tbScale || 1) : 1;
 
     const landscape = paperW >= paperH;
     const a4W  = landscape ? 297 : 210;
     const pxMm = paperW / a4W;
 
     const mPx  = Math.round(10 * pxMm);
-    const tbPx = Math.round(20 * pxMm * tbScale);
+    const tbPx = Math.round(20 * pxMm);  /* 도곽 높이는 항상 고정 (tbScale 무관) */
 
     const cW = paperW - 2 * mPx;
     const cH = Math.max(10, paperH - 2 * mPx - tbPx);
