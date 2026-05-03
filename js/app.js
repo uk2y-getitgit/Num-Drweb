@@ -296,48 +296,77 @@ document.addEventListener('DOMContentLoaded', () => {
     const tag = e.target.tagName;
     const isInput = tag === 'INPUT' || tag === 'TEXTAREA';
 
-    if (e.key === 'Escape') { CanvasManager.cancelDraw(); return; }
+    if (e.key === 'Escape') {
+      CanvasManager.cancelDraw();
+      CanvasManager.clearSelection();
+      return;
+    }
     if (e.key === 'F5')     { e.preventDefault(); CanvasManager.fitToView(); return; }
     if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); _undo(); return; }
 
     if (isInput) return; // 이하 단축키: 입력 필드에서는 무시
 
-    /* A: 화살표 도구 선택 */
+    /* A: 화살표 도구 선택 또는 선택된 항목 타입 변경 */
     if (e.key === 'a' || e.key === 'A') {
-      document.querySelectorAll('.tool-btn[data-tool]').forEach(b => b.classList.remove('active'));
-      const btn = document.querySelector('.tool-btn[data-tool="arrow"]');
-      if (btn) btn.classList.add('active');
-      CanvasManager.setTool('arrow');
-      showMsg('화살표 모드', 'info');
+      const sid = CanvasManager.getSelectedId();
+      if (sid !== null) {
+        Annotation.updateItem(sid, { type: 'arrow' });
+        showMsg('화살표로 변경', 'info');
+      } else {
+        document.querySelectorAll('.tool-btn[data-tool]').forEach(b => b.classList.remove('active'));
+        const btn = document.querySelector('.tool-btn[data-tool="arrow"]');
+        if (btn) btn.classList.add('active');
+        CanvasManager.setTool('arrow');
+        showMsg('화살표 모드', 'info');
+      }
     }
 
-    /* D: 점 도구 선택 */
+    /* D: 점 도구 선택 또는 선택된 항목 타입 변경 */
     if (e.key === 'd' || e.key === 'D') {
-      document.querySelectorAll('.tool-btn[data-tool]').forEach(b => b.classList.remove('active'));
-      const btn = document.querySelector('.tool-btn[data-tool="dot"]');
-      if (btn) btn.classList.add('active');
-      CanvasManager.setTool('dot');
-      showMsg('점 모드', 'info');
+      const sid = CanvasManager.getSelectedId();
+      if (sid !== null) {
+        Annotation.updateItem(sid, { type: 'dot' });
+        showMsg('점으로 변경', 'info');
+      } else {
+        document.querySelectorAll('.tool-btn[data-tool]').forEach(b => b.classList.remove('active'));
+        const btn = document.querySelector('.tool-btn[data-tool="dot"]');
+        if (btn) btn.classList.add('active');
+        CanvasManager.setTool('dot');
+        showMsg('점 모드', 'info');
+      }
     }
 
-    /* 1~4: 선 스타일 직접 선택 */
+    /* 1~4: 선 스타일 직접 선택 또는 선택된 항목 스타일 변경 */
     const lineMap = { '1': 'straight', '2': 'elbow-h', '3': 'elbow-v', '4': 'zigzag' };
     const lineLabels = { straight:'직선', 'elbow-h':'ㄱ자', 'elbow-v':'ㄴ자', zigzag:'번개' };
     if (!e.shiftKey && lineMap[e.key]) {
       const style = lineMap[e.key];
-      document.querySelectorAll('.line-btn').forEach(b => b.classList.toggle('active', b.dataset.line === style));
-      Annotation.setConfig({ lineStyle: style });
-      showMsg(lineLabels[style] + ' 선 선택', 'info');
+      const sid = CanvasManager.getSelectedId();
+      if (sid !== null) {
+        Annotation.updateItem(sid, { lineStyle: style });
+        showMsg(lineLabels[style] + ' 선으로 변경', 'info');
+      } else {
+        document.querySelectorAll('.line-btn').forEach(b => b.classList.toggle('active', b.dataset.line === style));
+        Annotation.setConfig({ lineStyle: style });
+        showMsg(lineLabels[style] + ' 선 선택', 'info');
+      }
     }
 
-    /* Shift+1/2/3: 카테고리 선택 */
+    /* Shift+1/2/3: 카테고리 선택 또는 선택된 항목 카테고리 변경 */
     const catMap = { '1': 'defect', '2': 'repair', '3': 'other' };
     const catLabels = { defect:'결함', repair:'보수', other:'기타' };
     if (e.shiftKey && catMap[e.key]) {
       const cat = catMap[e.key];
-      document.querySelectorAll('.cat-btn').forEach(b => b.classList.toggle('active', b.dataset.cat === cat));
-      Annotation.setActiveCategory(cat);
-      showMsg(catLabels[cat] + ' 카테고리', 'info');
+      const sid = CanvasManager.getSelectedId();
+      if (sid !== null) {
+        const cats = Annotation.getCategories();
+        Annotation.updateItem(sid, { category: cat, color: cats[cat].color });
+        showMsg(catLabels[cat] + ' 구분으로 변경', 'info');
+      } else {
+        document.querySelectorAll('.cat-btn').forEach(b => b.classList.toggle('active', b.dataset.cat === cat));
+        Annotation.setActiveCategory(cat);
+        showMsg(catLabels[cat] + ' 카테고리', 'info');
+      }
     }
 
     /* Q: 직교모드 */
@@ -355,18 +384,29 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    /* W: 선 스타일 로테이션 (A-4) — Tab은 사진번호 입력 시 사용 */
+    /* W: 선 스타일 로테이션 또는 선택된 항목 스타일 순환 */
     if (e.key === 'w' || e.key === 'W') {
       e.preventDefault();
-      const cfg  = Annotation.getConfig();
-      const cur  = LINE_STYLES.indexOf(cfg.lineStyle || 'straight');
-      const next = LINE_STYLES[(cur + 1) % LINE_STYLES.length];
-      Annotation.setConfig({ lineStyle: next });
-      document.querySelectorAll('.line-btn').forEach(b => {
-        b.classList.toggle('active', b.dataset.line === next);
-      });
       const labels = { straight:'직선', 'elbow-h':'ㄱ자', 'elbow-v':'ㄴ자', zigzag:'번개' };
-      showMsg(labels[next] + ' 선 선택', 'info');
+      const sid = CanvasManager.getSelectedId();
+      if (sid !== null) {
+        const item = Annotation.getAll().find(i => i.id === sid);
+        if (item) {
+          const cur  = LINE_STYLES.indexOf(item.lineStyle || 'straight');
+          const next = LINE_STYLES[(cur + 1) % LINE_STYLES.length];
+          Annotation.updateItem(sid, { lineStyle: next });
+          showMsg(labels[next] + ' 선으로 변경', 'info');
+        }
+      } else {
+        const cfg  = Annotation.getConfig();
+        const cur  = LINE_STYLES.indexOf(cfg.lineStyle || 'straight');
+        const next = LINE_STYLES[(cur + 1) % LINE_STYLES.length];
+        Annotation.setConfig({ lineStyle: next });
+        document.querySelectorAll('.line-btn').forEach(b => {
+          b.classList.toggle('active', b.dataset.line === next);
+        });
+        showMsg(labels[next] + ' 선 선택', 'info');
+      }
     }
   });
 

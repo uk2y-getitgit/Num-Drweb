@@ -19,6 +19,10 @@ const CanvasManager = (() => {
     offsetY:  0,
   };
 
+  let selectedItemId = null;
+  let mousedownPos   = null;
+  let onSelectItem   = null;
+
   let drawState = {
     tool:      'arrow',
     ortho:     false,
@@ -183,9 +187,15 @@ const CanvasManager = (() => {
         dragState.handle  = hit.handle;
         dragState.offsetX = cp.x - hit.item[hit.handle].x;
         dragState.offsetY = cp.y - hit.item[hit.handle].y;
+        mousedownPos = { x: e.clientX, y: e.clientY };
         wrap.style.cursor = 'grabbing';
         return; /* 새 넘버링 시작 차단 */
       }
+      /* 빈 공간 클릭 시 선택 해제 */
+      selectedItemId = null;
+      if (onSelectItem) onSelectItem(null);
+      renderAnnotations(Annotation.getAll());
+
       drawState.p1    = cp;
       drawState.phase = 1;
       if (onDrawStateChange) onDrawStateChange(drawState);
@@ -230,11 +240,24 @@ const CanvasManager = (() => {
     }
   }
 
-  function _onMouseUp() {
+  function _onMouseUp(e) {
     if (dragState.active) {
+      const moved = mousedownPos
+        ? Math.hypot(e.clientX - mousedownPos.x, e.clientY - mousedownPos.y)
+        : 99;
+      const wasClick = moved < 5;
+
       dragState.active = false;
+      const clickedItem = dragState.item;
       dragState.item = null;
       dragState.handle = null;
+      mousedownPos = null;
+
+      if (wasClick) {
+        selectedItemId = (selectedItemId === clickedItem.id) ? null : clickedItem.id;
+        if (onSelectItem) onSelectItem(selectedItemId);
+        renderAnnotations(Annotation.getAll());
+      }
       wrap.style.cursor = 'crosshair';
       return;
     }
@@ -242,6 +265,7 @@ const CanvasManager = (() => {
   }
   function _onMouseLeave() {
     dragState.active = false;
+    mousedownPos = null;
     if (isPanning) { isPanning = false; wrap.style.cursor = 'crosshair'; }
   }
 
@@ -317,7 +341,8 @@ const CanvasManager = (() => {
 
     items.forEach(item => {
       const label = _buildLabel(item);
-      _drawLeader({ ...item, label, preview: false });
+      const isSelected = (item.id === selectedItemId);
+      _drawLeader({ ...item, label, preview: false, selected: isSelected });
     });
 
     if (afterRenderCb) afterRenderCb(ctx, drawCanvas.width, drawCanvas.height);
@@ -329,7 +354,7 @@ const CanvasManager = (() => {
     return prefix + String(item.num).padStart(2, '0');
   }
 
-  function _drawLeader({ p1, p2, type, lineStyle, arrowFlip, color, textColor, num, label, preview }) {
+  function _drawLeader({ p1, p2, type, lineStyle, arrowFlip, color, textColor, num, label, preview, selected }) {
     const scale = preview ? 1 : (Annotation.getConfig().scale || 1);
     ctx.save();
     ctx.globalAlpha  = preview ? 0.5 : 1;
@@ -366,6 +391,22 @@ const CanvasManager = (() => {
       ctx.beginPath();
       ctx.arc(p2.x, p2.y, 3, 0, Math.PI * 2);
       ctx.fill();
+    }
+
+    /* 선택 하이라이트 */
+    if (selected && !preview) {
+      ctx.save();
+      ctx.strokeStyle = '#5B5BD6';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([3, 3]);
+      ctx.globalAlpha = 0.9;
+      ctx.beginPath();
+      ctx.arc(p1.x, p1.y, 12 * scale, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(p2.x, p2.y, 14 * scale, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
     }
 
     ctx.restore();
@@ -529,11 +570,19 @@ const CanvasManager = (() => {
     return { canvas: off, w: pW, h: pH };
   }
 
+  function getSelectedId() { return selectedItemId; }
+  function clearSelection() {
+    selectedItemId = null;
+    renderAnnotations(Annotation.getAll());
+  }
+  function onSelect(cb) { onSelectItem = cb; }
+
   return {
     init, loadImage, fitToView, renderAnnotations,
     setTool, setOrtho, setLineWidth, cancelDraw,
     getCanvasSize, getCanvas, getImage,
     zoomIn, zoomOut, onAdd, onStateChange, setAfterRender,
     createPageExport,
+    getSelectedId, clearSelection, onSelect,
   };
 })();
