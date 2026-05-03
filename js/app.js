@@ -300,6 +300,44 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (isInput) return; // 이하 단축키: 입력 필드에서는 무시
 
+    /* A: 화살표 도구 선택 */
+    if (e.key === 'a' || e.key === 'A') {
+      document.querySelectorAll('.tool-btn[data-tool]').forEach(b => b.classList.remove('active'));
+      const btn = document.querySelector('.tool-btn[data-tool="arrow"]');
+      if (btn) btn.classList.add('active');
+      CanvasManager.setTool('arrow');
+      showMsg('화살표 모드', 'info');
+    }
+
+    /* D: 점 도구 선택 */
+    if (e.key === 'd' || e.key === 'D') {
+      document.querySelectorAll('.tool-btn[data-tool]').forEach(b => b.classList.remove('active'));
+      const btn = document.querySelector('.tool-btn[data-tool="dot"]');
+      if (btn) btn.classList.add('active');
+      CanvasManager.setTool('dot');
+      showMsg('점 모드', 'info');
+    }
+
+    /* 1~4: 선 스타일 직접 선택 */
+    const lineMap = { '1': 'straight', '2': 'elbow-h', '3': 'elbow-v', '4': 'zigzag' };
+    const lineLabels = { straight:'직선', 'elbow-h':'ㄱ자', 'elbow-v':'ㄴ자', zigzag:'번개' };
+    if (!e.shiftKey && lineMap[e.key]) {
+      const style = lineMap[e.key];
+      document.querySelectorAll('.line-btn').forEach(b => b.classList.toggle('active', b.dataset.line === style));
+      Annotation.setConfig({ lineStyle: style });
+      showMsg(lineLabels[style] + ' 선 선택', 'info');
+    }
+
+    /* Shift+1/2/3: 카테고리 선택 */
+    const catMap = { '1': 'defect', '2': 'repair', '3': 'other' };
+    const catLabels = { defect:'결함', repair:'보수', other:'기타' };
+    if (e.shiftKey && catMap[e.key]) {
+      const cat = catMap[e.key];
+      document.querySelectorAll('.cat-btn').forEach(b => b.classList.toggle('active', b.dataset.cat === cat));
+      Annotation.setActiveCategory(cat);
+      showMsg(catLabels[cat] + ' 카테고리', 'info');
+    }
+
     /* Q: 직교모드 */
     if (e.key === 'q' || e.key === 'Q') {
       orthoToggle.checked = !orthoToggle.checked;

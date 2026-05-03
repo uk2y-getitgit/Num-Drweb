@@ -11,6 +11,14 @@ const CanvasManager = (() => {
 
   let isPanning = false, panStart = null;
 
+  let dragState = {
+    active:   false,
+    item:     null,
+    handle:   null,
+    offsetX:  0,
+    offsetY:  0,
+  };
+
   let drawState = {
     tool:      'arrow',
     ortho:     false,
@@ -166,7 +174,18 @@ const CanvasManager = (() => {
     if (cp.x < drawOffX || cp.y < drawOffY ||
         cp.x > drawOffX + drawW || cp.y > drawOffY + drawH) return;
 
+    /* 드로잉 대기 상태일 때만 드래그 히트 테스트 */
     if (drawState.phase === 0) {
+      const hit = _hitTest(cp);
+      if (hit) {
+        dragState.active  = true;
+        dragState.item    = hit.item;
+        dragState.handle  = hit.handle;
+        dragState.offsetX = cp.x - hit.item[hit.handle].x;
+        dragState.offsetY = cp.y - hit.item[hit.handle].y;
+        wrap.style.cursor = 'grabbing';
+        return; /* 새 넘버링 시작 차단 */
+      }
       drawState.p1    = cp;
       drawState.phase = 1;
       if (onDrawStateChange) onDrawStateChange(drawState);
@@ -188,20 +207,60 @@ const CanvasManager = (() => {
       _applyTransform();
       return;
     }
+    if (dragState.active) {
+      const cp = _toCanvasPos(e.clientX, e.clientY);
+      const newPos = {
+        x: cp.x - dragState.offsetX,
+        y: cp.y - dragState.offsetY,
+      };
+      Annotation.updateItem(dragState.item.id, { [dragState.handle]: newPos });
+      renderAnnotations(Annotation.getAll());
+      return;
+    }
     if (drawState.phase === 1) {
       const cp = _toCanvasPos(e.clientX, e.clientY);
       drawState.previewP2 = _applyOrtho(drawState.p1, cp);
       if (onDrawStateChange) onDrawStateChange(drawState);
       renderAnnotations(Annotation.getAll());
+    } else if (drawState.phase === 0 && !isPanning) {
+      /* 히트 테스트 기반 커서 변경 */
+      const cp = _toCanvasPos(e.clientX, e.clientY);
+      const hit = _hitTest(cp);
+      wrap.style.cursor = hit ? 'grab' : 'crosshair';
     }
   }
 
-  function _onMouseUp()    { if (isPanning) { isPanning = false; wrap.style.cursor = 'crosshair'; } }
-  function _onMouseLeave() { if (isPanning) { isPanning = false; wrap.style.cursor = 'crosshair'; } }
+  function _onMouseUp() {
+    if (dragState.active) {
+      dragState.active = false;
+      dragState.item = null;
+      dragState.handle = null;
+      wrap.style.cursor = 'crosshair';
+      return;
+    }
+    if (isPanning) { isPanning = false; wrap.style.cursor = 'crosshair'; }
+  }
+  function _onMouseLeave() {
+    dragState.active = false;
+    if (isPanning) { isPanning = false; wrap.style.cursor = 'crosshair'; }
+  }
 
   function _toCanvasPos(cx, cy) {
     const rect = wrap.getBoundingClientRect();
     return { x: (cx - rect.left - panX) / zoom, y: (cy - rect.top - panY) / zoom };
+  }
+
+  function _hitTest(cp) {
+    const items = Annotation.getAll();
+    const scale = Annotation.getConfig().scale || 1;
+    for (let i = items.length - 1; i >= 0; i--) {
+      const item = items[i];
+      if (Math.hypot(cp.x - item.p2.x, cp.y - item.p2.y) < 14 * scale)
+        return { item, handle: 'p2' };
+      if (Math.hypot(cp.x - item.p1.x, cp.y - item.p1.y) < 10 * scale)
+        return { item, handle: 'p1' };
+    }
+    return null;
   }
 
   function _applyOrtho(p1, p2) {
