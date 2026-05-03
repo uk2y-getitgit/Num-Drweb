@@ -309,7 +309,7 @@ const CanvasManager = (() => {
       const preColor = cats[cat]?.color || '#888';
       _drawLeader({
         p1: drawState.p1, p2: drawState.previewP2,
-        type: drawState.tool, lineStyle: cfg.lineStyle,
+        type: drawState.tool, lineStyle: cfg.lineStyle, arrowFlip: cfg.arrowFlip,
         color: preColor, textColor: cfg.textColor,
         num: 0, preview: true,
       });
@@ -349,7 +349,7 @@ const CanvasManager = (() => {
     const fwd = path.length >= 2
       ? { x: path[1].x - path[0].x, y: path[1].y - path[0].y }
       : { x: 1, y: 0 };
-    const flipActive = preview ? false : (arrowFlip ?? Annotation.getConfig().arrowFlip);
+    const flipActive = arrowFlip ?? Annotation.getConfig().arrowFlip;
     const lineDir    = flipActive ? { x: -fwd.x, y: -fwd.y } : fwd;
 
     if (type === 'arrow') {

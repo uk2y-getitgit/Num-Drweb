@@ -12,7 +12,7 @@ const Annotation = (() => {
     prefix:     '',         // 접두어 (예: '1F', 'RF')
     textColor:  '#ffffff',  // 번호 박스 글씨 색상
     lineStyle:  'straight', // 'straight'|'elbow-h'|'elbow-v'|'zigzag'
-    arrowFlip:  false,      // false=지시선 향함, true=지시선 반대 방향
+    arrowFlip:  true,       // false=지시선 향함, true=지시선 반대 방향
     scale:      1.0,        // 넘버링(화살표·번호박스) 크기 배율 (0.5 ~ 3.0)
     tbScale:    1.0,        // 도곽 전용 배율 (0.5 ~ 3.0)
   };

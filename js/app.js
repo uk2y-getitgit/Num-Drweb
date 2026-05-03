@@ -226,7 +226,9 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   /* ── 화살표 방향 반전 ── */
-  document.getElementById('arrow-flip-toggle').addEventListener('change', e => {
+  const flipToggle = document.getElementById('arrow-flip-toggle');
+  flipToggle.checked = true; // 기본값 반전 상태
+  flipToggle.addEventListener('change', e => {
     Annotation.setConfig({ arrowFlip: e.target.checked });
     CanvasManager.renderAnnotations(Annotation.getAll());
     showMsg('화살표 방향 ' + (e.target.checked ? '반전' : '기본'), 'info');
