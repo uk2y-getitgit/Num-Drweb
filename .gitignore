@@ -14,3 +14,9 @@ out/
 # 환경 설정
 *.local
 .env
+
+# 개발 도구
+.serena/
+
+# 배포 폴더 (ZIP만 버전 관리)
+num-drweb-deploy/
