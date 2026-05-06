@@ -40,7 +40,7 @@ const FileManager = (() => {
      1F-01  → 101
      10F-05 → 1005
      B1F-01 → B101
-     RF-01  → R101
+     RF-01  → R01
      기타   → PREFIX + num (fallback) */
   function extractPhotoName(label) {
     const m = label.match(/^([A-Za-z0-9]+)-(\d+)$/);
@@ -48,7 +48,7 @@ const FileManager = (() => {
     const prefix = m[1].toUpperCase();
     const num    = m[2];
 
-    if (/^RF$/i.test(prefix)) return 'R1' + num;
+    if (/^RF$/i.test(prefix)) return 'R' + num;
     const bf = prefix.match(/^B(\d+)F$/i);
     if (bf) return 'B' + bf[1] + num;
     const f = prefix.match(/^(\d+)F$/i);

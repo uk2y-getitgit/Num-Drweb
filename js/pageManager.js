@@ -216,10 +216,14 @@ const PageManager = (() => {
     return { x, y, w, h };
   }
 
+  /* PDF 저장 전 현재 페이지 상태 수동 저장 */
+  function saveCurrentPageState() { _saveCurrentAnnotations(); }
+
   return {
     init, addImagePage, addPageFromFile, loadPDFPages, clearAll,
     switchTo, renamePage, removePage,
     getPages, getActivePage, getActiveId, hasPages,
     toJSON, fromJSON,
+    saveCurrentPageState,
   };
 })();

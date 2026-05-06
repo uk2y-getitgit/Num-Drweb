@@ -72,6 +72,10 @@ const Annotation = (() => {
     const item = items.find(i => i.id === numId);
     if (!item) return;
     Object.assign(item, patch);
+    /* category 변경 시 해당 카테고리 색상으로 color 자동 갱신 */
+    if (patch.category !== undefined && categories[patch.category]) {
+      item.color = categories[patch.category].color;
+    }
     if (onChange) onChange();
   }
 

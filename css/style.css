@@ -58,7 +58,7 @@
   /* ── 크기 ── */
   --toolbar-h:    48px;
   --sidebar-w:    260px;
-  --page-panel-w: 90px;
+  --page-panel-w: 170px;
 
   /* ── 폰트 ── */
   --font: 'Inter', 'Pretendard', -apple-system, 'Malgun Gothic', sans-serif;
@@ -300,11 +300,11 @@ body {
   flex-shrink: 0;
 }
 #page-panel-header > span {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--text-dim);
   text-transform: uppercase;
-  letter-spacing: 0.6px;
+  letter-spacing: 0.5px;
 }
 
 #page-count-badge {
@@ -362,6 +362,7 @@ body {
   transition: all 0.15s;
   overflow: hidden;
   position: relative;
+  flex-shrink: 0; /* 페이지 수가 늘어도 카드 크기 유지, 리스트가 스크롤됨 */
 }
 .page-card:hover { border-color: var(--accent); box-shadow: 0 2px 8px rgba(91,91,214,0.12); }
 .page-card.active {
@@ -371,23 +372,31 @@ body {
 }
 
 .page-thumb {
+  position: relative;
   width: 100%;
-  aspect-ratio: 1 / 1.2;
+  height: 110px;
   background: var(--bg-hover);
-  display: flex;
-  align-items: center;
-  justify-content: center;
   overflow: hidden;
 }
-.page-thumb img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.page-thumb img {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  display: block;
+}
 
 .page-info {
-  padding: 5px 5px 4px;
+  padding: 6px 7px 5px;
   border-top: 1px solid var(--border-light);
   background: var(--bg-panel);
 }
 .page-name {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 500;
   color: var(--text-secondary);
   white-space: nowrap;
@@ -398,9 +407,9 @@ body {
 }
 .page-card.active .page-name { color: var(--accent); font-weight: 600; }
 .page-num-badge {
-  font-size: 9px;
+  font-size: 10px;
   color: var(--text-dim);
-  margin-top: 1px;
+  margin-top: 2px;
 }
 .page-name-input {
   width: 100%;
@@ -1058,6 +1067,32 @@ input[type=range]::-webkit-slider-thumb {
   font-weight: 500;
   color: var(--text-primary);
   padding: 4px 0;
+}
+
+/* ── 카테고리 선택 UI ── */
+.num-category-selector {
+  display: flex;
+  gap: 4px;
+  margin: 6px 0;
+  flex-wrap: wrap;
+}
+.num-cat-btn {
+  flex: 0 1 auto;
+  padding: 4px 9px;
+  font-size: 11px;
+  font-weight: 500;
+  border: 1.5px solid;
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+  transition: opacity 0.12s;
+  line-height: 1.4;
+}
+.num-cat-btn:hover {
+  opacity: 0.75;
+}
+.num-cat-btn.active {
+  font-weight: 700;
 }
 
 /* ── 페이지 섹션 헤더 (전 페이지 통합 목록) ── */

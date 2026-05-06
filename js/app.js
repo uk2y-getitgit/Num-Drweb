@@ -35,10 +35,23 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   /* ── Sidebar 초기화 ── */
   Sidebar.init({
-    onSelectNum:  () => {},
+    onSelectNum:  () => { CanvasManager.cancelDraw(); },
     onDeleteNum:  (id) => { Annotation.remove(id); showMsg('넘버링 삭제됨', 'warn'); },
     onMatchPhoto: () => {},
   });
+
+  /* ── 캔버스 선택 해제 시 사이드바 선택도 해제 ── */
+  CanvasManager.onSelect(() => {
+    Sidebar.clearSelection();
+    Sidebar.renderNumList(Annotation.getAll(), _collectAllPagesData());
+  });
+
+  /* ── 캔버스 외부(사이드바/툴바/페이지패널) 클릭 시 재진입 대기 ── */
+  document.addEventListener('mousedown', e => {
+    if (!e.target.closest('#canvas-area')) {
+      CanvasManager.deactivate();
+    }
+  }, true);
 
   /* ── FileManager 초기화 ── */
   FileManager.init((photos) => {
@@ -651,56 +664,64 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   async function _exportPDF() {
     if (!window.jspdf) { showMsg('jsPDF 로드 중입니다. 잠시 후 다시 시도해주세요', 'warn'); return; }
-    const { w, h } = CanvasManager.getCanvasSize();
-    if (!w) { showMsg('먼저 도면을 불러오세요', 'warn'); return; }
+    if (!PageManager.hasPages()) { showMsg('먼저 도면을 불러오세요', 'warn'); return; }
+
+    /* PDF 저장 전 현재 페이지 어노테이션 상태를 PageManager에 반영 */
+    PageManager.saveCurrentPageState();
 
     showMsg('PDF 생성 중...', 'info');
 
-    const comp    = TitleBlock.compositeCanvas(imgEl, drawCanvas, w, h);
-    const imgData = comp.toDataURL('image/jpeg', 0.95);
-
     const { jsPDF } = window.jspdf;
-    const orient = w >= h ? 'landscape' : 'portrait';
-    const pdf    = new jsPDF({ orientation: orient, unit: 'px', format: [w, h] });
-    pdf.addImage(imgData, 'JPEG', 0, 0, w, h);
+    const allPages = PageManager.getPages();
+    const savedDrawingName = TitleBlock.getSettings().drawingName;
 
-    /* 다중 페이지 */
-    if (PageManager.hasPages() && PageManager.getPages().length > 1) {
-      const allPages = PageManager.getPages();
-      const activeId = PageManager.getActiveId();
+    let pdf = null;
 
-      for (const page of allPages) {
-        if (page.id === Number(activeId)) continue;
-        const offImg = new Image();
-        await new Promise(resolve => { offImg.onload = resolve; offImg.src = page.imgSrc; });
-        const off  = document.createElement('canvas');
-        off.width  = page.imgW; off.height = page.imgH;
-        const octx = off.getContext('2d');
-        octx.drawImage(offImg, 0, 0);
-        if (page.annJSON) {
-          const saved = Annotation.toJSON();
-          Annotation.fromJSON(page.annJSON);
-          CanvasManager.renderAnnotations(Annotation.getAll());
-          octx.drawImage(drawCanvas, 0, 0);
-          Annotation.fromJSON(saved);
-          CanvasManager.renderAnnotations(Annotation.getAll());
-        }
-        /* B: 페이지별 drawingName 적용 후 도곽 렌더 */
-        const savedDrawingName = TitleBlock.getSettings().drawingName;
-        TitleBlock.applySettings({ drawingName: page.drawingName || '' });
-        TitleBlock.render(octx, page.imgW, page.imgH);
-        TitleBlock.applySettings({ drawingName: savedDrawingName });
+    for (let pageIdx = 0; pageIdx < allPages.length; pageIdx++) {
+      const page = allPages[pageIdx];
 
-        const po = page.imgW >= page.imgH ? 'landscape' : 'portrait';
-        pdf.addPage([page.imgW, page.imgH], po);
-        pdf.addImage(off.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, page.imgW, page.imgH);
+      /* ① 오프스크린 캔버스 (페이지 도면 이미지 크기와 동일) */
+      const off  = document.createElement('canvas');
+      off.width  = page.imgW;
+      off.height = page.imgH;
+      const octx = off.getContext('2d');
+
+      /* ② 페이지 도면 이미지 직접 로드 → 1:1 그리기 */
+      await new Promise((resolve) => {
+        const img = new Image();
+        img.onload  = () => { octx.drawImage(img, 0, 0, off.width, off.height); resolve(); };
+        img.onerror = () => { console.warn('페이지 ' + (pageIdx + 1) + ' 이미지 로드 실패'); resolve(); };
+        img.src = page.imgSrc;
+      });
+
+      /* ③ 지시점 렌더링 — renderAnnotationsTo 사용 (imgEl에 의존하지 않음) */
+      CanvasManager.renderAnnotationsTo(off, page.annJSON);
+
+      /* ④ 도곽 렌더링 */
+      TitleBlock.applySettings({ drawingName: page.drawingName || '' });
+      TitleBlock.render(octx, off.width, off.height);
+
+      /* ⑤ PDF 페이지 추가 */
+      const orient  = off.width >= off.height ? 'landscape' : 'portrait';
+      const imgData = off.toDataURL('image/jpeg', 0.95);
+
+      if (pageIdx === 0) {
+        pdf = new jsPDF({ orientation: orient, unit: 'px', format: [off.width, off.height] });
+      } else {
+        pdf.addPage([off.width, off.height], orient);
       }
+      pdf.addImage(imgData, 'JPEG', 0, 0, off.width, off.height);
     }
 
-    const s    = TitleBlock.getSettings();
-    const fname = (s.projectTitle || 'numdraw') + '_' + (s.drawingName || 'drawing') + '.pdf';
-    pdf.save(fname.replace(/[\\/:*?"<>|]/g, '_'));
-    showMsg('PDF 저장 완료', 'success');
+    /* 원래 도곽 이름 복원 */
+    TitleBlock.applySettings({ drawingName: savedDrawingName });
+
+    if (pdf) {
+      const s     = TitleBlock.getSettings();
+      const fname = (s.projectTitle || 'numdraw') + '_' + (s.drawingName || 'drawing') + '.pdf';
+      pdf.save(fname.replace(/[\\/:*?"<>|]/g, '_'));
+      showMsg('PDF 저장 완료', 'success');
+    }
   }
 
   /* ── Undo ── */
@@ -740,7 +761,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       thumb.className = 'page-thumb';
       const tImg = document.createElement('img');
       tImg.src = page.imgSrc;
-      tImg.style.cssText = 'max-width:100%;max-height:100%;object-fit:contain;';
+      tImg.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);max-width:100%;max-height:100%;width:auto;height:auto;display:block;';
       thumb.appendChild(tImg);
 
       const delBtn = document.createElement('button');

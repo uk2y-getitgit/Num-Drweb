@@ -117,6 +117,16 @@ const Sidebar = (() => {
         }, 0);
       });
     });
+
+    wrap.querySelectorAll('.num-cat-btn').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        const id  = Number(btn.dataset.id);
+        const cat = btn.dataset.cat;
+        Annotation.updateItem(id, { category: cat });
+        renderNumList(items, allPages);
+      });
+    });
   }
 
   /* ── 넘버 항목 HTML 생성 ── */
@@ -153,6 +163,17 @@ const Sidebar = (() => {
         </div>`;
     }
 
+    const catBtns = isSelected ? `
+      <div class="num-category-selector">
+        ${Object.entries(cats).map(([key, info]) => {
+          const active = item.category === key;
+          const style = active
+            ? `background:${info.color};color:#fff;border-color:${info.color};`
+            : `color:${info.color};border-color:${info.color};`;
+          return `<button class="num-cat-btn${active ? ' active' : ''}" data-id="${item.id}" data-cat="${key}" style="${style}">${info.label}</button>`;
+        }).join('')}
+      </div>` : '';
+
     return `
       <div class="num-item ${isSelected ? 'selected' : ''}" data-id="${item.id}" data-active="true">
         <div class="num-badge" style="background:${catColor};color:#fff;">${label}</div>
@@ -163,6 +184,7 @@ const Sidebar = (() => {
           </div>
           <div class="num-photo">${photoStr}</div>
         </div>
+        ${catBtns}
         <input type="number" class="photo-num-input" value="${customVal}"
           placeholder="${item.num}" data-id="${item.id}" title="사진 매칭 번호 (빈칸: 기본)">
         <button class="num-del" data-id="${item.id}" title="삭제">✕</button>
@@ -226,5 +248,10 @@ const Sidebar = (() => {
     el.textContent = state === 'saved' ? '● 저장됨' : '● 미저장';
   }
 
-  return { init, renderNumList, renderRenamePreview, updateCategoryUI, setFolderPath, setSaveState };
+  /* 사이드바 선택 해제 (캔버스 클릭 시 호출) */
+  function clearSelection() {
+    selectedId = null;
+  }
+
+  return { init, renderNumList, renderRenamePreview, updateCategoryUI, setFolderPath, setSaveState, clearSelection };
 })();

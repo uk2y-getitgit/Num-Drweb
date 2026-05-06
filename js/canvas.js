@@ -19,9 +19,11 @@ const CanvasManager = (() => {
     offsetY:  0,
   };
 
-  let selectedItemId = null;
-  let mousedownPos   = null;
-  let onSelectItem   = null;
+  let selectedItemId  = null;
+  let mousedownPos    = null;
+  let onSelectItem    = null;
+  /* 사이드바 사용 후 캔버스 재진입 여부 — true면 첫 클릭을 입장 클릭으로 소비 */
+  let needsReactivation = false;
 
   let drawState = {
     tool:      'arrow',
@@ -177,6 +179,13 @@ const CanvasManager = (() => {
     if (drawW === 0) return;
     if (cp.x < drawOffX || cp.y < drawOffY ||
         cp.x > drawOffX + drawW || cp.y > drawOffY + drawH) return;
+
+    /* 사이드바 사용 후 캔버스 재진입: 첫 클릭은 입장 클릭으로 소비 */
+    if (needsReactivation) {
+      needsReactivation = false;
+      wrap.style.cursor = 'crosshair';
+      return;
+    }
 
     /* 드로잉 대기 상태일 때만 드래그 히트 테스트 */
     if (drawState.phase === 0) {
@@ -472,6 +481,8 @@ const CanvasManager = (() => {
     drawState.phase = 0; drawState.p1 = null; drawState.previewP2 = null;
     renderAnnotations(Annotation.getAll());
   }
+  /* 사이드바 사용 후 캔버스 재진입 대기 상태로 전환 */
+  function deactivate()    { needsReactivation = true; wrap.style.cursor = 'default'; }
   function getCanvasSize() { return { w: paperW || imgW, h: paperH || imgH }; }
   function getCanvas()     { return drawCanvas; }
   function getImage()      { return imgEl; }
@@ -577,12 +588,45 @@ const CanvasManager = (() => {
   }
   function onSelect(cb) { onSelectItem = cb; }
 
+  /* ── PDF 내보내기용: 오프스크린 캔버스에 지시점만 렌더링 ──
+     targetCanvas : page.imgSrc 이미지가 이미 그려진 캔버스
+     annJSON      : 페이지에 저장된 Annotation JSON 문자열
+  */
+  function renderAnnotationsTo(targetCanvas, annJSON) {
+    if (!annJSON) return;
+    let annItems = [], annCfg = {};
+    try {
+      const d = JSON.parse(annJSON);
+      annItems = d.items  || [];
+      annCfg   = d.config || {};
+    } catch { return; }
+    if (!annItems.length) return;
+
+    const targetCtx = targetCanvas.getContext('2d');
+    const savedCtx  = ctx;
+    const savedPW   = paperW, savedPH = paperH;
+
+    ctx    = targetCtx;
+    paperW = targetCanvas.width;
+    paperH = targetCanvas.height;
+
+    annItems.forEach(item => {
+      const prefix = annCfg.prefix ? annCfg.prefix + '-' : '';
+      const label  = prefix + String(item.num).padStart(2, '0');
+      _drawLeader({ ...item, label, preview: false, selected: false });
+    });
+
+    ctx    = savedCtx;
+    paperW = savedPW;
+    paperH = savedPH;
+  }
+
   return {
     init, loadImage, fitToView, renderAnnotations,
-    setTool, setOrtho, setLineWidth, cancelDraw,
+    setTool, setOrtho, setLineWidth, cancelDraw, deactivate,
     getCanvasSize, getCanvas, getImage,
     zoomIn, zoomOut, onAdd, onStateChange, setAfterRender,
-    createPageExport,
+    createPageExport, renderAnnotationsTo,
     getSelectedId, clearSelection, onSelect,
   };
 })();
