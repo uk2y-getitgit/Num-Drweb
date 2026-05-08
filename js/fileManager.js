@@ -56,12 +56,24 @@ const FileManager = (() => {
     return prefix + num;
   }
 
-  /* ── 자동 매칭 (customPhotoNum 우선) ── */
-  function autoMatch(annotations) {
-    if (!photos.length) return; /* 폴더 미선택 시 기존 photoName 유지 */
+  /* ── 자동 매칭 (customPhotoNum 우선, prefix 있으면 레이블 기반 절대번호 사용) ──
+     prefix가 있으면 '1F-04' → extractPhotoName → '104' → _extractNum → 104 으로 매칭
+     prefix가 없으면 item.num 그대로 매칭 (기존 동작) */
+  function autoMatch(annotations, prefix) {
+    if (!photos.length) return;
+    const pfx = prefix || '';
     annotations.forEach(item => {
-      const matchNum = item.customPhotoNum != null ? item.customPhotoNum : item.num;
-      const matched  = photos.find(p => p.num === Number(matchNum));
+      let matchNum;
+      if (item.customPhotoNum != null) {
+        matchNum = Number(item.customPhotoNum);
+      } else if (pfx) {
+        const label = pfx + '-' + String(item.num).padStart(2, '0');
+        const base  = extractPhotoName(label);
+        matchNum = _extractNum(base) ?? item.num;
+      } else {
+        matchNum = item.num;
+      }
+      const matched = photos.find(p => p.num === matchNum);
       item.photoName = matched ? matched.name : null;
     });
   }

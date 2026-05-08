@@ -96,6 +96,16 @@ const PageManager = (() => {
     if (p) { p.name = name; if (onListChange) onListChange(); }
   }
 
+  /* ── 페이지 순서 이동 (드래그 앤드롭) ── */
+  function movePage(fromId, toId) {
+    const fromIdx = pages.findIndex(p => p.id === fromId);
+    const toIdx   = pages.findIndex(p => p.id === toId);
+    if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return;
+    const [moved] = pages.splice(fromIdx, 1);
+    pages.splice(toIdx, 0, moved);
+    if (onListChange) onListChange();
+  }
+
   /* ── 페이지 삭제 ── */
   function removePage(id) {
     if (pages.length <= 1) return false;
@@ -221,7 +231,7 @@ const PageManager = (() => {
 
   return {
     init, addImagePage, addPageFromFile, loadPDFPages, clearAll,
-    switchTo, renamePage, removePage,
+    switchTo, renamePage, removePage, movePage,
     getPages, getActivePage, getActiveId, hasPages,
     toJSON, fromJSON,
     saveCurrentPageState,

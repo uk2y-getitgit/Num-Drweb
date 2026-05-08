@@ -365,6 +365,8 @@ body {
   flex-shrink: 0; /* 페이지 수가 늘어도 카드 크기 유지, 리스트가 스크롤됨 */
 }
 .page-card:hover { border-color: var(--accent); box-shadow: 0 2px 8px rgba(91,91,214,0.12); }
+.page-card.dragging { opacity: 0.35; border-style: dashed; pointer-events: none; }
+.page-card.drag-over { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(91,91,214,0.25); background: color-mix(in srgb, var(--accent) 6%, var(--bg-panel)); }
 .page-card.active {
   border-color: var(--accent);
   background: var(--bg-panel);

@@ -23,7 +23,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   /* ── Annotation 초기화 ── */
   Annotation.init(() => {
     const items = Annotation.getAll();
-    FileManager.autoMatch(items);
+    FileManager.autoMatch(items, Annotation.getConfig().prefix);
     CanvasManager.renderAnnotations(items);
     Sidebar.renderNumList(items, _collectAllPagesData());
     const cv = document.querySelector('.count-val');
@@ -55,7 +55,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   /* ── FileManager 초기화 ── */
   FileManager.init((photos) => {
-    FileManager.autoMatch(Annotation.getAll());
+    FileManager.autoMatch(Annotation.getAll(), Annotation.getConfig().prefix);
     Sidebar.renderNumList(Annotation.getAll(), _collectAllPagesData());
     _refreshRenamePreview();
   });
@@ -461,7 +461,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const skip = results.filter(r => r.status === 'skip').length;
 
       /* 전체 페이지 autoMatch 갱신 */
-      pagesData.forEach(p => FileManager.autoMatch(p.items));
+      pagesData.forEach(p => FileManager.autoMatch(p.items, p.prefix || ''));
       Sidebar.renderNumList(Annotation.getAll(), _collectAllPagesData());
       _refreshRenamePreview();
 
@@ -787,6 +787,32 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       card.addEventListener('click', () => PageManager.switchTo(page.id));
 
+      /* ── 드래그 앤드롭 페이지 순서 교체 ── */
+      card.draggable = true;
+      card.addEventListener('dragstart', e => {
+        e.dataTransfer.setData('numdraw/page-id', String(page.id));
+        e.dataTransfer.effectAllowed = 'move';
+        setTimeout(() => card.classList.add('dragging'), 0);
+      });
+      card.addEventListener('dragend', () => card.classList.remove('dragging'));
+      card.addEventListener('dragover', e => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        card.classList.add('drag-over');
+      });
+      card.addEventListener('dragleave', e => {
+        if (!card.contains(e.relatedTarget)) card.classList.remove('drag-over');
+      });
+      card.addEventListener('drop', e => {
+        e.preventDefault();
+        card.classList.remove('drag-over');
+        const fromId = Number(e.dataTransfer.getData('numdraw/page-id'));
+        if (fromId && fromId !== page.id) {
+          PageManager.movePage(fromId, page.id);
+          StorageManager.markDirty();
+        }
+      });
+
       nameEl.addEventListener('dblclick', e => {
         e.stopPropagation();
         const input = document.createElement('input');
@@ -844,7 +870,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
           const parsed = JSON.parse(page.annJSON);
           pageItems = parsed.items || [];
-          FileManager.autoMatch(pageItems);
+          FileManager.autoMatch(pageItems, page.prefix || '');
         } catch { pageItems = []; }
       } else {
         pageItems = [];

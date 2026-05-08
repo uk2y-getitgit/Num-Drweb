@@ -137,7 +137,7 @@ const Sidebar = (() => {
     const label    = prefixStr + numStr;
     const catInfo  = cats[item.category];
     const catColor = catInfo?.color || item.color || 'var(--accent)';
-    const catLabel = catInfo?.label || item.category || '기타';
+    const catLabel = catInfo?.label || item.category || '신규';
     const isSelected = isActive && String(item.id) === String(selectedId);
     const customVal  = (item.customPhotoNum !== null && item.customPhotoNum !== undefined)
                        ? item.customPhotoNum : '';

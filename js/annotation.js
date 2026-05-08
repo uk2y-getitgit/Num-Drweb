@@ -21,7 +21,7 @@ const Annotation = (() => {
   let categories = {
     defect:  { label: '결함',  color: '#e05555' },
     repair:  { label: '보수',  color: '#4a9eff' },
-    other:   { label: '기타',  color: '#9b59b6' },
+    other:   { label: '신규',  color: '#9b59b6' },
   };
 
   /* 현재 선택된 카테고리 */
