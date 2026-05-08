@@ -515,7 +515,7 @@ const CanvasManager = (() => {
     const a4W  = landscape ? 297 : 210;
     const pxMm = pW / a4W;
     const mPx  = Math.round(10 * pxMm);
-    const tbPx = Math.round(20 * pxMm * tbScale);
+    const tbPx = Math.round(20 * pxMm);  /* 화면 표시(_computeImageLayout)와 동일하게 tbScale 무관 고정 */
     const cW   = pW - 2 * mPx;
     const cH   = Math.max(10, pH - 2 * mPx - tbPx);
     const sc   = Math.min(cW / origW, cH / origH);

@@ -680,37 +680,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     for (let pageIdx = 0; pageIdx < allPages.length; pageIdx++) {
       const page = allPages[pageIdx];
 
-      /* ① 오프스크린 캔버스 (페이지 도면 이미지 크기와 동일) */
-      const off  = document.createElement('canvas');
-      off.width  = page.imgW;
-      off.height = page.imgH;
-      const octx = off.getContext('2d');
-
-      /* ② 페이지 도면 이미지 직접 로드 → 1:1 그리기 */
-      await new Promise((resolve) => {
-        const img = new Image();
-        img.onload  = () => { octx.drawImage(img, 0, 0, off.width, off.height); resolve(); };
-        img.onerror = () => { console.warn('페이지 ' + (pageIdx + 1) + ' 이미지 로드 실패'); resolve(); };
-        img.src = page.imgSrc;
-      });
-
-      /* ③ 지시점 렌더링 — renderAnnotationsTo 사용 (imgEl에 의존하지 않음) */
-      CanvasManager.renderAnnotationsTo(off, page.annJSON);
-
-      /* ④ 도곽 렌더링 */
+      /* 페이지별 도곽 이름 적용 후 createPageExport 호출
+         — 이미지 배치 좌표를 화면 표시(_computeImageLayout)와 동일하게 맞춰 지시점 위치 정확성 확보 */
       TitleBlock.applySettings({ drawingName: page.drawingName || '' });
-      TitleBlock.render(octx, off.width, off.height);
+      const { canvas: off, w, h } = await CanvasManager.createPageExport(
+        page.imgSrc, page.imgW, page.imgH, page.annJSON
+      );
 
-      /* ⑤ PDF 페이지 추가 */
-      const orient  = off.width >= off.height ? 'landscape' : 'portrait';
+      const orient  = w >= h ? 'landscape' : 'portrait';
       const imgData = off.toDataURL('image/jpeg', 0.95);
 
       if (pageIdx === 0) {
-        pdf = new jsPDF({ orientation: orient, unit: 'px', format: [off.width, off.height] });
+        pdf = new jsPDF({ orientation: orient, unit: 'px', format: [w, h] });
       } else {
-        pdf.addPage([off.width, off.height], orient);
+        pdf.addPage([w, h], orient);
       }
-      pdf.addImage(imgData, 'JPEG', 0, 0, off.width, off.height);
+      pdf.addImage(imgData, 'JPEG', 0, 0, w, h);
     }
 
     /* 원래 도곽 이름 복원 */
