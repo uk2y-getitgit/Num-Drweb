@@ -7,9 +7,39 @@ const StorageManager = (() => {
   let _debounceTimer = null;
   let _onStatusChange = null;
 
+  // ── 탭 고유 ID (sessionStorage 기반 — F5 새로고침 후 유지, 탭 닫으면 소멸)
+  let _tabId = sessionStorage.getItem('numdraw_tabId');
+  if (!_tabId) {
+    _tabId = Date.now().toString(36) + Math.random().toString(36).slice(2);
+    sessionStorage.setItem('numdraw_tabId', _tabId);
+  }
+
+  const _sessionKey = 'numdraw_session_' + _tabId;
+
   // ── 초기화
   async function init(onStatusChangeCb) {
     _onStatusChange = onStatusChangeCb;
+    _cleanupOldSessions();
+  }
+
+  // ── 30일 이상 된 세션 정리 (다른 탭이 닫힌 뒤 남은 잔류 데이터 제거)
+  function _cleanupOldSessions() {
+    const threshold = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    const keysToRemove = [];
+
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key || !key.startsWith('numdraw_session_')) continue;
+      if (key === _sessionKey) continue; // 현재 탭 세션은 건드리지 않음
+      try {
+        const data = JSON.parse(localStorage.getItem(key));
+        if (data && data.updatedAt && new Date(data.updatedAt).getTime() < threshold) {
+          keysToRemove.push(key);
+        }
+      } catch {}
+    }
+
+    keysToRemove.forEach(key => localStorage.removeItem(key));
   }
 
   // ── IndexedDB 열기
@@ -28,11 +58,16 @@ const StorageManager = (() => {
         resolve(e.target.result);
       };
 
-      req.onerror = (e) => {
+      req.onerror = () => {
         console.warn('IndexedDB 접근 불가 — Private Browsing일 수 있습니다');
         resolve(null);
       };
     });
+  }
+
+  // ── 탭별 고유 pageId 생성 (탭 간 충돌 방지)
+  function _imgKey(pageId) {
+    return _tabId + '_' + pageId;
   }
 
   // ── IndexedDB에 이미지 저장
@@ -46,7 +81,7 @@ const StorageManager = (() => {
 
       for (const page of pages) {
         if (page.imgSrc) {
-          store.put({ pageId: page.id, imgSrc: page.imgSrc });
+          store.put({ pageId: _imgKey(page.id), imgSrc: page.imgSrc });
         }
       }
 
@@ -62,7 +97,7 @@ const StorageManager = (() => {
 
     for (const page of pages) {
       const result = await new Promise((resolve) => {
-        const req = db.transaction('images').objectStore('images').get(page.id);
+        const req = db.transaction('images').objectStore('images').get(_imgKey(page.id));
         req.onsuccess = () => resolve(req.result);
         req.onerror = () => resolve(null);
       });
@@ -71,6 +106,29 @@ const StorageManager = (() => {
         page.imgSrc = result.imgSrc;
       }
     }
+  }
+
+  // ── IndexedDB에서 현재 탭 이미지 전체 삭제
+  async function _clearTabImages() {
+    const db = await _openDB();
+    if (!db) return;
+
+    const all = await new Promise((resolve) => {
+      const req = db.transaction('images').objectStore('images').getAllKeys();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => resolve([]);
+    });
+
+    const tabKeys = all.filter(k => typeof k === 'string' && k.startsWith(_tabId + '_'));
+    if (!tabKeys.length) return;
+
+    return new Promise((resolve) => {
+      const tx = db.transaction('images', 'readwrite');
+      const store = tx.objectStore('images');
+      tabKeys.forEach(k => store.delete(k));
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => resolve();
+    });
   }
 
   // ── LocalStorage에 세션 저장
@@ -110,8 +168,8 @@ const StorageManager = (() => {
         },
       };
 
-      // 6. LocalStorage에 저장
-      localStorage.setItem('numdraw_session', JSON.stringify(session));
+      // 6. 탭별 고유 키로 LocalStorage에 저장
+      localStorage.setItem(_sessionKey, JSON.stringify(session));
       _isDirty = false;
     } catch (e) {
       if (e.name === 'QuotaExceededError') {
@@ -124,7 +182,7 @@ const StorageManager = (() => {
 
   // ── LocalStorage에서 세션 복원
   async function loadSession() {
-    const raw = localStorage.getItem('numdraw_session');
+    const raw = localStorage.getItem(_sessionKey);
     if (!raw) return null;
 
     try {
@@ -203,7 +261,6 @@ const StorageManager = (() => {
             ],
           });
 
-          // 파일 쓰기
           const writable = await handle.createWritable();
           await writable.write(jsonString);
           await writable.close();
@@ -211,30 +268,22 @@ const StorageManager = (() => {
           _isDirty = false;
           return;
         } catch (e) {
-          // AbortError: 사용자가 취소한 경우
           if (e.name === 'AbortError') {
             return false;
           }
-          // 다른 오류: fallback으로 진행
           console.warn('showSaveFilePicker 실패, 다운로드로 진행:', e);
         }
       }
 
-      // 6. Fallback: Blob 다운로드 (Firefox 등 미지원 브라우저)
-      const blob = new Blob([jsonString], {
-        type: 'application/json',
-      });
+      // 6. Fallback: Blob 다운로드
+      const blob = new Blob([jsonString], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-
       a.href = url;
       a.download = suggestedName;
-
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-
-      // 리소스 정리 (5초 후)
       setTimeout(() => URL.revokeObjectURL(url), 5000);
 
       _isDirty = false;
@@ -294,16 +343,10 @@ const StorageManager = (() => {
     return _isDirty;
   }
 
-  // ── 전체 세션 삭제
+  // ── 전체 세션 삭제 (현재 탭 데이터만)
   async function clearSession() {
-    localStorage.removeItem('numdraw_session');
-
-    const db = await _openDB();
-    if (db) {
-      const tx = db.transaction('images', 'readwrite');
-      tx.objectStore('images').clear();
-    }
-
+    localStorage.removeItem(_sessionKey);
+    await _clearTabImages();
     _isDirty = false;
   }
 
@@ -318,4 +361,4 @@ const StorageManager = (() => {
     isDirty,
     clearSession,
   };
-})();
+})();;
