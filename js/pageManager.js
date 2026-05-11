@@ -2,19 +2,19 @@
 'use strict';
 
 const PageManager = (() => {
-  /* 페이지 구조: { id, name, imgSrc, imgW, imgH, annJSON } */
+  /* 페이지 구조: { id, name, imgSrc, imgW, imgH, imgLayout, annJSON }
+     imgLayout: { offX, offY, dW, dH } — canvas.js와 동일한 파라미터로 계산된 이미지 배치 좌표.
+     저장 시 이 값을 그대로 사용하므로 화면 표시와 PDF 저장이 픽셀 단위로 일치. */
   let pages       = [];
   let activeId    = null;
   let onSwitch    = null;
   let onListChange = null;
   let nextPageId  = 1;
 
-  /* A4 기준 치수 (150dpi) — 이미지 배치 영역 계산용 */
+  /* A4 기준 치수 (150dpi) */
   const A4 = {
     portrait:  { w: 1240, h: 1754 },
     landscape: { w: 1754, h: 1240 },
-    imgMargin: 30,   // 이미지와 A4 외곽 사이 여백(px)
-    tbReserve: 80,   // 하단 도곽 예약 영역 높이(px)
   };
 
   function init(switchCb, listCb) {
@@ -23,9 +23,9 @@ const PageManager = (() => {
   }
 
   /* ── 단일 이미지 페이지 생성 ── */
-  function addImagePage(imgSrc, imgW, imgH, name) {
+  function addImagePage(imgSrc, imgW, imgH, name, imgLayout) {
     _saveCurrentAnnotations();
-    const page = _createPage(name || ('도면 ' + (pages.length + 1)), imgSrc, imgW, imgH);
+    const page = _createPage(name || ('도면 ' + (pages.length + 1)), imgSrc, imgW, imgH, imgLayout);
     pages.push(page);
     _activate(page.id);
   }
@@ -41,8 +41,8 @@ const PageManager = (() => {
     reader.onload = e => {
       const img = new Image();
       img.onload = () => {
-        const { dataURL, w, h } = _fitImageToA4(img, img.naturalWidth, img.naturalHeight);
-        addImagePage(dataURL, w, h, file.name);
+        const { dataURL, w, h, imgLayout } = _fitImageToA4(img, img.naturalWidth, img.naturalHeight);
+        addImagePage(dataURL, w, h, file.name, imgLayout);
         if (callback) callback('ok');
       };
       img.src = e.target.result;
@@ -67,9 +67,9 @@ const PageManager = (() => {
 
     for (let i = 1; i <= total; i++) {
       if (progressCb) progressCb(i, total);
-      const { dataURL, w, h } = await _renderPDFPage(pdfDoc, i);
+      const { dataURL, w, h, imgLayout } = await _renderPDFPage(pdfDoc, i);
       const defaultName = total === 1 ? '도면' : `P${i}`;
-      pages.push(_createPage(defaultName, dataURL, w, h));
+      pages.push(_createPage(defaultName, dataURL, w, h, imgLayout));
     }
 
     if (pages.length) _activate(pages[firstNew].id);
@@ -143,8 +143,8 @@ const PageManager = (() => {
   }
 
   /* ── 내부 헬퍼 ── */
-  function _createPage(name, imgSrc, imgW, imgH) {
-    return { id: nextPageId++, name, imgSrc, imgW, imgH, annJSON: null, drawingName: null, prefix: '' };
+  function _createPage(name, imgSrc, imgW, imgH, imgLayout) {
+    return { id: nextPageId++, name, imgSrc, imgW, imgH, imgLayout: imgLayout || null, annJSON: null, drawingName: null, prefix: '' };
   }
 
   function _getById(id) { return pages.find(p => p.id === id); }
@@ -182,7 +182,7 @@ const PageManager = (() => {
     return _fitCanvasToA4(raw, viewport.width, viewport.height);
   }
 
-  /* Image 객체 → A4 캔버스 */
+  /* Image 객체 → A4 캔버스 (imgLayout 포함 반환) */
   function _fitImageToA4(imgEl, natW, natH) {
     const isLandscape = natW > natH;
     const { w: a4w, h: a4h } = isLandscape ? A4.landscape : A4.portrait;
@@ -194,10 +194,10 @@ const PageManager = (() => {
     ctx.fillRect(0, 0, a4w, a4h);
     const { x, y, w, h } = _calcFitRect(natW, natH, a4w, a4h);
     ctx.drawImage(imgEl, x, y, w, h);
-    return { dataURL: out.toDataURL('image/png'), w: a4w, h: a4h };
+    return { dataURL: out.toDataURL('image/png'), w: a4w, h: a4h, imgLayout: { offX: x, offY: y, dW: w, dH: h } };
   }
 
-  /* Canvas 소스 → A4 캔버스 */
+  /* Canvas 소스 → A4 캔버스 (imgLayout 포함 반환) */
   function _fitCanvasToA4(srcCanvas, natW, natH) {
     const isLandscape = natW > natH;
     const { w: a4w, h: a4h } = isLandscape ? A4.landscape : A4.portrait;
@@ -209,20 +209,24 @@ const PageManager = (() => {
     ctx.fillRect(0, 0, a4w, a4h);
     const { x, y, w, h } = _calcFitRect(natW, natH, a4w, a4h);
     ctx.drawImage(srcCanvas, x, y, w, h);
-    return { dataURL: out.toDataURL('image/png'), w: a4w, h: a4h };
+    return { dataURL: out.toDataURL('image/png'), w: a4w, h: a4h, imgLayout: { offX: x, offY: y, dW: w, dH: h } };
   }
 
-  /* 이미지를 A4 내부 여백 영역(Contain)에 배치하는 좌표 계산 */
+  /* 이미지를 A4 내부 여백 영역(Contain)에 배치하는 좌표 계산
+     — canvas.js의 _computeImageLayout과 동일한 공식(pxMm 기반)으로 계산 */
   function _calcFitRect(natW, natH, a4w, a4h) {
-    const M   = A4.imgMargin;
-    const TB  = A4.tbReserve;
-    const avW = a4w - M * 2;
-    const avH = a4h - M * 2 - TB;
-    const scl = Math.min(avW / natW, avH / natH);
-    const w   = Math.round(natW * scl);
-    const h   = Math.round(natH * scl);
-    const x   = Math.round((a4w - w) / 2);
-    const y   = Math.round(M + (avH - h) / 2);
+    const isLandscape = a4w > a4h;
+    const a4Mm = isLandscape ? 297 : 210;
+    const pxMm = a4w / a4Mm;
+    const mPx  = Math.round(10 * pxMm);   // 10mm 여백
+    const tbPx = Math.round(20 * pxMm);   // 20mm 도곽 예약
+    const avW  = a4w - 2 * mPx;
+    const avH  = Math.max(10, a4h - 2 * mPx - tbPx);
+    const scl  = Math.min(avW / natW, avH / natH);
+    const w    = Math.round(natW * scl);
+    const h    = Math.round(natH * scl);
+    const x    = mPx + Math.round((avW - w) / 2);
+    const y    = mPx + Math.round((avH - h) / 2);
     return { x, y, w, h };
   }
 

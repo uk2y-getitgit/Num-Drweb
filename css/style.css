@@ -393,9 +393,16 @@ body {
 }
 
 .page-info {
-  padding: 6px 7px 5px;
+  padding: 5px 6px 5px;
   border-top: 1px solid var(--border-light);
   background: var(--bg-panel);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.page-info-content {
+  flex: 1;
+  min-width: 0;
 }
 .page-name {
   font-size: 11px;
@@ -413,6 +420,37 @@ body {
   color: var(--text-dim);
   margin-top: 2px;
 }
+
+/* ── 페이지 위아래 이동 버튼 ── */
+.page-move-btns {
+  display: none;
+  flex-direction: column;
+  gap: 1px;
+  flex-shrink: 0;
+}
+.page-card:hover .page-move-btns { display: flex; }
+.page-move-btn {
+  width: 16px;
+  height: 13px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  color: var(--text-dim);
+  font-size: 7px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+}
+.page-move-btn:hover:not(:disabled) {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.page-move-btn:disabled { opacity: 0.25; cursor: default; }
 .page-name-input {
   width: 100%;
   background: var(--bg-card);

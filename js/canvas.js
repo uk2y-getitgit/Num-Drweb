@@ -8,6 +8,8 @@ const CanvasManager = (() => {
   let paperW = 0, paperH = 0;
   /* 이미지 배치 좌표 — renderAnnotations 에서 매번 갱신 */
   let drawOffX = 0, drawOffY = 0, drawW = 0, drawH = 0;
+  /* pageManager가 저장한 고정 배치 좌표. 있으면 동적 계산 대신 사용 */
+  let _imgLayout = null;
 
   let isPanning = false, panStart = null;
 
@@ -51,10 +53,11 @@ const CanvasManager = (() => {
 
   /* ── 이미지 로드 ──
      A4 용지를 150 DPI 고정 픽셀로 설정 (해상도 무관하게 동일한 용지 크기).
-     이미지는 renderAnnotations 에서 tbScale 반영해 동적으로 배치됨.
+     imgLayout이 전달되면 해당 좌표를 고정 배치로 사용하여 PDF 저장 시 위치 완벽 일치.
   */
-  function loadImage(src, w, h) {
+  function loadImage(src, w, h, imgLayout) {
     imgW = w; imgH = h;
+    _imgLayout = imgLayout || null;
 
     const landscape = w >= h;
     paperW = Math.round((landscape ? 297 : 210) * A4_PX_MM);
@@ -82,28 +85,28 @@ const CanvasManager = (() => {
     if (imgEl.complete && imgEl.naturalWidth > 0) doRender();
   }
 
-  /* ── 이미지 배치 동적 계산 ──
-     A4 용지의 고정 배치: 여백 10mm + 이미지 영역 + 도곽 20mm
-     tbScale은 도곽의 텍스트·선 크기만 조절하고, 이미지 배치 공간은 항상 고정.
+  /* ── 이미지 배치 계산 ──
+     imgLayout이 있으면(신규 불러오기) pageManager가 저장한 고정 좌표를 사용.
+     없으면(레거시 세션 데이터) 기존 동적 계산으로 폴백하여 하위 호환성 유지.
   */
   function _computeImageLayout() {
     if (!paperW || !imgW) return null;
 
+    if (_imgLayout) {
+      return { offX: _imgLayout.offX, offY: _imgLayout.offY, dW: _imgLayout.dW, dH: _imgLayout.dH };
+    }
+
+    /* 레거시 폴백: 동적 계산 */
     const landscape = paperW >= paperH;
     const a4W  = landscape ? 297 : 210;
     const pxMm = paperW / a4W;
-
     const mPx  = Math.round(10 * pxMm);
-    const tbPx = Math.round(20 * pxMm);  /* 도곽 높이는 항상 고정 (tbScale 무관) */
-
+    const tbPx = Math.round(20 * pxMm);
     const cW = paperW - 2 * mPx;
     const cH = Math.max(10, paperH - 2 * mPx - tbPx);
-
-    /* 비율 유지하며 내용 영역에 최대로 맞춤 */
     const sc = Math.min(cW / imgW, cH / imgH);
     const dW = Math.round(imgW * sc);
     const dH = Math.round(imgH * sc);
-
     return {
       offX: mPx + Math.round((cW - dW) / 2),
       offY: mPx + Math.round((cH - dH) / 2),
@@ -504,25 +507,34 @@ const CanvasManager = (() => {
   function onStateChange(cb)  { onDrawStateChange = cb; }
   function setAfterRender(cb) { afterRenderCb     = cb; }
 
-  /* ── 오프스크린 페이지 렌더 (다중 페이지 PDF 내보내기용) ── */
-  async function createPageExport(imgSrc, origW, origH, annJSON) {
+  /* ── 오프스크린 페이지 렌더 (다중 페이지 PDF 내보내기용) ──
+     imgLayout이 있으면 화면 표시와 동일한 고정 좌표 사용 → 지시점 위치 픽셀 일치 보장.
+     없으면(레거시 데이터) 동적 계산 폴백. */
+  async function createPageExport(imgSrc, origW, origH, annJSON, imgLayout) {
     const landscape = origW >= origH;
     const pW = Math.round((landscape ? 297 : 210) * A4_PX_MM);
     const pH = Math.round((landscape ? 210 : 297) * A4_PX_MM);
 
-    const tbScale = (typeof Annotation !== 'undefined')
-      ? (Annotation.getConfig().tbScale || 1) : 1;
-    const a4W  = landscape ? 297 : 210;
-    const pxMm = pW / a4W;
-    const mPx  = Math.round(10 * pxMm);
-    const tbPx = Math.round(20 * pxMm);  /* 화면 표시(_computeImageLayout)와 동일하게 tbScale 무관 고정 */
-    const cW   = pW - 2 * mPx;
-    const cH   = Math.max(10, pH - 2 * mPx - tbPx);
-    const sc   = Math.min(cW / origW, cH / origH);
-    const dW   = Math.round(origW * sc);
-    const dH   = Math.round(origH * sc);
-    const offX = mPx + Math.round((cW - dW) / 2);
-    const offY = mPx + Math.round((cH - dH) / 2);
+    let offX, offY, dW, dH;
+
+    if (imgLayout) {
+      /* 신규 데이터: pageManager가 저장한 고정 좌표 그대로 사용 */
+      offX = imgLayout.offX; offY = imgLayout.offY;
+      dW   = imgLayout.dW;   dH   = imgLayout.dH;
+    } else {
+      /* 레거시 폴백: 동적 계산 */
+      const a4W  = landscape ? 297 : 210;
+      const pxMm = pW / a4W;
+      const mPx  = Math.round(10 * pxMm);
+      const tbPx = Math.round(20 * pxMm);
+      const cW   = pW - 2 * mPx;
+      const cH   = Math.max(10, pH - 2 * mPx - tbPx);
+      const sc   = Math.min(cW / origW, cH / origH);
+      dW   = Math.round(origW * sc);
+      dH   = Math.round(origH * sc);
+      offX = mPx + Math.round((cW - dW) / 2);
+      offY = mPx + Math.round((cH - dH) / 2);
+    }
 
     const off    = document.createElement('canvas');
     off.width    = pW; off.height = pH;

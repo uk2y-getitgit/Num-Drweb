@@ -72,7 +72,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   /* ── PageManager 초기화 ── */
   PageManager.init(
     /* onSwitch */ (page) => {
-      CanvasManager.loadImage(page.imgSrc, page.imgW, page.imgH);
+      CanvasManager.loadImage(page.imgSrc, page.imgW, page.imgH, page.imgLayout || null);
       dropzone.classList.add('has-file');
       document.getElementById('file-name').textContent = page.name;
       /* 페이지별 접두어 복원 */
@@ -681,10 +681,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       const page = allPages[pageIdx];
 
       /* 페이지별 도곽 이름 적용 후 createPageExport 호출
-         — 이미지 배치 좌표를 화면 표시(_computeImageLayout)와 동일하게 맞춰 지시점 위치 정확성 확보 */
+         — page.imgLayout을 전달하여 화면 표시와 동일한 고정 좌표로 렌더링 (지시점 위치 픽셀 일치) */
       TitleBlock.applySettings({ drawingName: page.drawingName || '' });
       const { canvas: off, w, h } = await CanvasManager.createPageExport(
-        page.imgSrc, page.imgW, page.imgH, page.annJSON
+        page.imgSrc, page.imgW, page.imgH, page.annJSON, page.imgLayout || null
       );
 
       const orient  = w >= h ? 'landscape' : 'portrait';
@@ -780,8 +780,48 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       numBadge.textContent = annCount + '개';
 
-      info.appendChild(nameEl);
-      info.appendChild(numBadge);
+      /* 이름 + 개수를 묶는 래퍼 (flex 레이아웃에서 좌측 영역) */
+      const infoContent = document.createElement('div');
+      infoContent.className = 'page-info-content';
+      infoContent.appendChild(nameEl);
+      infoContent.appendChild(numBadge);
+
+      /* ── 위아래 이동 버튼 ── */
+      const pageIdx = pages.indexOf(page);
+      const moveBtns = document.createElement('div');
+      moveBtns.className = 'page-move-btns';
+
+      const upBtn = document.createElement('button');
+      upBtn.className = 'page-move-btn';
+      upBtn.textContent = '▲';
+      upBtn.title = '위로 이동';
+      upBtn.disabled = pageIdx === 0;
+      upBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        if (pageIdx <= 0) return;
+        /* 인접한 이전 페이지와 교환: 이전 페이지를 현재 자리로 내림 */
+        PageManager.movePage(pages[pageIdx - 1].id, pages[pageIdx].id);
+        StorageManager.markDirty();
+      });
+
+      const downBtn = document.createElement('button');
+      downBtn.className = 'page-move-btn';
+      downBtn.textContent = '▼';
+      downBtn.title = '아래로 이동';
+      downBtn.disabled = pageIdx === pages.length - 1;
+      downBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        if (pageIdx >= pages.length - 1) return;
+        /* 인접한 다음 페이지와 교환: 다음 페이지를 현재 자리로 올림 */
+        PageManager.movePage(pages[pageIdx + 1].id, pages[pageIdx].id);
+        StorageManager.markDirty();
+      });
+
+      moveBtns.appendChild(upBtn);
+      moveBtns.appendChild(downBtn);
+
+      info.appendChild(infoContent);
+      info.appendChild(moveBtns);
       card.appendChild(thumb);
       card.appendChild(info);
 
@@ -979,7 +1019,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (activePage) {
         dropzone.classList.add('has-file');
         document.getElementById('file-name').textContent = activePage.name;
-        CanvasManager.loadImage(activePage.imgSrc, activePage.imgW, activePage.imgH);
+        CanvasManager.loadImage(activePage.imgSrc, activePage.imgW, activePage.imgH, activePage.imgLayout || null);
       }
       _renderPageList();
       CanvasManager.renderAnnotations(Annotation.getAll());
