@@ -20,3 +20,8 @@ out/
 
 # 배포 폴더 (ZIP만 버전 관리)
 num-drweb-deploy/
+
+# Electron 빌드 캐시
+.electron-builder-cache/
+dist/
+node_modules/

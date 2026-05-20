@@ -430,16 +430,21 @@
 
 <!-- ===== 스크립트 ===== -->
 <script>
+  /* Electron 실행 여부 감지 — userAgent에 'Electron' 포함 시 로컬 lib 사용 */
   (function() {
+    const isElectron = /Electron/.test(navigator.userAgent);
+    const pdfSrc    = isElectron ? 'lib/pdf.min.js'        : 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    const workerSrc = isElectron ? 'lib/pdf.worker.min.js' : 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    const jspdfSrc  = isElectron ? 'lib/jspdf.umd.min.js'  : 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+
     const s = document.createElement('script');
-    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-    s.onload = () => { pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; };
+    s.src = pdfSrc;
+    s.onload = () => { pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc; };
     document.head.appendChild(s);
-  })();
-  (function() {
-    const s = document.createElement('script');
-    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
-    document.head.appendChild(s);
+
+    const s2 = document.createElement('script');
+    s2.src = jspdfSrc;
+    document.head.appendChild(s2);
   })();
 </script>
 <script src="js/annotation.js"></script>
