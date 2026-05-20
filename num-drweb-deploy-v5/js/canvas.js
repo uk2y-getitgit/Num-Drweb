@@ -590,6 +590,9 @@ const CanvasManager = (() => {
     if (typeof TitleBlock !== 'undefined' && TitleBlock.isEnabled()) {
       TitleBlock.render(offCtx, pW, pH);
     }
+    if (typeof Legend !== 'undefined' && Legend.isEnabled()) {
+      Legend.render(offCtx, pW, pH);
+    }
 
     return { canvas: off, w: pW, h: pH };
   }
