@@ -1062,15 +1062,43 @@ document.addEventListener('DOMContentLoaded', async () => {
   /* ── StorageManager 초기화 & 세션 복원 ── */
   await StorageManager.init(_onSaveStatusChange);
 
-  const savedSession = await StorageManager.loadSession();
-  if (savedSession) {
-    const restored = confirm(
-      `저장된 작업이 있습니다.\n마지막 저장: ${new Date(savedSession.updatedAt).toLocaleString()}\n\n불러오시겠습니까?`
-    );
-    if (restored) {
-      await _restoreFromData(savedSession);
-      showMsg('이전 작업을 불러왔습니다', 'success');
+  /* Electron: .numdraw 더블클릭으로 실행된 경우 해당 파일 우선 로드 */
+  const startupContent = window.electronAPI ? await window.electronAPI.getStartupFile() : null;
+
+  if (startupContent) {
+    try {
+      const data = JSON.parse(startupContent);
+      await _restoreFromData(data);
+      showMsg('프로젝트를 열었습니다', 'success');
+    } catch (e) {
+      showMsg('파일 열기 실패: ' + e.message, 'warn');
     }
+  } else {
+    /* 일반 실행: 이전 세션 복원 */
+    const savedSession = await StorageManager.loadSession();
+    if (savedSession) {
+      const restored = confirm(
+        `저장된 작업이 있습니다.\n마지막 저장: ${new Date(savedSession.updatedAt).toLocaleString()}\n\n불러오시겠습니까?`
+      );
+      if (restored) {
+        await _restoreFromData(savedSession);
+        showMsg('이전 작업을 불러왔습니다', 'success');
+      }
+    }
+  }
+
+  /* Electron: 앱 실행 중 다른 .numdraw 파일 열기 요청 수신 */
+  if (window.electronAPI) {
+    window.electronAPI.onOpenFile(async (content) => {
+      try {
+        if (!confirm('현재 작업을 닫고 선택한 프로젝트를 여시겠습니까?')) return;
+        const data = JSON.parse(content);
+        await _restoreFromData(data);
+        showMsg('프로젝트를 열었습니다', 'success');
+      } catch (e) {
+        showMsg('파일 열기 실패: ' + e.message, 'warn');
+      }
+    });
   }
 
   /* ── beforeunload 경고 ── */
