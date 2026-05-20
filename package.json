@@ -2,10 +2,11 @@
   "name": "numdraw",
   "version": "1.0.0",
   "description": "시설물 안전점검 넘버링 툴",
+  "author": "NumDraw",
   "main": "electron/main.js",
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder --win portable --x64"
+    "build": "electron-builder --win --x64"
   },
   "devDependencies": {
     "electron": "^31.0.0",
@@ -25,17 +26,31 @@
       "lib/**/*",
       "electron/**/*"
     ],
+    "fileAssociations": [
+      {
+        "ext": "numdraw",
+        "name": "NumDraw Project",
+        "description": "NumDraw 넘버링 프로젝트",
+        "role": "Editor"
+      }
+    ],
     "win": {
       "target": [
         {
-          "target": "portable",
+          "target": "nsis",
           "arch": ["x64"]
         }
       ],
       "requestedExecutionLevel": "asInvoker"
     },
-    "portable": {
-      "requestExecutionLevel": "user"
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "NumDraw",
+      "deleteAppDataOnUninstall": false
     }
   }
 }

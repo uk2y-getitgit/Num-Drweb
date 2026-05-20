@@ -41,25 +41,6 @@ protocol.registerSchemesAsPrivileged([
   { scheme: 'app', privileges: { secure: true, standard: true, corsEnabled: true, stream: true } }
 ]);
 
-/* ── .numdraw 파일 연결 Windows 레지스트리 자동 등록 ──
-   HKCU 영역이므로 관리자 권한 불필요.
-   실행할 때마다 재등록 → 포터블 exe를 다른 경로로 옮겨도 자동 갱신. */
-function registerFileAssociation() {
-  if (process.platform !== 'win32') return;
-  const { spawnSync } = require('child_process');
-  const exe     = process.execPath;
-  const openCmd = `"${exe}" "%1"`;
-  const entries = [
-    ['HKCU\\Software\\Classes\\.numdraw',                              'NumDrawProject'],
-    ['HKCU\\Software\\Classes\\NumDrawProject',                        'NumDraw 프로젝트 파일'],
-    ['HKCU\\Software\\Classes\\NumDrawProject\\shell\\open\\command',  openCmd],
-  ];
-  for (const [key, value] of entries) {
-    spawnSync('reg', ['add', key, '/ve', '/t', 'REG_SZ', '/d', value, '/f'],
-      { windowsHide: true });
-  }
-}
-
 /* ── 창 상태 저장/복원 ── */
 const STATE_FILE = path.join(app.getPath('userData'), 'window-state.json');
 
@@ -114,7 +95,6 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
-  registerFileAssociation();
   createWindow();
 });
 
