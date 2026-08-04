@@ -131,13 +131,38 @@ const Sidebar = (() => {
 
   /* ── 넘버 항목 HTML 생성 ── */
   function _renderNumItem(item, cfg, cats, isActive, pagePrefix) {
-    const prefix   = (pagePrefix !== undefined ? pagePrefix : cfg.prefix);
+    /* 장비 항목: 장비 접두어·색상·라벨 사용 / 외관 항목: 카테고리 사용 */
+    let prefix, catColor, catLabel;
+    const isEquipItem = !!item.equipment && typeof Equipment !== 'undefined';
+    if (isEquipItem) {
+      const eq = Equipment.get(item.equipment);
+      prefix   = eq ? eq.prefix : '';
+      catColor = (eq && eq.color) || item.color || 'var(--accent)';
+      catLabel = eq ? eq.label : (item.equipment || '장비');
+    } else {
+      prefix   = (pagePrefix !== undefined ? pagePrefix : cfg.prefix);
+      const catInfo = cats[item.category];
+      catColor = catInfo?.color || item.color || 'var(--accent)';
+      catLabel = catInfo?.label || item.category || '신규';
+    }
     const prefixStr = prefix ? prefix + '-' : '';
     const numStr   = String(item.num).padStart(2, '0');
     const label    = prefixStr + numStr;
-    const catInfo  = cats[item.category];
-    const catColor = catInfo?.color || item.color || 'var(--accent)';
-    const catLabel = catInfo?.label || item.category || '신규';
+
+    /* 번호 배지 — 장비 항목이 추가 라벨을 가지면 여러 배지를 세로로 표시 */
+    let badgesHtml = `<div class="num-badge" style="background:${catColor};color:#fff;">${label}</div>`;
+    if (isEquipItem && item.labels && item.labels.length) {
+      item.labels.forEach(l => {
+        const eq2 = Equipment.get(l.equipment);
+        const c2  = (eq2 && eq2.color) || l.color || 'var(--accent)';
+        const p2  = (eq2 && eq2.prefix) ? eq2.prefix + '-' : '';
+        badgesHtml += `<div class="num-badge" style="background:${c2};color:#fff;">${p2}${String(l.num).padStart(2, '0')}</div>`;
+      });
+      badgesHtml = `<div class="num-badges">${badgesHtml}</div>`;
+    }
+    const typeLabel = (item.shape === 'tilt'   || item.shape === 'triangle') ? '기울기'
+                    : (item.shape === 'settle' || item.shape === 'polygon')  ? '부동침하'
+                    : (item.type === 'arrow' ? '화살표' : '점');
     const isSelected = isActive && String(item.id) === String(selectedId);
     const customVal  = (item.customPhotoNum !== null && item.customPhotoNum !== undefined)
                        ? item.customPhotoNum : '';
@@ -151,11 +176,11 @@ const Sidebar = (() => {
                          : '';
       return `
         <div class="num-item num-item-readonly" data-id="${item.id}" data-active="false">
-          <div class="num-badge" style="background:${catColor};color:#fff;">${label}</div>
+          ${badgesHtml}
           <div class="num-info">
             <div class="num-type">
               <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${catColor};flex-shrink:0;"></span>
-              ${catLabel} · ${item.type === 'arrow' ? '화살표' : '점'}
+              ${catLabel} · ${typeLabel}
             </div>
             <div class="num-photo">${photoStr}</div>
           </div>
@@ -163,7 +188,7 @@ const Sidebar = (() => {
         </div>`;
     }
 
-    const catBtns = isSelected ? `
+    const catBtns = (isSelected && !isEquipItem) ? `
       <div class="num-category-selector">
         ${Object.entries(cats).map(([key, info]) => {
           const active = item.category === key;
@@ -176,11 +201,11 @@ const Sidebar = (() => {
 
     return `
       <div class="num-item ${isSelected ? 'selected' : ''}" data-id="${item.id}" data-active="true">
-        <div class="num-badge" style="background:${catColor};color:#fff;">${label}</div>
+        ${badgesHtml}
         <div class="num-info">
           <div class="num-type">
             <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${catColor};flex-shrink:0;"></span>
-            ${catLabel} · ${item.type === 'arrow' ? '화살표' : '점'}
+            ${catLabel} · ${typeLabel}
           </div>
           <div class="num-photo">${photoStr}</div>
         </div>

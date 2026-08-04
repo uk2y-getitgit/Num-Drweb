@@ -10,6 +10,16 @@
 </head>
 <body>
 
+<!-- ===== 모드바 (작업페이지 구분) ===== -->
+<div id="mode-bar">
+  <span class="mode-bar-label">작업 유형</span>
+  <div class="mode-seg">
+    <button class="mode-seg-btn active" data-mode="exterior">외관조사망도</button>
+    <button class="mode-seg-btn" data-mode="equip">장비시험망도</button>
+  </div>
+  <span class="mode-bar-hint" id="mode-bar-hint"></span>
+</div>
+
 <!-- ===== 툴바 ===== -->
 <div id="toolbar">
   <span class="toolbar-title">
@@ -199,8 +209,8 @@
       </div>
       <div class="ctrl-sep"></div>
 
-      <!-- 카테고리 -->
-      <div class="ctrl-group">
+      <!-- 카테고리 (외관 모드) -->
+      <div class="ctrl-group mode-only-exterior" id="cat-ctrl-group">
         <span class="ctrl-label">구분</span>
         <button class="cat-btn active" data-cat="defect" style="--cat-c:#e05555">
           <span class="cat-dot-lg" style="background:#e05555"></span>결함
@@ -214,6 +224,31 @@
           <span class="cat-dot-lg" style="background:#9b59b6"></span>신규
           <input type="color" id="cat-color-other" value="#9b59b6" class="cat-color-picker" title="색상 변경">
         </button>
+      </div>
+
+      <!-- 장비 구분 (장비 모드) — app.js가 동적 렌더 -->
+      <div class="ctrl-group mode-only-equip" id="equip-ctrl-group" style="display:none;">
+        <span class="ctrl-label">장비</span>
+        <div id="equip-btns" style="display:flex;gap:4px;flex-wrap:wrap;"></div>
+      </div>
+
+      <!-- 기울기 기준축 (기울기 장비 선택 시에만 노출) -->
+      <div class="ctrl-group" id="tilt-axis-group" style="display:none;">
+        <span class="ctrl-label">기준축</span>
+        <button class="tool-btn tilt-axis-btn active" data-axis="y" title="세로 기준선 — 아랫변이 변위(좌/우 화살표)">
+          <svg width="16" height="13" viewBox="0 0 22 18"><polyline points="16,2 16,15 3,15" fill="none" stroke="currentColor" stroke-width="2"/><line x1="16" y1="2" x2="3" y2="15" stroke="currentColor" stroke-width="1.2"/></svg>
+          y축
+        </button>
+        <button class="tool-btn tilt-axis-btn" data-axis="x" title="가로 기준선 — 오른변이 변위(상/하 화살표)">
+          <svg width="16" height="13" viewBox="0 0 22 18"><polyline points="3,15 19,15 19,3" fill="none" stroke="currentColor" stroke-width="2"/><line x1="3" y1="15" x2="19" y2="3" stroke="currentColor" stroke-width="1.2"/></svg>
+          x축
+        </button>
+      </div>
+
+      <!-- 범례 표시 장비 (장비 모드, 페이지별) — app.js가 동적 렌더 -->
+      <div class="ctrl-group mode-only-equip" id="legend-equip-group" style="display:none;">
+        <span class="ctrl-label">범례표기</span>
+        <div id="legend-equip-checks" style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;"></div>
       </div>
       <div class="ctrl-sep"></div>
 
@@ -274,7 +309,7 @@
       <!-- 상태 바 -->
       <div id="canvas-status">
         <span><span class="val" id="cursor-hint">클릭: 지시점 지정</span></span>
-        <span>ESC | Q: 직교 | R: 반전 | W: 선순환 | 1~4: 선 | A/D: 도구 | F5: 맞추기</span>
+        <span>ESC | Enter: 도형완료 | Q: 직교 | R: 반전 | W: 선순환 | 1~4: 선 | A/D: 도구 | F5: 맞추기</span>
       </div>
 
       <!-- 줌 컨트롤 -->
@@ -428,6 +463,26 @@
   </div>
 </div>
 
+<!-- ===== 기울기 측정값 입력 모달 ===== -->
+<div class="modal-overlay hidden" id="modal-tilt">
+  <div class="modal-box" style="max-width:320px;">
+    <div class="modal-header">
+      <h2>기울기 측정값</h2>
+      <button class="modal-close" id="modal-tilt-close">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field-row">
+        <label>측정값 (mm) — 비워두면 번호만 표기</label>
+        <input type="text" class="field-input" id="tilt-measure" placeholder="예: 2">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" id="modal-tilt-cancel">번호만</button>
+      <button class="btn btn-accent" id="modal-tilt-apply">확인</button>
+    </div>
+  </div>
+</div>
+
 <!-- ===== 스크립트 ===== -->
 <script>
   /* Electron 실행 여부 감지 — userAgent에 'Electron' 포함 시 로컬 lib 사용 */
@@ -454,6 +509,8 @@
 <script src="js/pageManager.js"></script>
 <script src="js/titleBlock.js"></script>
 <script src="js/legend.js"></script>
+<script src="js/appMode.js"></script>
+<script src="js/equipment.js"></script>
 <script src="js/storageManager.js"></script>
 <script src="js/app.js"></script>
 

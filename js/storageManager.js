@@ -6,6 +6,7 @@ const StorageManager = (() => {
   let _isDirty = false;
   let _debounceTimer = null;
   let _onStatusChange = null;
+  let _getProject = null;   // app.js가 등록하는 전체 프로젝트(두 작업공간) 빌더
 
   // ── 탭 고유 ID (sessionStorage 기반 — F5 새로고침 후 유지, 탭 닫으면 소멸)
   let _tabId = sessionStorage.getItem('numdraw_tabId');
@@ -21,6 +22,9 @@ const StorageManager = (() => {
     _onStatusChange = onStatusChangeCb;
     _cleanupOldSessions();
   }
+
+  // ── 전체 프로젝트 빌더 등록 (두 작업공간 내보내기용)
+  function setProjectProvider(fn) { _getProject = fn; }
 
   // ── 30일 이상 된 세션 정리 (다른 탭이 닫힌 뒤 남은 잔류 데이터 제거)
   function _cleanupOldSessions() {
@@ -156,6 +160,7 @@ const StorageManager = (() => {
       const session = {
         version: 1,
         updatedAt: new Date().toISOString(),
+        appMode: AppMode.get(),
         pages: JSON.stringify(lightData),
         titleBlock: {
           enabled: TitleBlock.isEnabled(),
@@ -221,36 +226,24 @@ const StorageManager = (() => {
   // ── .numdraw 파일로 내보내기
   async function exportFile() {
     try {
-      // 1. 현재 앱 상태 수집
-      const pagesJSON = PageManager.toJSON();
-      const pagesData = JSON.parse(pagesJSON);
-
-      // 2. 이미지 보충 (경량 저장소에는 비어있을 수 있음)
-      await _loadImages(pagesData.pages);
-
-      // 3. 전역 설정 수집
-      const cfg = Annotation.getConfig();
-      const cats = Annotation.getCategories();
-
-      // 4. 완전한 프로젝트 데이터 구성
-      const data = {
-        version: 1,
-        updatedAt: new Date().toISOString(),
-        pages: JSON.stringify(pagesData),
-        titleBlock: {
-          enabled: TitleBlock.isEnabled(),
-          settings: TitleBlock.getSettings(),
-        },
-        legend: {
-          enabled: Legend.isEnabled(),
-        },
-        globalConfig: {
-          scale:   cfg.scale,
-          tbScale: cfg.tbScale,
-          lgScale: cfg.lgScale,
-          categories: cats,
-        },
-      };
+      // 1. 전체 프로젝트 데이터 구성 (provider가 있으면 두 작업공간 + 이미지 인라인)
+      let data;
+      if (_getProject) {
+        data = _getProject();
+      } else {
+        const pagesData = JSON.parse(PageManager.toJSON());
+        await _loadImages(pagesData.pages);
+        const cfg = Annotation.getConfig();
+        data = {
+          version: 1,
+          updatedAt: new Date().toISOString(),
+          appMode: AppMode.get(),
+          pages: JSON.stringify(pagesData),
+          titleBlock: { enabled: TitleBlock.isEnabled(), settings: TitleBlock.getSettings() },
+          legend: { enabled: Legend.isEnabled() },
+          globalConfig: { scale: cfg.scale, tbScale: cfg.tbScale, lgScale: cfg.lgScale, categories: Annotation.getCategories() },
+        };
+      }
 
       const jsonString = JSON.stringify(data, null, 2);
       const projectTitle = TitleBlock.getSettings().projectTitle || 'numdraw';
@@ -309,7 +302,7 @@ const StorageManager = (() => {
         try {
           const data = JSON.parse(e.target.result);
 
-          if (!data.version || !data.pages) {
+          if (!data.version || (!data.pages && !data.workspaces)) {
             throw new Error('유효하지 않은 .numdraw 파일 형식입니다');
           }
 
@@ -361,6 +354,7 @@ const StorageManager = (() => {
   // ── 공개 API
   return {
     init,
+    setProjectProvider,
     markDirty,
     saveSession,
     loadSession,

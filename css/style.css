@@ -79,6 +79,88 @@ body {
 }
 
 /* ============================================================
+   MODE BAR (작업페이지 구분)
+   ============================================================ */
+#mode-bar {
+  height: 38px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  flex-shrink: 0;
+  z-index: 101;
+  box-shadow: var(--shadow-xs);
+}
+.mode-bar-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-dim);
+  letter-spacing: 0.3px;
+}
+.mode-seg {
+  display: flex;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 2px;
+  gap: 2px;
+}
+.mode-seg-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 16px;
+  border-radius: calc(var(--radius) - 2px);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.mode-seg-btn:hover { color: var(--text-primary); }
+.mode-seg-btn.active {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: var(--shadow-xs);
+}
+.mode-bar-hint {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+/* ── 장비시험망도 개발예정 플레이스홀더 ── */
+#equip-placeholder {
+  position: absolute;
+  inset: 0;
+  background: var(--bg-app);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+#equip-placeholder.hidden { display: none; }
+.equip-placeholder-inner {
+  text-align: center;
+  color: var(--text-secondary);
+  max-width: 380px;
+  padding: 24px;
+}
+.equip-placeholder-inner svg { color: var(--accent); opacity: 0.6; margin-bottom: 16px; }
+.equip-placeholder-inner h2 {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+  letter-spacing: -0.5px;
+}
+.equip-placeholder-inner p { font-size: 14px; line-height: 1.7; margin: 2px 0; }
+.equip-placeholder-inner p.dim { color: var(--text-dim); font-size: 13px; }
+.equip-placeholder-inner b { color: var(--accent); font-weight: 700; }
+.equip-placeholder-inner .btn { margin-top: 20px; }
+
+/* ============================================================
    TOOLBAR
    ============================================================ */
 #toolbar {
@@ -276,6 +358,7 @@ body {
   display: flex;
   flex: 1;
   overflow: hidden;
+  position: relative;
 }
 
 /* ============================================================
@@ -870,6 +953,52 @@ body {
 .cat-btn:hover .cat-color-picker { opacity: 0.8; }
 .cat-color-picker:hover { opacity: 1 !important; }
 
+/* ── 장비 구분 버튼 (장비 모드) ── */
+.equip-btn {
+  position: relative;
+  display: flex; align-items: center; gap: 5px;
+  padding: 5px 7px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-panel);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 11px; font-weight: 500; font-family: var(--font);
+  transition: all 0.12s; white-space: nowrap;
+}
+.equip-btn:hover {
+  border-color: var(--cat-c, var(--accent));
+  background: color-mix(in srgb, var(--cat-c, var(--accent)) 8%, transparent);
+}
+.equip-btn.active {
+  border-color: var(--cat-c, var(--accent));
+  background: color-mix(in srgb, var(--cat-c, var(--accent)) 14%, transparent);
+  color: var(--text-primary); font-weight: 600;
+}
+.equip-btn .equip-label { pointer-events: none; }
+.equip-prefix {
+  width: 36px; text-align: center;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 4px; color: var(--text-primary);
+  font-size: 10px; font-weight: 700; font-family: var(--font-mono, monospace);
+  padding: 2px 3px; text-transform: uppercase;
+}
+.equip-prefix:focus { outline: none; border-color: var(--cat-c, var(--accent)); }
+.equip-btn .cat-color-picker {
+  position: static; opacity: 1;
+  width: 16px; height: 16px; border-radius: 3px;
+  border: 1px solid var(--border); cursor: pointer;
+}
+
+/* ── 범례 표시 장비 체크박스 (장비 모드, 페이지별) ── */
+.legend-eq-check {
+  display: flex; align-items: center; gap: 3px;
+  font-size: 11px; color: var(--text-secondary);
+  cursor: pointer; user-select: none;
+}
+.legend-eq-check input { cursor: pointer; margin: 0; }
+.legend-eq-dot { width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0; }
+
 /* ── 입력 필드 ── */
 .num-input-row {
   display: flex;
@@ -984,6 +1113,8 @@ input[type=range]::-webkit-slider-thumb {
   white-space: nowrap;
   letter-spacing: -0.3px;
 }
+.num-badges { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; }
+.num-badges .num-badge { height: 20px; }
 .num-info { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .num-type {
   font-size: 10px;

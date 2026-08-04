@@ -18,7 +18,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   CanvasManager.setAfterRender((ctx, w, h) => {
     if (TitleBlock.isEnabled() && w) TitleBlock.render(ctx, w, h);
-    if (Legend.isEnabled() && w)     Legend.render(ctx, w, h);
+    if (Legend.isEnabled() && w) {
+      const ap = PageManager.getActivePage();
+      Legend.render(ctx, w, h, ap && ap.legendEquip);
+    }
   });
 
   /* ── Annotation 초기화 ── */
@@ -62,12 +65,49 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   CanvasManager.onAdd((p1, p2, type) => {
-    Annotation.add(p1, p2, type);
-    showMsg('넘버 ' + (Annotation.getNextNum() - 1) + ' 추가', 'success');
+    if (AppMode.get() === AppMode.MODES.EQUIP) {
+      const eq = Equipment.getActive();
+      if (!eq) return;
+      const pfx = eq.prefix ? eq.prefix + '-' : '';
+      if (eq.kind === 'tilt') {
+        const axis = Annotation.getConfig().tiltAxis || 'y';
+        const item = Annotation.addShape('tilt', { p1, p2, axis }, { key: eq.key, color: eq.color });
+        showMsg(eq.label + ' ' + pfx + String(item.num).padStart(2, '0') + ' 추가', 'success');
+        /* 측정값 입력 — 취소하면 번호만 표기 */
+        _askTiltMeasure(v => { if (v) Annotation.updateItem(item.id, { measure: v }); });
+        return;
+      }
+      if (eq.kind !== 'leader') { showMsg(eq.label + ' 은(는) 클릭으로 점을 찍고 Enter로 완료하세요', 'info'); return; }
+      const item = Annotation.add(p1, p2, type, { key: eq.key, color: eq.color });
+      showMsg(eq.label + ' ' + pfx + String(item.num).padStart(2, '0') + ' 추가', 'success');
+    } else {
+      Annotation.add(p1, p2, type);
+      showMsg('넘버 ' + (Annotation.getNextNum() - 1) + ' 추가', 'success');
+    }
+  });
+
+  /* 장비 모드: 부동침하 측정점 확정 (Enter) */
+  CanvasManager.onAddShape((kind, geom) => {
+    const eq = Equipment.getActive();
+    if (!eq) return false;
+    const item = Annotation.addShape(kind, geom, { key: eq.key, color: eq.color });
+    const pfx  = eq.prefix ? eq.prefix + '-' : '';
+    showMsg(eq.label + ' ' + pfx + String(item.num).padStart(2, '0') + ' 추가', 'success');
+    return true;
   });
 
   CanvasManager.onStateChange((state) => {
     _updateCursorHint(state);
+  });
+
+  /* 장비 모드: 기존 지시선 클릭 → 활성 장비 넘버 추가 (item 2·3) */
+  CanvasManager.onAddLabel((itemId, equip) => {
+    const label = Annotation.addLabelToItem(itemId, equip);
+    if (!label) return false;
+    const eq  = Equipment.get(equip.key);
+    const pfx = eq && eq.prefix ? eq.prefix + '-' : '';
+    showMsg((eq ? eq.label : '') + ' ' + pfx + String(label.num).padStart(2, '0') + ' 추가', 'success');
+    return true;
   });
 
   /* ── PageManager 초기화 ── */
@@ -81,12 +121,217 @@ document.addEventListener('DOMContentLoaded', async () => {
       _syncSettingsUI();
       /* B: 페이지별 Drawing Name 적용 */
       TitleBlock.applySettings({ drawingName: page.drawingName || '' });
+      /* 페이지별 범례 표시 장비 체크박스 갱신 */
+      if (AppMode.get() === AppMode.MODES.EQUIP) _renderLegendEquip();
     },
     /* onListChange */ () => { _renderPageList(); }
   );
 
   /* ── TitleBlock 초기화 ── */
   TitleBlock.init();
+
+  /* ── 작업 모드 & 장비 (외관조사망도 / 장비시험망도) ── */
+  let _wsMode = AppMode.get();                 // 현재 작업공간 모드
+  const _workspaces = { exterior: null, equip: null };  // 비활성 작업공간 스냅샷 보관
+
+  /* 모드에 따른 UI 토글 (작업공간 전환 없음) */
+  function _applyModeUI(mode) {
+    const isEquip = mode === AppMode.MODES.EQUIP;
+    document.querySelectorAll('.mode-seg-btn').forEach(b =>
+      b.classList.toggle('active', b.dataset.mode === mode));
+    const catG = document.getElementById('cat-ctrl-group');
+    const eqG  = document.getElementById('equip-ctrl-group');
+    const lgG  = document.getElementById('legend-equip-group');
+    if (catG) catG.style.display = isEquip ? 'none' : 'flex';
+    if (eqG)  eqG.style.display  = isEquip ? 'flex' : 'none';
+    if (lgG)  lgG.style.display  = isEquip ? 'flex' : 'none';
+    const hint = document.getElementById('mode-bar-hint');
+    if (hint) hint.textContent = isEquip ? '장비시험망도 — 장비별 넘버링' : '';
+    if (isEquip) _renderLegendEquip();
+    _syncTiltAxisUI();
+  }
+
+  /* ── 범례 표시 장비 체크박스 (페이지별) ── */
+  function _renderLegendEquip() {
+    const box = document.getElementById('legend-equip-checks');
+    if (!box) return;
+    const page = PageManager.getActivePage();
+    const sel  = (page && Array.isArray(page.legendEquip)) ? page.legendEquip : null; // null = 전체
+    box.innerHTML = '';
+    Equipment.getList().forEach(eq => {
+      const checked = sel ? sel.includes(eq.key) : true;
+      const lab = document.createElement('label');
+      lab.className = 'legend-eq-check';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.checked = checked; cb.dataset.key = eq.key;
+      cb.addEventListener('change', _onLegendEquipChange);
+      const dot = document.createElement('span');
+      dot.className = 'legend-eq-dot'; dot.style.background = eq.color;
+      const txt = document.createElement('span'); txt.textContent = eq.label;
+      lab.append(cb, dot, txt);
+      box.appendChild(lab);
+    });
+  }
+
+  function _onLegendEquipChange() {
+    const page = PageManager.getActivePage();
+    if (!page) return;
+    const checks = [...document.querySelectorAll('#legend-equip-checks input[type="checkbox"]')];
+    const selected = checks.filter(c => c.checked).map(c => c.dataset.key);
+    /* 전체 선택이면 null(전체 표기)로 저장 */
+    page.legendEquip = (selected.length === Equipment.getList().length) ? null : selected;
+    CanvasManager.renderAnnotations(Annotation.getAll());
+    if (!_isRestoring) StorageManager.markDirty();
+  }
+
+  /* 장비 툴바(버튼 + 접두어 입력 + 색상 피커) 렌더 */
+  function _renderEquipToolbar() {
+    const box = document.getElementById('equip-btns');
+    if (!box) return;
+    box.innerHTML = '';
+    const activeKey = Equipment.getActiveKey();
+    Equipment.getList().forEach(eq => {
+      const btn = document.createElement('button');
+      btn.className = 'equip-btn' + (eq.key === activeKey ? ' active' : '');
+      btn.dataset.key = eq.key;
+      btn.style.setProperty('--cat-c', eq.color);
+      btn.title = eq.kind === 'leader' ? '지시선'
+                : (eq.kind === 'tilt' ? '도형: 수직기준선 + 경사선' : '도형: 측정점 + 사각 테두리');
+
+      const dot = document.createElement('span');
+      dot.className = 'cat-dot-lg';
+      dot.style.background = eq.color;
+
+      const lab = document.createElement('span');
+      lab.className = 'equip-label';
+      lab.textContent = eq.label;
+      if (eq.kind !== 'leader') lab.textContent += eq.kind === 'tilt' ? ' ∠' : ' ▭';
+
+      const pfx = document.createElement('input');
+      pfx.type = 'text'; pfx.className = 'equip-prefix';
+      pfx.value = eq.prefix; pfx.maxLength = 4; pfx.title = '접두어 편집';
+      pfx.addEventListener('click', e => e.stopPropagation());
+      pfx.addEventListener('input', e => Equipment.setPrefix(eq.key, e.target.value.trim()));
+
+      const col = document.createElement('input');
+      col.type = 'color'; col.className = 'cat-color-picker';
+      col.value = eq.color; col.title = '색상 변경';
+      col.addEventListener('click', e => e.stopPropagation());
+      col.addEventListener('input', e => Equipment.setColor(eq.key, e.target.value));
+
+      btn.append(dot, lab, pfx, col);
+      btn.addEventListener('click', () => {
+        Equipment.setActive(eq.key);
+        CanvasManager.cancelDraw();
+        _renderEquipToolbar();
+        _updateNextNumDisplay();
+        _updateCursorHint({ phase: 0 });
+      });
+      box.appendChild(btn);
+    });
+    _syncTiltAxisUI();
+  }
+
+  /* 기울기 기준축 토글 — 기울기 장비가 선택됐을 때만 노출 */
+  function _syncTiltAxisUI() {
+    const grp = document.getElementById('tilt-axis-group');
+    if (!grp) return;
+    const eq = Equipment.getActive();
+    const on = AppMode.get() === AppMode.MODES.EQUIP && eq && eq.kind === 'tilt';
+    grp.style.display = on ? 'flex' : 'none';
+    const axis = Annotation.getConfig().tiltAxis || 'y';
+    grp.querySelectorAll('.tilt-axis-btn').forEach(b =>
+      b.classList.toggle('active', b.dataset.axis === axis));
+  }
+
+  document.querySelectorAll('.tilt-axis-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      Annotation.setConfig({ tiltAxis: btn.dataset.axis });
+      CanvasManager.cancelDraw();
+      _syncTiltAxisUI();
+      _updateCursorHint({ phase: 0 });
+      showMsg(btn.dataset.axis === 'x' ? '기울기 기준축: x축(가로)' : '기울기 기준축: y축(세로)', 'info');
+    });
+  });
+
+  /* 장비 접두어/색상 변경 시 */
+  Equipment.init((what, key) => {
+    if (what === 'color' && key) {
+      const eq = Equipment.get(key);
+      Annotation.getAll().forEach(i => {
+        if (i.equipment === key) i.color = eq.color;
+        if (i.labels) i.labels.forEach(l => { if (l.equipment === key) l.color = eq.color; });
+      });
+      const btn = document.querySelector('.equip-btn[data-key="' + key + '"]');
+      if (btn) {
+        btn.style.setProperty('--cat-c', eq.color);
+        const d = btn.querySelector('.cat-dot-lg'); if (d) d.style.background = eq.color;
+      }
+    }
+    CanvasManager.renderAnnotations(Annotation.getAll());
+    Sidebar.renderNumList(Annotation.getAll(), _collectAllPagesData());
+    _updateNextNumDisplay();
+    if (AppMode.get() === AppMode.MODES.EQUIP) _renderLegendEquip();
+    if (!_isRestoring) StorageManager.markDirty();
+  });
+
+  AppMode.init(() => {});  // 상태만 보관 (전환은 _switchMode가 담당)
+
+  /* ── 현재 작업공간 스냅샷 ── */
+  function _snapshotWorkspace() {
+    PageManager.saveCurrentPageState();
+    const cfg = Annotation.getConfig();
+    return {
+      version: 2,
+      pages: PageManager.toJSON(),
+      titleBlock: { enabled: TitleBlock.isEnabled(), settings: TitleBlock.getSettings() },
+      legend: { enabled: Legend.isEnabled() },
+      globalConfig: { scale: cfg.scale, tbScale: cfg.tbScale, lgScale: cfg.lgScale, categories: Annotation.getCategories() },
+      equipment: Equipment.toJSON(),
+    };
+  }
+
+  /* ── 빈 작업공간으로 초기화 ── */
+  async function _clearWorkspace() {
+    _isRestoring = true;
+    try {
+      PageManager.clearAll();
+      Equipment.reset();
+      CanvasManager.clear();
+      dropzone.classList.remove('has-file');
+      document.getElementById('file-name').textContent = '';
+      _renderPageList();
+      _renderEquipToolbar();
+      CanvasManager.renderAnnotations(Annotation.getAll());
+      _updateNextNumDisplay();
+    } finally { _isRestoring = false; }
+  }
+
+  /* ── 모드(작업공간) 전환 ── */
+  async function _switchMode(newMode) {
+    if (newMode === _wsMode) return;
+    CanvasManager.cancelDraw();
+    _workspaces[_wsMode] = _snapshotWorkspace();   // 현재 작업공간 저장
+    _wsMode = newMode;
+    AppMode.set(newMode, { force: true, silent: true });
+    _applyModeUI(newMode);
+    if (_workspaces[newMode]) {
+      await _restoreFromData(_workspaces[newMode]);
+    } else {
+      await _clearWorkspace();
+    }
+    _updateNextNumDisplay();
+    StorageManager.markDirty();
+    showMsg(newMode === AppMode.MODES.EQUIP ? '장비시험망도 모드' : '외관조사망도 모드', 'info');
+  }
+
+  document.querySelectorAll('.mode-seg-btn').forEach(btn => {
+    btn.addEventListener('click', () => _switchMode(btn.dataset.mode));
+  });
+
+  /* 초기 렌더 */
+  _renderEquipToolbar();
+  _applyModeUI(_wsMode);
 
   /* ── 페이지 패널 추가(+) / 삭제(−) ── */
   const pageAddInput = document.getElementById('page-add-input');
@@ -331,6 +576,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); _undo(); return; }
 
     if (isInput) return; // 이하 단축키: 입력 필드에서는 무시
+
+    /* Enter: 부동침하 다각형 확정 */
+    if (e.key === 'Enter') { e.preventDefault(); CanvasManager.finishShape(); return; }
 
     /* A: 화살표 도구 선택 또는 선택된 항목 타입 변경 */
     if (e.key === 'a' || e.key === 'A') {
@@ -669,7 +917,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       showMsg('프로젝트 불러오는 중...', 'info');
       const data = await StorageManager.importFile(file);
       if (!confirm('현재 작업을 지우고 저장된 프로젝트를 불러오시겠습니까?')) return;
-      await _restoreFromData(data);
+      await _restoreProject(data);
       await StorageManager.saveSession();
       showMsg('프로젝트 불러오기 완료', 'success');
     } catch (e) {
@@ -702,7 +950,7 @@ document.addEventListener('DOMContentLoaded', async () => {
          — page.imgLayout을 전달하여 화면 표시와 동일한 고정 좌표로 렌더링 (지시점 위치 픽셀 일치) */
       TitleBlock.applySettings({ drawingName: page.drawingName || '' });
       const { canvas: off, w, h } = await CanvasManager.createPageExport(
-        page.imgSrc, page.imgW, page.imgH, page.annJSON, page.imgLayout || null
+        page.imgSrc, page.imgW, page.imgH, page.annJSON, page.imgLayout || null, page.legendEquip
       );
 
       const orient  = w >= h ? 'landscape' : 'portrait';
@@ -953,12 +1201,61 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function _updateNextNumDisplay() {
     const el = document.getElementById('next-num-display');
-    if (el) el.textContent = Annotation.getNextNum();
+    if (!el) return;
+    if (AppMode.get() === AppMode.MODES.EQUIP) {
+      const eq = Equipment.getActive();
+      if (eq) {
+        const pfx = eq.prefix ? eq.prefix + '-' : '';
+        el.textContent = pfx + Annotation.getNextNumForEquipment(eq.key);
+        return;
+      }
+    }
+    el.textContent = Annotation.getNextNum();
+  }
+
+  /* 기울기 측정값 입력 모달 — cb(값 | null). Electron에서 prompt()가 막히므로 자체 모달 사용 */
+  function _askTiltMeasure(cb) {
+    const modal = document.getElementById('modal-tilt');
+    const input = document.getElementById('tilt-measure');
+    if (!modal || !input) { cb(null); return; }
+
+    const done  = (val) => { modal.classList.add('hidden'); input.onkeydown = null; cb(val); };
+    const apply = () => {
+      const raw = input.value.trim();
+      done(raw ? (/mm\s*$/i.test(raw) ? raw : raw + 'mm') : null);
+    };
+
+    input.value = '';
+    modal.classList.remove('hidden');
+    input.focus();
+
+    document.getElementById('modal-tilt-apply').onclick  = apply;
+    document.getElementById('modal-tilt-cancel').onclick = () => done(null);
+    document.getElementById('modal-tilt-close').onclick  = () => done(null);
+    input.onkeydown = (e) => {
+      if (e.key === 'Enter')       { e.preventDefault(); apply(); }
+      else if (e.key === 'Escape') { e.preventDefault(); done(null); }
+      e.stopPropagation();   // 전역 단축키(Enter=도형확정, ESC=그리기취소) 차단
+    };
   }
 
   function _updateCursorHint(state) {
     const el = document.getElementById('cursor-hint');
     if (!el) return;
+    if (AppMode.get() === AppMode.MODES.EQUIP) {
+      const eq = Equipment.getActive();
+      if (eq && eq.kind === 'tilt') {
+        const isX = (Annotation.getConfig().tiltAxis || 'y') === 'x';
+        el.textContent = state.phase === 0
+          ? (isX ? '클릭: 좌측 기준점 지정' : '클릭: 상단 기준점 지정')
+          : '클릭: 기울어진(변위) 끝점 지정 | ESC: 취소';
+        return;
+      }
+      if (eq && eq.kind === 'settle') {
+        el.textContent = '클릭: 측정점 추가 | Enter: 완료 | Q: 직교 | ESC: 취소';
+        return;
+      }
+    }
     el.textContent = state.phase === 0 ? '클릭: 지시점 지정' : '클릭: 번호 위치 지정 | ESC: 취소';
   }
 
@@ -1044,6 +1341,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (lgToggle) lgToggle.checked = legendOn;
       }
 
+      // 4-c. 장비 구분 복원
+      if (data.equipment) Equipment.fromJSON(data.equipment); else Equipment.reset();
+      _renderEquipToolbar();
+
+      // 4-d. 작업 모드 복원 (있을 때만 — 작업공간 스냅샷에는 없음)
+      if (data.appMode) {
+        AppMode.set(data.appMode, { force: true, silent: true });
+        _applyModeUI(AppMode.get());
+      }
+
       // 5. 화면 갱신
       const activePage = PageManager.getActivePage();
       if (activePage) {
@@ -1059,8 +1366,43 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  /* ── 프로젝트 전체 복원 (두 작업공간 지원) ──
+     v2: { workspaces:{exterior,equip}, activeMode } / 레거시(v1)·자동저장: 단일 작업공간 */
+  async function _restoreProject(project) {
+    if (project && project.workspaces) {
+      _workspaces.exterior = project.workspaces.exterior || null;
+      _workspaces.equip    = project.workspaces.equip || null;
+      const active = project.activeMode || (project.workspaces.exterior ? 'exterior' : 'equip');
+      _wsMode = active;
+      const activeData = _workspaces[active];
+      _workspaces[active] = null;   // 활성 작업공간은 라이브로 전환
+      AppMode.set(active, { force: true, silent: true });
+      _applyModeUI(active);
+      if (activeData) await _restoreFromData({ ...activeData, appMode: active });
+      else            await _clearWorkspace();
+    } else if (project) {
+      const active = project.appMode || project.activeMode || 'exterior';
+      _workspaces.exterior = null; _workspaces.equip = null;
+      _wsMode = active;
+      AppMode.set(active, { force: true, silent: true });
+      _applyModeUI(active);
+      await _restoreFromData({ ...project, appMode: active });
+    }
+    _updateNextNumDisplay();
+  }
+
+  /* ── 내보내기용 프로젝트 데이터 (두 작업공간 + 이미지 인라인) ── */
+  function _buildProjectData() {
+    const other  = _wsMode === 'exterior' ? 'equip' : 'exterior';
+    const workspaces = {};
+    workspaces[_wsMode] = _snapshotWorkspace();       // 활성 작업공간(이미지 인라인)
+    if (_workspaces[other]) workspaces[other] = _workspaces[other];
+    return { version: 2, updatedAt: new Date().toISOString(), activeMode: _wsMode, workspaces };
+  }
+
   /* ── StorageManager 초기화 & 세션 복원 ── */
   await StorageManager.init(_onSaveStatusChange);
+  StorageManager.setProjectProvider(_buildProjectData);
 
   /* Electron: .numdraw 더블클릭으로 실행된 경우 해당 파일 우선 로드 */
   const startupContent = window.electronAPI ? await window.electronAPI.getStartupFile() : null;
@@ -1068,7 +1410,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (startupContent) {
     try {
       const data = JSON.parse(startupContent);
-      await _restoreFromData(data);
+      await _restoreProject(data);
       showMsg('프로젝트를 열었습니다', 'success');
     } catch (e) {
       showMsg('파일 열기 실패: ' + e.message, 'warn');
@@ -1081,7 +1423,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         `저장된 작업이 있습니다.\n마지막 저장: ${new Date(savedSession.updatedAt).toLocaleString()}\n\n불러오시겠습니까?`
       );
       if (restored) {
-        await _restoreFromData(savedSession);
+        await _restoreProject(savedSession);
         showMsg('이전 작업을 불러왔습니다', 'success');
       }
     }
@@ -1093,7 +1435,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       try {
         if (!confirm('현재 작업을 닫고 선택한 프로젝트를 여시겠습니까?')) return;
         const data = JSON.parse(content);
-        await _restoreFromData(data);
+        await _restoreProject(data);
         showMsg('프로젝트를 열었습니다', 'success');
       } catch (e) {
         showMsg('파일 열기 실패: ' + e.message, 'warn');
