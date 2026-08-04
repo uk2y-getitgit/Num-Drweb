@@ -984,6 +984,21 @@ body {
   padding: 2px 3px; text-transform: uppercase;
 }
 .equip-prefix:focus { outline: none; border-color: var(--cat-c, var(--accent)); }
+/* 장비 그룹은 컨트롤 바에서 한 줄 차지 — 버튼이 늘어나도 잘리지 않고 줄바꿈 */
+#equip-ctrl-group { flex: 1 1 100%; min-width: 0; }
+#equip-btns       { flex: 1 1 auto; min-width: 0; }
+
+/* 장비별 시작 번호 — 스핀 버튼 숨김 */
+.equip-start {
+  width: 30px; text-align: center;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 4px; color: var(--text-primary);
+  font-size: 10px; font-weight: 700; font-family: var(--font-mono, monospace);
+  padding: 2px 3px; -moz-appearance: textfield;
+}
+.equip-start::-webkit-outer-spin-button,
+.equip-start::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.equip-start:focus { outline: none; border-color: var(--cat-c, var(--accent)); }
 .equip-btn .cat-color-picker {
   position: static; opacity: 1;
   width: 16px; height: 16px; border-radius: 3px;

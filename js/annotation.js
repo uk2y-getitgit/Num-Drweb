@@ -55,14 +55,19 @@ const Annotation = (() => {
     return item;
   }
 
-  /* 장비별 다음 번호 (primary + 추가 라벨 모두 스캔) */
+  /* 장비별 사용자 지정 시작 번호 */
+  function _equipStart(key) {
+    return (typeof Equipment !== 'undefined') ? Equipment.getStart(key) : 1;
+  }
+
+  /* 장비별 다음 번호 (primary + 추가 라벨 모두 스캔) — 항목이 없으면 시작 번호부터 */
   function _nextNumForEquipment(key) {
     let max = 0;
     items.forEach(i => {
       if (i.equipment === key && i.num > max) max = i.num;
       if (i.labels) i.labels.forEach(l => { if (l.equipment === key && l.num > max) max = l.num; });
     });
-    return max + 1;
+    return Math.max(max + 1, _equipStart(key));
   }
   function getNextNumForEquipment(key) { return _nextNumForEquipment(key); }
 
@@ -194,10 +199,12 @@ const Annotation = (() => {
     let globalC = 0;
     items.forEach(item => {
       if (item.equipment) {
-        perEquip[item.equipment] = (perEquip[item.equipment] || 0) + 1;
+        /* 장비별 시작 번호부터 연속 부여 */
+        const nextOf = k => (perEquip[k] === undefined ? _equipStart(k) : perEquip[k] + 1);
+        perEquip[item.equipment] = nextOf(item.equipment);
         item.num = perEquip[item.equipment];
         if (item.labels) item.labels.forEach(l => {
-          perEquip[l.equipment] = (perEquip[l.equipment] || 0) + 1;
+          perEquip[l.equipment] = nextOf(l.equipment);
           l.num = perEquip[l.equipment];
         });
       } else {
@@ -206,6 +213,12 @@ const Annotation = (() => {
       }
     });
     nextNum = globalC + 1;
+  }
+
+  /* 외부 호출용 재정렬 (장비 시작 번호 변경 시) */
+  function resequence() {
+    _resequence();
+    if (onChange) onChange();
   }
 
   /* ── 겹침 방지 자동정렬 ── */
@@ -241,6 +254,7 @@ const Annotation = (() => {
   return {
     init, add, remove, clear, updateItem, getAll,
     setNextNum, getNextNum, getNextNumForEquipment, addLabelToItem, addShape,
+    resequence,
     setActiveCategory, getActiveCategory, getCategories, setCategoryColor,
     setConfig, getConfig,
     matchPhoto, toJSON, fromJSON, autoLayout,

@@ -147,6 +147,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (lgG)  lgG.style.display  = isEquip ? 'flex' : 'none';
     const hint = document.getElementById('mode-bar-hint');
     if (hint) hint.textContent = isEquip ? '장비시험망도 — 장비별 넘버링' : '';
+    /* 장비 모드에서는 전역 접두어·시작번호가 무의미 — 장비별 설정으로 대체 */
+    const pfxEl = document.getElementById('prefix-num');
+    const stEl  = document.getElementById('start-num');
+    const numLb = document.getElementById('num-group-label');
+    if (pfxEl) pfxEl.style.display = isEquip ? 'none' : '';
+    if (stEl)  stEl.style.display  = isEquip ? 'none' : '';
+    if (numLb) numLb.textContent   = isEquip ? '글씨색' : '번호';
     if (isEquip) _renderLegendEquip();
     _syncTiltAxisUI();
   }
@@ -213,13 +220,24 @@ document.addEventListener('DOMContentLoaded', async () => {
       pfx.addEventListener('click', e => e.stopPropagation());
       pfx.addEventListener('input', e => Equipment.setPrefix(eq.key, e.target.value.trim()));
 
+      /* 장비별 시작 번호 — 변경 시 해당 장비 기존 넘버링도 새 시작번호부터 재정렬 */
+      const st = document.createElement('input');
+      st.type = 'number'; st.className = 'equip-start';
+      st.min = 1; st.value = eq.start || 1; st.title = '시작 번호';
+      st.addEventListener('click', e => e.stopPropagation());
+      st.addEventListener('change', e => {
+        Equipment.setStart(eq.key, e.target.value);    // 재정렬·렌더는 Equipment.init 콜백에서 처리
+        e.target.value = Equipment.getStart(eq.key);   // 보정값 반영
+        showMsg(eq.label + ' 시작 번호 ' + Equipment.getStart(eq.key), 'info');
+      });
+
       const col = document.createElement('input');
       col.type = 'color'; col.className = 'cat-color-picker';
       col.value = eq.color; col.title = '색상 변경';
       col.addEventListener('click', e => e.stopPropagation());
       col.addEventListener('input', e => Equipment.setColor(eq.key, e.target.value));
 
-      btn.append(dot, lab, pfx, col);
+      btn.append(dot, lab, pfx, st, col);
       btn.addEventListener('click', () => {
         Equipment.setActive(eq.key);
         CanvasManager.cancelDraw();
@@ -254,8 +272,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   });
 
-  /* 장비 접두어/색상 변경 시 */
+  /* 장비 접두어/색상/시작번호 변경 시 */
   Equipment.init((what, key) => {
+    /* 시작 번호 변경 — 기존 넘버링도 새 시작번호부터 다시 매김 */
+    if (what === 'start') Annotation.resequence();
     if (what === 'color' && key) {
       const eq = Equipment.get(key);
       Annotation.getAll().forEach(i => {
