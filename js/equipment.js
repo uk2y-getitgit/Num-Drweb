@@ -49,6 +49,19 @@ const Equipment = (() => {
     const e = get(key);
     return (e && e.start) || 1;
   }
+  /* 페이지 전환용 일괄 적용 — onChange를 발생시키지 않는다(재정렬·저장 트리거 방지) */
+  function setStarts(map) {
+    if (!map) return;
+    list.forEach(e => {
+      const n = parseInt(map[e.key], 10);
+      e.start = (isNaN(n) || n < 1) ? 1 : n;
+    });
+  }
+  function getStarts() {
+    const m = {};
+    list.forEach(e => { m[e.key] = e.start || 1; });
+    return m;
+  }
 
   /* ── 직렬화 ── */
   function toJSON() { return { list: list.map(e => ({ ...e })), activeKey }; }
@@ -76,6 +89,7 @@ const Equipment = (() => {
 
   return {
     init, getList, get, getActive, getActiveKey, setActive,
-    setPrefix, setColor, setStart, getStart, toJSON, fromJSON, reset,
+    setPrefix, setColor, setStart, getStart, setStarts, getStarts,
+    toJSON, fromJSON, reset,
   };
 })();

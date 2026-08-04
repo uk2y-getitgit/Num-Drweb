@@ -62,19 +62,24 @@ const FileManager = (() => {
   function autoMatch(annotations, prefix) {
     if (!photos.length) return;
     const pfx = prefix || '';
-    annotations.forEach(item => {
+    const matchOne = (target) => {
       let matchNum;
-      if (item.customPhotoNum != null) {
-        matchNum = Number(item.customPhotoNum);
+      if (target.customPhotoNum != null) {
+        matchNum = Number(target.customPhotoNum);
       } else if (pfx) {
-        const label = pfx + '-' + String(item.num).padStart(2, '0');
+        const label = pfx + '-' + String(target.num).padStart(2, '0');
         const base  = extractPhotoName(label);
-        matchNum = _extractNum(base) ?? item.num;
+        matchNum = _extractNum(base) ?? target.num;
       } else {
-        matchNum = item.num;
+        matchNum = target.num;
       }
       const matched = photos.find(p => p.num === matchNum);
-      item.photoName = matched ? matched.name : null;
+      target.photoName = matched ? matched.name : null;
+    };
+    annotations.forEach(item => {
+      matchOne(item);
+      /* 한 지시선에 묶인 장비 번호도 각각 매칭 */
+      if (item.labels) item.labels.forEach(matchOne);
     });
   }
 

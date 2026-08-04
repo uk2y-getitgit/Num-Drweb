@@ -63,15 +63,15 @@ const Sidebar = (() => {
           <span class="psh-count">${pg.items.length}</span>
         </div>
         ${COL_HEADER}
-        ${pg.items.map(item => _renderNumItem(item, cfg, cats, pg.isActive, pg.prefix)).join('')}
+        ${_sortItems(pg.items).map(item => _renderNumItem(item, cfg, cats, pg.isActive, pg.prefix)).join('')}
       `).join('');
     } else if (pagesWithData && pagesWithData.length === 1) {
       /* 데이터 있는 페이지가 1개뿐 */
       const pg = pagesWithData[0];
-      html = COL_HEADER + pg.items.map(item => _renderNumItem(item, cfg, cats, pg.isActive, pg.prefix)).join('');
+      html = COL_HEADER + _sortItems(pg.items).map(item => _renderNumItem(item, cfg, cats, pg.isActive, pg.prefix)).join('');
     } else {
       /* allPages 없음 — 현재 페이지 항목만 */
-      html = COL_HEADER + items.map(item => _renderNumItem(item, cfg, cats, true, cfg.prefix)).join('');
+      html = COL_HEADER + _sortItems(items).map(item => _renderNumItem(item, cfg, cats, true, cfg.prefix)).join('');
     }
 
     wrap.innerHTML = html;
@@ -89,16 +89,20 @@ const Sidebar = (() => {
     wrap.querySelectorAll('.num-del').forEach(btn => {
       btn.addEventListener('click', e => {
         e.stopPropagation();
-        if (onDeleteNum) onDeleteNum(Number(btn.dataset.id));
+        /* 묶인 장비 번호 행이면 그 번호만 삭제 */
+        if (onDeleteNum) onDeleteNum(Number(btn.dataset.id), btn.dataset.labelKey || null);
       });
     });
 
     wrap.querySelectorAll('.photo-num-input').forEach((input, _i, arr) => {
       input.addEventListener('click', e => e.stopPropagation());
       input.addEventListener('blur', e => {
-        const id  = Number(e.target.dataset.id);
-        const val = e.target.value.trim();
-        Annotation.updateItem(id, { customPhotoNum: val !== '' ? Number(val) : null });
+        const id       = Number(e.target.dataset.id);
+        const labelKey = e.target.dataset.labelKey || null;
+        const val      = e.target.value.trim();
+        const patch    = { customPhotoNum: val !== '' ? Number(val) : null };
+        if (labelKey) Annotation.updateLabel(id, labelKey, patch);
+        else          Annotation.updateItem(id, patch);
       });
       /* Tab 키 순차 이동 — blur로 DOM 재구성 후 포커스 복구 */
       input.addEventListener('keydown', e => {
@@ -108,11 +112,11 @@ const Sidebar = (() => {
         const idx  = inputs.indexOf(e.target);
         const next = inputs[idx + (e.shiftKey ? -1 : 1)];
         if (!next) return;
-        const nextId = next.dataset.id;
+        const nextRow = next.dataset.row;
         next.focus(); // blur 발생 → updateItem → renderNumList(DOM 재구성)
-        // DOM 재구성 완료 후 해당 id의 input에 포커스 복구
+        // DOM 재구성 완료 후 해당 행의 input에 포커스 복구
         setTimeout(() => {
-          const restored = wrap.querySelector(`.photo-num-input[data-id="${nextId}"]`);
+          const restored = wrap.querySelector(`.photo-num-input[data-row="${nextRow}"]`);
           if (restored) restored.focus();
         }, 0);
       });
@@ -129,90 +133,113 @@ const Sidebar = (() => {
     });
   }
 
-  /* ── 넘버 항목 HTML 생성 ── */
+  /* 목록 표시 순서 — 장비별로 묶어 번호순 (삭제 후 재마킹해도 번호 자리에 표시) */
+  function _sortItems(list) {
+    const order = {};
+    if (typeof Equipment !== 'undefined') {
+      Equipment.getList().forEach((e, i) => { order[e.key] = i; });
+    }
+    return [...list].sort((a, b) => {
+      const ea = a.equipment ? (order[a.equipment] ?? 99) : -1;
+      const eb = b.equipment ? (order[b.equipment] ?? 99) : -1;
+      return ea !== eb ? ea - eb : (a.num || 0) - (b.num || 0);
+    });
+  }
+
+  /* ── 넘버 항목 HTML 생성 ──
+     한 지시선에 여러 장비 번호가 묶여 있으면 각 번호를 개별 행으로 펼쳐
+     번호마다 삭제·매칭번호 수정이 가능하게 한다. */
   function _renderNumItem(item, cfg, cats, isActive, pagePrefix) {
-    /* 장비 항목: 장비 접두어·색상·라벨 사용 / 외관 항목: 카테고리 사용 */
-    let prefix, catColor, catLabel;
     const isEquipItem = !!item.equipment && typeof Equipment !== 'undefined';
+    const typeLabel = (item.shape === 'tilt'   || item.shape === 'triangle') ? '기울기'
+                    : (item.shape === 'settle' || item.shape === 'polygon')  ? '부동침하'
+                    : (item.type === 'none' ? '없음' : item.type === 'arrow' ? '화살표' : '점');
+
+    /* 기본(지시선 소유) 행 */
+    let prefix, color, catLabel;
     if (isEquipItem) {
       const eq = Equipment.get(item.equipment);
       prefix   = eq ? eq.prefix : '';
-      catColor = (eq && eq.color) || item.color || 'var(--accent)';
+      color    = (eq && eq.color) || item.color || 'var(--accent)';
       catLabel = eq ? eq.label : (item.equipment || '장비');
     } else {
       prefix   = (pagePrefix !== undefined ? pagePrefix : cfg.prefix);
       const catInfo = cats[item.category];
-      catColor = catInfo?.color || item.color || 'var(--accent)';
+      color    = catInfo?.color || item.color || 'var(--accent)';
       catLabel = catInfo?.label || item.category || '신규';
     }
-    const prefixStr = prefix ? prefix + '-' : '';
-    const numStr   = String(item.num).padStart(2, '0');
-    const label    = prefixStr + numStr;
 
-    /* 번호 배지 — 장비 항목이 추가 라벨을 가지면 여러 배지를 세로로 표시 */
-    let badgesHtml = `<div class="num-badge" style="background:${catColor};color:#fff;">${label}</div>`;
+    let html = _renderNumRow({
+      item, cfg, cats, isActive, isEquipItem, sub: false, labelKey: '',
+      label: (prefix ? prefix + '-' : '') + String(item.num).padStart(2, '0'),
+      color, catLabel, typeLabel,
+      num: item.num, customPhotoNum: item.customPhotoNum, photoName: item.photoName,
+    });
+
+    /* 묶인 장비 번호 행 */
     if (isEquipItem && item.labels && item.labels.length) {
       item.labels.forEach(l => {
-        const eq2 = Equipment.get(l.equipment);
-        const c2  = (eq2 && eq2.color) || l.color || 'var(--accent)';
-        const p2  = (eq2 && eq2.prefix) ? eq2.prefix + '-' : '';
-        badgesHtml += `<div class="num-badge" style="background:${c2};color:#fff;">${p2}${String(l.num).padStart(2, '0')}</div>`;
+        const eq = Equipment.get(l.equipment);
+        html += _renderNumRow({
+          item, cfg, cats, isActive, isEquipItem: true, sub: true, labelKey: l.equipment,
+          label: ((eq && eq.prefix) ? eq.prefix + '-' : '') + String(l.num).padStart(2, '0'),
+          color: (eq && eq.color) || l.color || 'var(--accent)',
+          catLabel: eq ? eq.label : (l.equipment || '장비'),
+          typeLabel: '묶음',
+          num: l.num, customPhotoNum: l.customPhotoNum, photoName: l.photoName,
+        });
       });
-      badgesHtml = `<div class="num-badges">${badgesHtml}</div>`;
     }
-    const typeLabel = (item.shape === 'tilt'   || item.shape === 'triangle') ? '기울기'
-                    : (item.shape === 'settle' || item.shape === 'polygon')  ? '부동침하'
-                    : (item.type === 'arrow' ? '화살표' : '점');
-    const isSelected = isActive && String(item.id) === String(selectedId);
-    const customVal  = (item.customPhotoNum !== null && item.customPhotoNum !== undefined)
-                       ? item.customPhotoNum : '';
-    const photoStr   = item.photoName
-      ? item.photoName
-      : '<span style="color:var(--text-placeholder)">미매칭</span>';
+    return html;
+  }
+
+  /* 넘버 목록의 행 하나 (기본 행 / 묶인 장비 번호 행 공용) */
+  function _renderNumRow(r) {
+    const { item, cats, isActive, isEquipItem, sub, labelKey, label, color, catLabel, typeLabel, num } = r;
+    const rowKey    = item.id + (labelKey ? ':' + labelKey : '');
+    const customVal = (r.customPhotoNum !== null && r.customPhotoNum !== undefined) ? r.customPhotoNum : '';
+    const photoStr  = r.photoName ? r.photoName
+                    : '<span style="color:var(--text-placeholder)">미매칭</span>';
+    const badge = `<div class="num-badge" style="background:${color};color:#fff;">${label}</div>`;
+    const info  = `
+      <div class="num-info">
+        <div class="num-type">
+          <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${color};flex-shrink:0;"></span>
+          ${catLabel} · ${typeLabel}
+        </div>
+        <div class="num-photo">${photoStr}</div>
+      </div>`;
 
     if (!isActive) {
-      const displayNum = item.customPhotoNum !== null && item.customPhotoNum !== undefined
-                         ? item.customPhotoNum
-                         : '';
       return `
-        <div class="num-item num-item-readonly" data-id="${item.id}" data-active="false">
-          ${badgesHtml}
-          <div class="num-info">
-            <div class="num-type">
-              <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${catColor};flex-shrink:0;"></span>
-              ${catLabel} · ${typeLabel}
-            </div>
-            <div class="num-photo">${photoStr}</div>
-          </div>
-          <span class="photo-num-display">${displayNum || '-'}</span>
+        <div class="num-item num-item-readonly${sub ? ' num-item-sub' : ''}" data-id="${item.id}" data-active="false">
+          ${badge}${info}
+          <span class="photo-num-display">${customVal || '-'}</span>
         </div>`;
     }
 
-    const catBtns = (isSelected && !isEquipItem) ? `
+    const isSelected = String(item.id) === String(selectedId);
+    const catBtns = (isSelected && !isEquipItem && !sub) ? `
       <div class="num-category-selector">
-        ${Object.entries(cats).map(([key, info]) => {
+        ${Object.entries(cats).map(([key, info2]) => {
           const active = item.category === key;
           const style = active
-            ? `background:${info.color};color:#fff;border-color:${info.color};`
-            : `color:${info.color};border-color:${info.color};`;
-          return `<button class="num-cat-btn${active ? ' active' : ''}" data-id="${item.id}" data-cat="${key}" style="${style}">${info.label}</button>`;
+            ? `background:${info2.color};color:#fff;border-color:${info2.color};`
+            : `color:${info2.color};border-color:${info2.color};`;
+          return `<button class="num-cat-btn${active ? ' active' : ''}" data-id="${item.id}" data-cat="${key}" style="${style}">${info2.label}</button>`;
         }).join('')}
       </div>` : '';
 
     return `
-      <div class="num-item ${isSelected ? 'selected' : ''}" data-id="${item.id}" data-active="true">
-        ${badgesHtml}
-        <div class="num-info">
-          <div class="num-type">
-            <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${catColor};flex-shrink:0;"></span>
-            ${catLabel} · ${typeLabel}
-          </div>
-          <div class="num-photo">${photoStr}</div>
-        </div>
+      <div class="num-item ${isSelected ? 'selected' : ''}${sub ? ' num-item-sub' : ''}"
+           data-id="${item.id}" data-label-key="${labelKey}" data-active="true">
+        ${badge}${info}
         ${catBtns}
         <input type="number" class="photo-num-input" value="${customVal}"
-          placeholder="${item.num}" data-id="${item.id}" title="사진 매칭 번호 (빈칸: 기본)">
-        <button class="num-del" data-id="${item.id}" title="삭제">✕</button>
+          placeholder="${num}" data-id="${item.id}" data-label-key="${labelKey}"
+          data-row="${rowKey}" title="사진 매칭 번호 (빈칸: 기본)">
+        <button class="num-del" data-id="${item.id}" data-label-key="${labelKey}"
+          title="${labelKey ? '이 장비 번호만 삭제' : '삭제'}">✕</button>
       </div>`;
   }
 

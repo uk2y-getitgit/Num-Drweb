@@ -237,6 +237,14 @@ const CanvasManager = (() => {
       if (onSelectItem) onSelectItem(null);
       renderAnnotations(Annotation.getAll());
 
+      /* 지시선 없음: 1클릭으로 번호박스만 추가 (p1=p2)
+         기울기·부동침하 장비는 도형 작업이므로 제외 */
+      const ek = _activeEquipKind();
+      if (drawState.tool === 'none' && (ek === null || ek === 'leader')) {
+        if (onAnnotationAdd) onAnnotationAdd({ x: cp.x, y: cp.y }, { x: cp.x, y: cp.y }, 'none');
+        return;
+      }
+
       drawState.p1    = cp;
       drawState.phase = 1;
       if (onDrawStateChange) onDrawStateChange(drawState);
@@ -279,7 +287,10 @@ const CanvasManager = (() => {
         x: cp.x - dragState.offsetX,
         y: cp.y - dragState.offsetY,
       };
-      Annotation.updateItem(dragState.item.id, { [dragState.handle]: newPos });
+      const patch = { [dragState.handle]: newPos };
+      /* 지시선 없음 항목은 p1·p2가 같은 점 — 함께 이동 */
+      if (dragState.item.type === 'none') { patch.p1 = { ...newPos }; patch.p2 = { ...newPos }; }
+      Annotation.updateItem(dragState.item.id, patch);
       renderAnnotations(Annotation.getAll());
       return;
     }
@@ -549,12 +560,16 @@ const CanvasManager = (() => {
     const anchorK  = nBox > 1 ? (style === 'straight' ? nBox - 1 : (nBox - 1) / 2) : 0;
     const p2Anchor = anchorK ? { x: p2.x, y: p2.y + anchorK * stepY } : p2;
 
+    /* 지시선 없음: 선·지시점 없이 번호박스만 표기 */
+    const noLeader = (type === 'none');
     const path = _buildPath(p1, p2Anchor, style);
 
-    ctx.beginPath();
-    ctx.moveTo(path[0].x, path[0].y);
-    for (let i = 1; i < path.length; i++) ctx.lineTo(path[i].x, path[i].y);
-    ctx.stroke();
+    if (!noLeader) {
+      ctx.beginPath();
+      ctx.moveTo(path[0].x, path[0].y);
+      for (let i = 1; i < path.length; i++) ctx.lineTo(path[i].x, path[i].y);
+      ctx.stroke();
+    }
     ctx.setLineDash([]);
 
     /* 스택된 번호박스들을 세로선으로 연결 */
@@ -571,7 +586,9 @@ const CanvasManager = (() => {
     const flipActive = arrowFlip ?? Annotation.getConfig().arrowFlip;
     const lineDir    = flipActive ? { x: -fwd.x, y: -fwd.y } : fwd;
 
-    if (type === 'arrow') {
+    if (noLeader) {
+      /* 지시점 표시 없음 */
+    } else if (type === 'arrow') {
       _drawArrowHead(p1, lineDir, preview ? '#aaa' : color);
     } else {
       ctx.beginPath();
@@ -599,9 +616,11 @@ const CanvasManager = (() => {
       ctx.lineWidth = 1.5;
       ctx.setLineDash([3, 3]);
       ctx.globalAlpha = 0.9;
-      ctx.beginPath();
-      ctx.arc(p1.x, p1.y, 12 * scale, 0, Math.PI * 2);
-      ctx.stroke();
+      if (!noLeader) {
+        ctx.beginPath();
+        ctx.arc(p1.x, p1.y, 12 * scale, 0, Math.PI * 2);
+        ctx.stroke();
+      }
       ctx.beginPath();
       ctx.arc(p2.x, p2.y, 14 * scale, 0, Math.PI * 2);
       ctx.stroke();
@@ -837,6 +856,7 @@ const CanvasManager = (() => {
 
   /* ── 공개 세터 ── */
   function setTool(t)      { drawState.tool     = t; }
+  function getTool()       { return drawState.tool; }
   function setOrtho(v)     { drawState.ortho    = v; }
   function setLineWidth(w) { drawState.lineWidth = w; renderAnnotations(Annotation.getAll()); }
   function cancelDraw()    {
@@ -1024,7 +1044,7 @@ const CanvasManager = (() => {
 
   return {
     init, loadImage, fitToView, renderAnnotations,
-    setTool, setOrtho, setLineWidth, cancelDraw, deactivate,
+    setTool, getTool, setOrtho, setLineWidth, cancelDraw, deactivate,
     getCanvasSize, getCanvas, getImage,
     zoomIn, zoomOut, onAdd, onStateChange, setAfterRender, onAddLabel, onAddShape, finishShape,
     createPageExport, renderAnnotationsTo,

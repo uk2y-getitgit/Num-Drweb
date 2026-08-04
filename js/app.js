@@ -40,7 +40,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   /* ── Sidebar 초기화 ── */
   Sidebar.init({
     onSelectNum:  () => { CanvasManager.cancelDraw(); },
-    onDeleteNum:  (id) => { Annotation.remove(id); showMsg('넘버링 삭제됨', 'warn'); },
+    onDeleteNum:  (id, labelKey) => {
+      if (labelKey) { Annotation.removeLabel(id, labelKey); showMsg('장비 번호 삭제됨', 'warn'); }
+      else          { Annotation.remove(id);                showMsg('넘버링 삭제됨', 'warn'); }
+    },
     onMatchPhoto: () => {},
   });
 
@@ -81,8 +84,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       const item = Annotation.add(p1, p2, type, { key: eq.key, color: eq.color });
       showMsg(eq.label + ' ' + pfx + String(item.num).padStart(2, '0') + ' 추가', 'success');
     } else {
-      Annotation.add(p1, p2, type);
-      showMsg('넘버 ' + (Annotation.getNextNum() - 1) + ' 추가', 'success');
+      const item = Annotation.add(p1, p2, type);
+      showMsg('넘버 ' + item.num + ' 추가', 'success');
     }
   });
 
@@ -121,8 +124,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       _syncSettingsUI();
       /* B: 페이지별 Drawing Name 적용 */
       TitleBlock.applySettings({ drawingName: page.drawingName || '' });
-      /* 페이지별 범례 표시 장비 체크박스 갱신 */
+      /* 페이지별 범례 표시 장비 체크박스 + 장비별 시작번호 갱신 */
       if (AppMode.get() === AppMode.MODES.EQUIP) _renderLegendEquip();
+      _renderEquipToolbar();
     },
     /* onListChange */ () => { _renderPageList(); }
   );
@@ -228,6 +232,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       st.addEventListener('change', e => {
         Equipment.setStart(eq.key, e.target.value);    // 재정렬·렌더는 Equipment.init 콜백에서 처리
         e.target.value = Equipment.getStart(eq.key);   // 보정값 반영
+        /* 이 페이지의 지정값으로 고정 저장 — 다른 페이지에 번지지 않는다 */
+        const page = PageManager.getActivePage();
+        if (page) page.equipStart = Equipment.getStarts();
         showMsg(eq.label + ' 시작 번호 ' + Equipment.getStart(eq.key), 'info');
       });
 
@@ -458,7 +465,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.querySelectorAll('.tool-btn[data-tool]').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       CanvasManager.setTool(btn.dataset.tool);
-      showMsg(btn.dataset.tool === 'arrow' ? '화살표 모드' : '점 모드', 'info');
+      CanvasManager.cancelDraw();          // 도구 전환 시 진행 중인 2클릭 취소
+      const names = { arrow: '화살표 모드', dot: '점 모드', none: '지시선 없음 모드' };
+      showMsg(names[btn.dataset.tool] || '', 'info');
+      _updateCursorHint({ phase: 0 });
     });
   });
 
@@ -628,6 +638,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         CanvasManager.setTool('dot');
         showMsg('점 모드', 'info');
       }
+    }
+
+    /* S: 지시선 없음 도구 선택 또는 선택된 항목 타입 변경 */
+    if (e.key === 's' || e.key === 'S') {
+      const sid = CanvasManager.getSelectedId();
+      if (sid !== null) {
+        Annotation.updateItem(sid, { type: 'none' });
+        showMsg('지시선 없음으로 변경', 'info');
+      } else {
+        document.querySelectorAll('.tool-btn[data-tool]').forEach(b => b.classList.remove('active'));
+        const btn = document.querySelector('.tool-btn[data-tool="none"]');
+        if (btn) btn.classList.add('active');
+        CanvasManager.setTool('none');
+        CanvasManager.cancelDraw();
+        showMsg('지시선 없음 모드', 'info');
+      }
+      _updateCursorHint({ phase: 0 });
     }
 
     /* 1~4: 선 스타일 직접 선택 또는 선택된 항목 스타일 변경 */
@@ -1212,8 +1239,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   /* ── 파일명 미리보기 헬퍼 (전 페이지 항목 사용 + 각 항목의 pagePrefix 포함) ── */
   function _refreshRenamePreview() {
     const pagesWithPrefix = _collectAllPagesData();
+    /* 묶인 장비 번호도 개별 행으로 펼쳐 파일명 변경 대상에 포함 */
     const allItemsWithPrefix = pagesWithPrefix.flatMap(p =>
-      p.items.map(item => ({ ...item, _pagePrefix: p.prefix }))
+      p.items.flatMap(item => [
+        { ...item, _pagePrefix: p.prefix },
+        ...(item.labels || []).map(l => ({ ...l, _pagePrefix: p.prefix })),
+      ])
     );
     const preview  = FileManager.buildRenamePreview(allItemsWithPrefix);
     Sidebar.renderRenamePreview(preview);
@@ -1226,11 +1257,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       const eq = Equipment.getActive();
       if (eq) {
         const pfx = eq.prefix ? eq.prefix + '-' : '';
-        el.textContent = pfx + Annotation.getNextNumForEquipment(eq.key);
+        /* 실제 번호박스와 같은 2자리 표기 */
+        el.textContent = pfx + String(Annotation.getNextNumForEquipment(eq.key)).padStart(2, '0');
         return;
       }
     }
-    el.textContent = Annotation.getNextNum();
+    el.textContent = String(Annotation.getNextNum()).padStart(2, '0');
   }
 
   /* 기울기 측정값 입력 모달 — cb(값 | null). Electron에서 prompt()가 막히므로 자체 모달 사용 */
@@ -1275,6 +1307,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         el.textContent = '클릭: 측정점 추가 | Enter: 완료 | Q: 직교 | ESC: 취소';
         return;
       }
+    }
+    if (CanvasManager.getTool() === 'none') {
+      el.textContent = '클릭: 번호 위치 지정 (지시선 없음)';
+      return;
     }
     el.textContent = state.phase === 0 ? '클릭: 지시점 지정' : '클릭: 번호 위치 지정 | ESC: 취소';
   }

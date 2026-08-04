@@ -37,7 +37,7 @@ const Annotation = (() => {
     const cat = activeCategory;
     const item = {
       id:        nextId++,
-      num:       equip ? _nextNumForEquipment(equip.key) : nextNum++,
+      num:       equip ? _nextNumForEquipment(equip.key) : _nextNumGlobal(),
       type,
       lineStyle:  config.lineStyle,
       arrowFlip:  config.arrowFlip,
@@ -60,14 +60,29 @@ const Annotation = (() => {
     return (typeof Equipment !== 'undefined') ? Equipment.getStart(key) : 1;
   }
 
-  /* 장비별 다음 번호 (primary + 추가 라벨 모두 스캔) — 항목이 없으면 시작 번호부터 */
+  /* 시작 번호부터 훑어 비어 있는 가장 작은 번호 (없으면 마지막 다음 번호).
+     삭제로 생긴 빈 번호를 다음 마킹이 채우도록 하는 규칙 */
+  function _firstFreeNum(used, start) {
+    let n = Math.max(1, start || 1);
+    while (used.has(n)) n++;
+    return n;
+  }
+
+  /* 장비별 다음 번호 (primary + 묶인 라벨 모두 스캔) */
   function _nextNumForEquipment(key) {
-    let max = 0;
+    const used = new Set();
     items.forEach(i => {
-      if (i.equipment === key && i.num > max) max = i.num;
-      if (i.labels) i.labels.forEach(l => { if (l.equipment === key && l.num > max) max = l.num; });
+      if (i.equipment === key) used.add(i.num);
+      if (i.labels) i.labels.forEach(l => { if (l.equipment === key) used.add(l.num); });
     });
-    return Math.max(max + 1, _equipStart(key));
+    return _firstFreeNum(used, _equipStart(key));
+  }
+
+  /* 외관(비장비) 항목의 다음 전역 번호 — nextNum은 사용자가 지정한 기준 시작번호 */
+  function _nextNumGlobal() {
+    const used = new Set();
+    items.forEach(i => { if (!i.equipment) used.add(i.num); });
+    return _firstFreeNum(used, nextNum);
   }
   function getNextNumForEquipment(key) { return _nextNumForEquipment(key); }
 
@@ -89,7 +104,7 @@ const Annotation = (() => {
   function addShape(kind, geom, equip) {
     const item = {
       id:        nextId++,
-      num:       equip ? _nextNumForEquipment(equip.key) : nextNum++,
+      num:       equip ? _nextNumForEquipment(equip.key) : _nextNumGlobal(),
       equipment: equip ? equip.key : undefined,
       category:  equip ? undefined : activeCategory,
       color:     equip ? equip.color : categories[activeCategory].color,
@@ -104,12 +119,44 @@ const Annotation = (() => {
     return item;
   }
 
+  /* 기본 넘버 삭제 — 묶인 장비 번호가 남아 있으면 그 중 첫 번호가 지시선을 이어받는다 */
   function remove(id) {
     const numId = Number(id);
     const idx = items.findIndex(i => i.id === numId);
     if (idx === -1) return;
-    items.splice(idx, 1);
-    _resequence();
+    const item = items[idx];
+    if (item.labels && item.labels.length) {
+      const next = item.labels.shift();
+      item.equipment      = next.equipment;
+      item.num            = next.num;
+      item.color          = next.color;
+      item.customPhotoNum = next.customPhotoNum ?? null;
+      item.photoName      = next.photoName ?? null;
+    } else {
+      items.splice(idx, 1);
+    }
+    /* 남은 번호는 그대로 유지 — 삭제된 번호는 빈 자리로 남아 다음 마킹이 채운다 */
+    if (onChange) onChange();
+  }
+
+  /* 묶인 장비 번호(라벨) 하나만 삭제 */
+  function removeLabel(id, equipKey) {
+    const item = items.find(i => i.id === Number(id));
+    if (!item || !item.labels) return;
+    const idx = item.labels.findIndex(l => l.equipment === equipKey);
+    if (idx === -1) return;
+    item.labels.splice(idx, 1);
+    /* 번호 유지 — 빈 번호는 다음 마킹이 채운다 */
+    if (onChange) onChange();
+  }
+
+  /* 묶인 장비 번호(라벨) 속성 수정 — 사진 매칭번호 등 */
+  function updateLabel(id, equipKey, patch) {
+    const item = items.find(i => i.id === Number(id));
+    if (!item || !item.labels) return;
+    const label = item.labels.find(l => l.equipment === equipKey);
+    if (!label) return;
+    Object.assign(label, patch);
     if (onChange) onChange();
   }
 
@@ -134,8 +181,9 @@ const Annotation = (() => {
 
   function getAll() { return items; }
 
-  function setNextNum(n) { nextNum = n; }
-  function getNextNum() { return nextNum; }
+  /* nextNum = 외관 넘버링의 기준 시작번호. 실제 부여 번호는 빈 자리 우선 */
+  function setNextNum(n) { nextNum = Math.max(1, Number(n) || 1); }
+  function getNextNum()  { return _nextNumGlobal(); }
 
   /* ── 카테고리 ── */
   function setActiveCategory(key) { activeCategory = key; }
@@ -192,11 +240,12 @@ const Annotation = (() => {
     } catch (e) { console.error('fromJSON 실패', e); }
   }
 
-  /* ── 번호 재정렬 ──
-     장비 항목은 장비별 독립 순번, 일반(외관) 항목은 전역 순번으로 재정렬 */
+  /* ── 번호 일괄 재정렬 ──
+     시작번호를 바꿀 때만 호출된다(삭제 시에는 호출하지 않음).
+     장비 항목은 장비별 시작번호부터, 일반(외관) 항목은 기준 시작번호부터 연속 부여 */
   function _resequence() {
     const perEquip = {};
-    let globalC = 0;
+    let globalC = nextNum - 1;
     items.forEach(item => {
       if (item.equipment) {
         /* 장비별 시작 번호부터 연속 부여 */
@@ -212,7 +261,7 @@ const Annotation = (() => {
         item.num = globalC;
       }
     });
-    nextNum = globalC + 1;
+    /* nextNum(기준 시작번호)은 사용자 지정값이므로 유지 */
   }
 
   /* 외부 호출용 재정렬 (장비 시작 번호 변경 시) */
@@ -252,7 +301,7 @@ const Annotation = (() => {
   }
 
   return {
-    init, add, remove, clear, updateItem, getAll,
+    init, add, remove, removeLabel, updateLabel, clear, updateItem, getAll,
     setNextNum, getNextNum, getNextNumForEquipment, addLabelToItem, addShape,
     resequence,
     setActiveCategory, getActiveCategory, getCategories, setCategoryColor,

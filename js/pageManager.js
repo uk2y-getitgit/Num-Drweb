@@ -144,7 +144,9 @@ const PageManager = (() => {
 
   /* ── 내부 헬퍼 ── */
   function _createPage(name, imgSrc, imgW, imgH, imgLayout) {
-    return { id: nextPageId++, name, imgSrc, imgW, imgH, imgLayout: imgLayout || null, annJSON: null, drawingName: null, prefix: '', legendEquip: null };
+    /* equipStart: 사용자가 이 페이지에서 시작번호를 직접 지정했을 때만 값이 들어간다.
+       null이면 앞 페이지들의 마지막 번호 다음부터 자동 이어받기 */
+    return { id: nextPageId++, name, imgSrc, imgW, imgH, imgLayout: imgLayout || null, annJSON: null, drawingName: null, prefix: '', legendEquip: null, equipStart: null };
   }
 
   function _getById(id) { return pages.find(p => p.id === id); }
@@ -154,11 +156,36 @@ const PageManager = (() => {
     if (p) p.annJSON = Annotation.toJSON();
   }
 
+  /* 이 페이지 앞쪽 페이지들에서 장비별로 마지막에 쓴 번호 + 1 (없으면 1) */
+  function _autoEquipStart(pageId) {
+    if (typeof Equipment === 'undefined') return null;
+    const idx = pages.findIndex(p => p.id === pageId);
+    const max = {};
+    const scan = (list) => (list || []).forEach(i => {
+      if (i.equipment) max[i.equipment] = Math.max(max[i.equipment] || 0, i.num || 0);
+      if (i.labels) i.labels.forEach(l => {
+        max[l.equipment] = Math.max(max[l.equipment] || 0, l.num || 0);
+      });
+    });
+    pages.slice(0, idx < 0 ? pages.length : idx).forEach(p => {
+      if (!p.annJSON) return;
+      try { scan(JSON.parse(p.annJSON).items); } catch { /* 손상된 페이지는 건너뜀 */ }
+    });
+    const out = {};
+    Equipment.getList().forEach(e => { out[e.key] = (max[e.key] || 0) + 1; });
+    return out;
+  }
+
   function _activate(id, skipSave = false) {
     if (!skipSave) _saveCurrentAnnotations();
     activeId = id;
     const p  = _getById(id);
     if (!p) return;
+
+    /* 페이지별 시작번호 적용 — 지정값이 없으면 앞 페이지에서 이어받기 */
+    if (typeof Equipment !== 'undefined') {
+      Equipment.setStarts(p.equipStart || _autoEquipStart(id));
+    }
 
     if (onSwitch) onSwitch(p);
 
