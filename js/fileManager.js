@@ -77,6 +77,7 @@ const FileManager = (() => {
       target.photoName = matched ? matched.name : null;
     };
     annotations.forEach(item => {
+      if (item.noNum) return;   // 번호 없는 도형(해치)은 사진 매칭 대상이 아니다
       matchOne(item);
       /* 한 지시선에 묶인·합쳐진 번호도 각각 매칭 */
       if (item.merged) item.merged.forEach(matchOne);
@@ -86,7 +87,7 @@ const FileManager = (() => {
 
   /* ── 파일명 변환 미리보기 (순수 함수, 파일 조작 없음) ── */
   function buildRenamePreview(annotations) {
-    return annotations.map(item => {
+    return annotations.filter(item => !item.noNum).map(item => {
       /* 각 item의 _pagePrefix 사용 (페이지별로 다른 접두어 지원) */
       const itemPrefix = item._pagePrefix !== undefined ? item._pagePrefix : '';
       const prefix     = itemPrefix ? itemPrefix + '-' : '';

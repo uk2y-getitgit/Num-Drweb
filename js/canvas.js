@@ -34,6 +34,8 @@ const CanvasManager = (() => {
     phase:     0,
     p1:        null,
     previewP2: null,
+    /* 해치 도형 도구 — null이면 일반 지시선 그리기 ('hatch-rect'|'hatch-ellipse') */
+    shapeTool: null,
   };
 
   let onAnnotationAdd   = null;
@@ -206,10 +208,16 @@ const CanvasManager = (() => {
     if (cp.x < drawOffX || cp.y < drawOffY ||
         cp.x > drawOffX + drawW || cp.y > drawOffY + drawH) return;
 
-    /* 사이드바 사용 후 캔버스 재진입: 첫 클릭은 입장 클릭으로 소비 */
+    /* 사이드바 사용 후 캔버스 재진입: 첫 클릭은 입장 클릭으로 소비.
+       이때 사이드바에서 선택해 둔 항목도 함께 해제한다 (결함종류 버튼 닫기) */
     if (needsReactivation) {
       needsReactivation = false;
       wrap.style.cursor = 'crosshair';
+      if (selectedItemId !== null) {
+        selectedItemId = null;
+        if (onSelectItem) onSelectItem(null);
+        renderAnnotations(Annotation.getAll());
+      }
       return;
     }
 
@@ -259,6 +267,14 @@ const CanvasManager = (() => {
       if (onSelectItem) onSelectItem(null);
       renderAnnotations(Annotation.getAll());
 
+      /* 해치 도형: 1클릭 = 첫 모서리, 2클릭 = 반대 모서리 (그 사이 미리보기) */
+      if (drawState.shapeTool) {
+        drawState.p1    = cp;
+        drawState.phase = 1;
+        if (onDrawStateChange) onDrawStateChange(drawState);
+        return;
+      }
+
       /* 지시선 없음: 1클릭으로 번호박스만 추가 (p1=p2)
          기울기·부동침하 장비는 도형 작업이므로 제외 */
       const ek = _activeEquipKind();
@@ -272,11 +288,21 @@ const CanvasManager = (() => {
       if (onDrawStateChange) onDrawStateChange(drawState);
     } else {
       const savedP1 = drawState.p1;
-      const p2      = _applyOrtho(savedP1, cp);
+      const kind    = drawState.shapeTool;
+      const p2      = kind ? cp : _applyOrtho(savedP1, cp);
       drawState.phase     = 0;
       drawState.p1        = null;
       drawState.previewP2 = null;
       if (onDrawStateChange) onDrawStateChange(drawState);
+      if (kind) {
+        /* 너무 작은 도형(오조작)은 버린다 */
+        if (Math.abs(p2.x - savedP1.x) < 6 || Math.abs(p2.y - savedP1.y) < 6) {
+          renderAnnotations(Annotation.getAll());
+          return;
+        }
+        if (onAddShapeCb) onAddShapeCb(kind, { p1: savedP1, p2 });
+        return;
+      }
       if (onAnnotationAdd) onAnnotationAdd(savedP1, p2, drawState.tool);
     }
   }
@@ -323,7 +349,8 @@ const CanvasManager = (() => {
     }
     if (drawState.phase === 1) {
       const cp = _toCanvasPos(e.clientX, e.clientY);
-      drawState.previewP2 = _applyOrtho(drawState.p1, cp);
+      /* 도형은 대각 두 점으로 정의되므로 직교모드를 적용하지 않는다 */
+      drawState.previewP2 = drawState.shapeTool ? cp : _applyOrtho(drawState.p1, cp);
       if (onDrawStateChange) onDrawStateChange(drawState);
       renderAnnotations(Annotation.getAll());
     } else if (drawState.phase === 0 && !isPanning) {
@@ -407,6 +434,11 @@ const CanvasManager = (() => {
     for (let i = items.length - 1; i >= 0; i--) {
       const item = items[i];
       const sk = _shapeKind(item.shape);
+      if (_isHatch(sk)) {
+        const h = _hitTestHatch(item, cp, scale);
+        if (h) return h;
+        continue;
+      }
       /* 도형 번호박스 — 도형 본체보다 먼저 판정해 드래그 이동 가능하게 */
       if (sk === 'tilt' || sk === 'settle') {
         const lr = _shapeLabelRect(item, scale);
@@ -616,7 +648,10 @@ const CanvasManager = (() => {
       _drawSettlePreview(shapeState.points, shapeState.cursor, _preColor());
     } else if (drawState.phase === 1 && drawState.p1 && drawState.previewP2) {
       const cfg = Annotation.getConfig();
-      if (activeKind === 'tilt') {
+      if (drawState.shapeTool) {
+        _drawHatch(drawState.p1, drawState.previewP2, drawState.shapeTool,
+                   cfg.hatchColor || '#e05555', true);
+      } else if (activeKind === 'tilt') {
         _drawTilt(drawState.p1, drawState.previewP2, cfg.tiltAxis || 'y', _preColor(), true);
       } else {
         _drawLeader({
@@ -630,7 +665,7 @@ const CanvasManager = (() => {
 
     items.forEach(item => {
       const isSelected = (item.id === selectedItemId);
-      const boxList = _buildBoxList(item, Annotation.getConfig().prefix);
+      const boxList = item.noNum ? [] : _buildBoxList(item, Annotation.getConfig().prefix);
       if (item.shape) _drawShape({ ...item, boxList, selected: isSelected });
       else            _drawLeader({ ...item, boxList, preview: false, selected: isSelected });
       if (mergeMode) {
@@ -963,6 +998,101 @@ const CanvasManager = (() => {
     _drawSettle(cursor ? points.concat([cursor]) : points, color, 1, true);
   }
 
+  /* ── 해치 도형 (외관 모드) ──
+     대각 두 점(p1,p2)으로 정의되는 사각형 / 그 사각형에 내접하는 타원.
+     외곽선 + 45° 대각선 해치 + 반투명 채움으로 그린다. */
+  function _isHatch(shape) { return shape === 'hatch-rect' || shape === 'hatch-ellipse'; }
+
+  function _hatchBounds(p1, p2) {
+    return {
+      x1: Math.min(p1.x, p2.x), y1: Math.min(p1.y, p2.y),
+      x2: Math.max(p1.x, p2.x), y2: Math.max(p1.y, p2.y),
+    };
+  }
+
+  /* 도형 외곽 경로 — 채움·클리핑·외곽선이 모두 같은 경로를 쓰도록 분리 */
+  function _hatchPath(b, kind) {
+    ctx.beginPath();
+    if (kind === 'hatch-ellipse') {
+      ctx.ellipse((b.x1 + b.x2) / 2, (b.y1 + b.y2) / 2,
+                  (b.x2 - b.x1) / 2, (b.y2 - b.y1) / 2, 0, 0, Math.PI * 2);
+    } else {
+      ctx.rect(b.x1, b.y1, b.x2 - b.x1, b.y2 - b.y1);
+    }
+  }
+
+  function _drawHatch(p1, p2, kind, color, preview) {
+    const scale = Annotation.getConfig().scale || 1;
+    const b     = _hatchBounds(p1, p2);
+    const w     = b.x2 - b.x1, h = b.y2 - b.y1;
+    if (w <= 0 || h <= 0) return b;
+
+    const gap = Math.max(6, 12 * scale);          // 해치 간격
+    const lw  = drawState.lineWidth * scale;
+
+    ctx.save();
+    ctx.globalAlpha = preview ? 0.75 : 1;
+
+    /* 반투명 채움 */
+    ctx.fillStyle   = color;
+    ctx.globalAlpha = preview ? 0.10 : 0.16;
+    _hatchPath(b, kind);
+    ctx.fill();
+
+    /* 45° 대각선 해치 — 도형 내부로 클리핑 */
+    ctx.globalAlpha = preview ? 0.55 : 0.9;
+    ctx.save();
+    _hatchPath(b, kind);
+    ctx.clip();
+    ctx.strokeStyle = color;
+    ctx.lineWidth   = Math.max(0.8, lw * 0.8);
+    ctx.beginPath();
+    /* y = x + c 방향(↗) 사선을 바운딩 박스 전체에 촘촘히 깔고 클립으로 잘라낸다 */
+    for (let d = -h; d <= w; d += gap) {
+      ctx.moveTo(b.x1 + d,     b.y2);
+      ctx.lineTo(b.x1 + d + h, b.y2 - h);
+    }
+    ctx.stroke();
+    ctx.restore();
+
+    /* 외곽선 */
+    ctx.globalAlpha = preview ? 0.8 : 1;
+    ctx.strokeStyle = color;
+    ctx.lineWidth   = Math.max(1, lw);
+    ctx.setLineDash(preview ? [6, 4] : []);
+    _hatchPath(b, kind);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+    return b;
+  }
+
+  /* 해치 도형 히트 테스트 — 모서리 핸들(크기 조절) + 외곽선 띠(이동).
+     내부는 비워 둬야 도형 위에도 지시선을 찍을 수 있다. */
+  function _hitTestHatch(item, cp, scale) {
+    const b    = _hatchBounds(item.p1, item.p2);
+    const grab = 10 * scale;
+    if (Math.hypot(cp.x - item.p1.x, cp.y - item.p1.y) < grab) return { item, handle: 'p1' };
+    if (Math.hypot(cp.x - item.p2.x, cp.y - item.p2.y) < grab) return { item, handle: 'p2' };
+
+    const band = Math.max(5, 6 * scale);
+    if (item.shape === 'hatch-ellipse') {
+      const rx = (b.x2 - b.x1) / 2, ry = (b.y2 - b.y1) / 2;
+      if (rx <= 0 || ry <= 0) return null;
+      const dx = (cp.x - (b.x1 + b.x2) / 2) / rx;
+      const dy = (cp.y - (b.y1 + b.y2) / 2) / ry;
+      const r  = Math.hypot(dx, dy);
+      /* 타원 경계(r=1) 근처만 잡는다 — 밴드 폭을 반지름 비례로 환산 */
+      const tol = band / Math.min(rx, ry);
+      return (Math.abs(r - 1) <= tol) ? { item, handle: 'shape' } : null;
+    }
+    const inOuter = cp.x >= b.x1 - band && cp.x <= b.x2 + band &&
+                    cp.y >= b.y1 - band && cp.y <= b.y2 + band;
+    const inInner = cp.x >= b.x1 + band && cp.x <= b.x2 - band &&
+                    cp.y >= b.y1 + band && cp.y <= b.y2 - band;
+    return (inOuter && !inInner) ? { item, handle: 'shape' } : null;
+  }
+
   /* 도형 번호박스의 기준점과 정렬 방향
        hx/hy = 기준점 대비 박스가 놓이는 방향 (-1: 기준점 왼/위, 0: 중앙, 1: 오른/아래)
      기울기는 직각 꼭짓점 바깥쪽, 부동침하는 사각 테두리 위쪽에 둔다. */
@@ -1002,7 +1132,9 @@ const CanvasManager = (() => {
     const kind  = _shapeKind(item.shape);
     let bounds  = null;
 
-    if (kind === 'tilt') {
+    if (_isHatch(kind)) {
+      bounds = _drawHatch(item.p1, item.p2, kind, color, false);
+    } else if (kind === 'tilt') {
       _drawTilt(item.p1, item.p2, _tiltAxisOf(item), color, false);
       bounds = _tiltBounds(item.p1, item.p2);
     } else if (kind === 'settle') {
@@ -1084,8 +1216,15 @@ const CanvasManager = (() => {
   }
 
   /* ── 공개 세터 ── */
-  function setTool(t)      { drawState.tool     = t; }
+  /* 지시점 도구 선택은 해치 도형 도구를 해제한다 (두 도구는 배타적) */
+  function setTool(t)      { drawState.tool = t; drawState.shapeTool = null; }
   function getTool()       { return drawState.tool; }
+  /* kind: 'hatch-rect'|'hatch-ellipse'|null */
+  function setShapeTool(kind) {
+    drawState.shapeTool = kind || null;
+    cancelDraw();
+  }
+  function getShapeTool()  { return drawState.shapeTool; }
   function setOrtho(v)     { drawState.ortho    = v; }
   function setLineWidth(w) { drawState.lineWidth = w; renderAnnotations(Annotation.getAll()); }
   function cancelDraw()    {
@@ -1199,7 +1338,7 @@ const CanvasManager = (() => {
       drawOffX = offX; drawOffY = offY;
 
       annItems.forEach(item => {
-        const boxList = _buildBoxList(item, annPrefix);
+        const boxList = item.noNum ? [] : _buildBoxList(item, annPrefix);
         if (item.shape) _drawShape({ ...item, boxList });
         else            _drawLeader({ ...item, boxList, preview: false });
       });
@@ -1267,7 +1406,7 @@ const CanvasManager = (() => {
     paperH = targetCanvas.height;
 
     annItems.forEach(item => {
-      const boxList = _buildBoxList(item, annCfg.prefix);
+      const boxList = item.noNum ? [] : _buildBoxList(item, annCfg.prefix);
       if (item.shape) _drawShape({ ...item, boxList });
       else            _drawLeader({ ...item, boxList, preview: false, selected: false });
     });
@@ -1282,7 +1421,7 @@ const CanvasManager = (() => {
 
   return {
     init, loadImage, fitToView, renderAnnotations,
-    setTool, getTool, setOrtho, setLineWidth, cancelDraw, deactivate,
+    setTool, getTool, setShapeTool, getShapeTool, setOrtho, setLineWidth, cancelDraw, deactivate,
     getCanvasSize, getCanvas, getImage,
     zoomIn, zoomOut, onAdd, onStateChange, setAfterRender, onAddLabel, onAddShape, finishShape,
     createPageExport, renderAnnotationsTo,

@@ -234,6 +234,33 @@
         </button>
       </div>
 
+      <!-- 해치 도형 (외관 모드) -->
+      <div class="ctrl-group mode-only-exterior" id="hatch-ctrl-group">
+        <span class="ctrl-label">도형</span>
+        <button class="tool-btn hatch-btn" data-hatch="hatch-rect" title="사각 해치 도형 — 1클릭: 첫 모서리 / 2클릭: 반대 모서리">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="5" width="18" height="14"/><path d="M3 15 13 5M3 19 17 5M7 19 21 5M11 19 21 9M15 19 21 13"/></svg>
+          사각
+        </button>
+        <button class="tool-btn hatch-btn" data-hatch="hatch-ellipse" title="원형 해치 도형 — 1클릭: 첫 모서리 / 2클릭: 반대 모서리">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><ellipse cx="12" cy="12" rx="9" ry="7"/><path d="M5 17 12 5M8 18.5 18 5.5M12 19 20 8M16 18 21.5 12"/></svg>
+          원형
+        </button>
+        <button type="button" id="hatch-color-btn" class="color-swatch-btn"
+          title="도형 색상 — 새로 그리는 도형에만 적용 (기존 도형 색상 유지)"
+          style="background:#e05555;"></button>
+
+        <!-- 도형 색상 선택 팝업 (구분 색상 프리셋 + 직접 선택) -->
+        <div id="hatch-color-pop" class="color-pop hidden">
+          <div class="color-pop-title">구분 색상</div>
+          <div id="hatch-color-presets"></div>
+          <div class="color-pop-title">직접 선택</div>
+          <label class="color-pop-custom">
+            <input type="color" id="hatch-color" value="#e05555" class="color-swatch">
+            <span id="hatch-color-hex">#E05555</span>
+          </label>
+        </div>
+      </div>
+
       <!-- 장비 구분 (장비 모드) — app.js가 동적 렌더 -->
       <div class="ctrl-group mode-only-equip" id="equip-ctrl-group" style="display:none;">
         <span class="ctrl-label">장비</span>

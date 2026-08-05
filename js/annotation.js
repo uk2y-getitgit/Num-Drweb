@@ -14,6 +14,7 @@ const Annotation = (() => {
     lineStyle:  'straight', // 'straight'|'elbow-h'|'elbow-v'|'zigzag'
     arrowFlip:  true,       // false=지시선 향함, true=지시선 반대 방향
     tiltAxis:   'y',        // 기울기 도형 기준축 — 'y'=세로 기준선 | 'x'=가로 기준선
+    hatchColor: '#e05555',  // 해치 도형 색상 — 그리는 시점의 값이 도형에 고정 저장된다
     scale:      1.0,        // 넘버링(화살표·번호박스) 크기 배율 (0.5 ~ 3.0)
     tbScale:    1.0,        // 도곽 전용 배율 (0.5 ~ 3.0)
     lgScale:    1.0,        // 범례 전용 배율 (0.5 ~ 3.0)
@@ -72,6 +73,7 @@ const Annotation = (() => {
   /* 한 항목이 점유한 모든 번호 엔트리 (본체 + 묶은 라벨 + 합쳐진 번호).
      합쳐진 번호도 '사용 중'이어야 다음 마킹이 같은 번호를 재발급하지 않는다. */
   function _entriesOf(item) {
+    if (item.noNum) return [];   // 해치 도형 등 번호 없는 순수 그래픽은 번호를 점유하지 않는다
     const out = [item];
     /* 합쳐진 번호는 같은 박스에 표기되므로 라벨보다 앞에 둔다 (재정렬 시 연속 번호 유지) */
     if (item.merged) out.push(...item.merged);
@@ -134,6 +136,23 @@ const Annotation = (() => {
       note:           null,
       photoName:      null,
       customPhotoNum: null,
+    };
+    items.push(item);
+    if (onChange) onChange();
+    return item;
+  }
+
+  /* 해치 도형 추가 (외관 모드) — kind: 'hatch-rect' | 'hatch-ellipse'
+     번호를 붙이지 않는 순수 그래픽. color는 그리는 시점 값을 고정 저장하므로
+     이후 색상 선택기를 바꿔도 기존 도형은 그대로 유지된다. */
+  function addHatch(kind, geom, color) {
+    const item = {
+      id:    nextId++,
+      shape: kind,
+      noNum: true,
+      color: color || config.hatchColor,
+      p1: { ...geom.p1 },
+      p2: { ...geom.p2 },
     };
     items.push(item);
     if (onChange) onChange();
@@ -446,7 +465,7 @@ const Annotation = (() => {
 
   return {
     init, add, remove, removeSub, updateSub, setNote, clear, updateItem, getAll,
-    setNextNum, getNextNum, getNextNumForEquipment, addLabelToItem, addShape,
+    setNextNum, getNextNum, getNextNumForEquipment, addLabelToItem, addShape, addHatch,
     mergeItems, unmerge, setMergeKeepLeaders,
     resequence,
     setActiveCategory, getActiveCategory, getCategories, setCategoryColor,

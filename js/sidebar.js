@@ -21,6 +21,9 @@ const Sidebar = (() => {
   function renderNumList(items, allPages) {
     const wrap    = document.getElementById('num-list-wrap');
     const counter = document.getElementById('num-count');
+    /* 번호 없는 도형(해치)은 넘버링 목록·카운터에서 제외 */
+    items = (items || []).filter(i => !i.noNum);
+    if (allPages) allPages = allPages.map(p => ({ ...p, items: (p.items || []).filter(i => !i.noNum) }));
     if (counter) counter.textContent = items.length;
     const cv = document.querySelector('.count-val');
     if (cv)  cv.textContent = items.length;

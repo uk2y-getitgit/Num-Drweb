@@ -98,8 +98,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  /* 장비 모드: 부동침하 측정점 확정 (Enter) */
+  /* 도형 확정 — 해치 도형(외관) / 부동침하 측정점 확정(Enter, 장비) */
   CanvasManager.onAddShape((kind, geom) => {
+    if (kind === 'hatch-rect' || kind === 'hatch-ellipse') {
+      Annotation.addHatch(kind, geom, Annotation.getConfig().hatchColor);
+      showMsg((kind === 'hatch-rect' ? '사각' : '원형') + ' 해치 도형 추가', 'success');
+      return true;
+    }
     const eq = Equipment.getActive();
     if (!eq) return false;
     const item = Annotation.addShape(kind, geom, { key: eq.key, color: eq.color });
@@ -162,6 +167,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     const eqG  = document.getElementById('equip-ctrl-group');
     const lgG  = document.getElementById('legend-equip-group');
     if (catG) catG.style.display = isEquip ? 'none' : 'flex';
+    /* 해치 도형은 외관조사망도 전용 — 장비 모드로 가면 도구도 함께 해제 */
+    const htG = document.getElementById('hatch-ctrl-group');
+    if (htG) htG.style.display = isEquip ? 'none' : 'flex';
+    if (isEquip) {
+      document.querySelectorAll('.hatch-btn').forEach(b => b.classList.remove('active'));
+      CanvasManager.setShapeTool(null);
+    }
     if (eqG)  eqG.style.display  = isEquip ? 'flex' : 'none';
     if (lgG)  lgG.style.display  = isEquip ? 'flex' : 'none';
     const hint = document.getElementById('mode-bar-hint');
@@ -479,12 +491,112 @@ document.addEventListener('DOMContentLoaded', async () => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.tool-btn[data-tool]').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
+      _clearHatchTool();                   // 지시점 도구와 해치 도형 도구는 배타적
       CanvasManager.setTool(btn.dataset.tool);
       CanvasManager.cancelDraw();          // 도구 전환 시 진행 중인 2클릭 취소
       const names = { arrow: '화살표 모드', dot: '점 모드', none: '지시선 없음 모드' };
       showMsg(names[btn.dataset.tool] || '', 'info');
       _updateCursorHint({ phase: 0 });
     });
+  });
+
+  /* ── 해치 도형 도구 (외관 모드) ──
+     버튼 토글 방식 — ON이면 클릭 2번으로 도형 생성, OFF면 기존 지시선 그리기로 복귀 */
+  function _clearHatchTool() {
+    document.querySelectorAll('.hatch-btn').forEach(b => b.classList.remove('active'));
+    CanvasManager.setShapeTool(null);
+  }
+
+  document.querySelectorAll('.hatch-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const kind   = btn.dataset.hatch;
+      const isOn   = btn.classList.contains('active');
+      document.querySelectorAll('.hatch-btn').forEach(b => b.classList.remove('active'));
+      if (isOn) {
+        /* 같은 버튼 재클릭 → 해제하고 지시선 도구로 복귀 */
+        CanvasManager.setShapeTool(null);
+        showMsg('도형 그리기 해제', 'info');
+      } else {
+        btn.classList.add('active');
+        CanvasManager.setShapeTool(kind);
+        showMsg((kind === 'hatch-rect' ? '사각' : '원형') + ' 해치 도형 모드', 'info');
+      }
+      _updateCursorHint({ phase: 0 });
+    });
+  });
+
+  /* ── 도형 색상 선택 팝업 ──
+     구분(결함·보수·신규) 색상 프리셋 + 직접 선택. 고른 색은 '다음에 그릴 도형'에만 적용된다. */
+  const hatchColorBtn = document.getElementById('hatch-color-btn');
+  const hatchColorPop = document.getElementById('hatch-color-pop');
+  const hatchColorInp = document.getElementById('hatch-color');
+
+  function _setHatchColor(v) {
+    Annotation.setConfig({ hatchColor: v });
+    hatchColorInp.value = v;
+    _syncHatchColorUI();
+    if (!_isRestoring) StorageManager.markDirty();
+  }
+
+  /* 스와치 버튼·HEX 표기·프리셋 선택 상태를 현재 색에 맞춘다 */
+  function _syncHatchColorUI() {
+    const cur = (Annotation.getConfig().hatchColor || '#e05555').toLowerCase();
+    if (hatchColorBtn) hatchColorBtn.style.background = cur;
+    const hex = document.getElementById('hatch-color-hex');
+    if (hex) hex.textContent = cur.toUpperCase();
+    hatchColorPop.querySelectorAll('.color-pop-item').forEach(b =>
+      b.classList.toggle('active', (b.dataset.color || '').toLowerCase() === cur));
+  }
+
+  /* 프리셋 목록은 열 때마다 다시 그린다 — 구분 색상은 사용자가 바꿀 수 있다 */
+  function _renderHatchPresets() {
+    const box = document.getElementById('hatch-color-presets');
+    if (!box) return;
+    const cats = Annotation.getCategories();
+    box.innerHTML = '';
+    Object.entries(cats).forEach(([key, info]) => {
+      const btn = document.createElement('button');
+      btn.type      = 'button';
+      btn.className = 'color-pop-item';
+      btn.dataset.color = info.color;
+      btn.innerHTML = `<span class="cp-dot" style="background:${info.color}"></span>` +
+                      `<span>${info.label}</span>` +
+                      `<span class="cp-hex">${info.color.toUpperCase()}</span>`;
+      btn.addEventListener('click', () => {
+        _setHatchColor(info.color);
+        _closeHatchPop();
+        showMsg('도형 색상: ' + info.label, 'info');
+      });
+      box.appendChild(btn);
+    });
+    _syncHatchColorUI();
+  }
+
+  function _closeHatchPop() { hatchColorPop.classList.add('hidden'); }
+
+  hatchColorBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    if (!hatchColorPop.classList.contains('hidden')) { _closeHatchPop(); return; }
+    _renderHatchPresets();
+    /* 컨트롤 바 바깥으로 잘리지 않도록 버튼 기준 고정 좌표로 띄운다 */
+    const r = hatchColorBtn.getBoundingClientRect();
+    hatchColorPop.classList.remove('hidden');
+    const w = hatchColorPop.offsetWidth;
+    hatchColorPop.style.top  = (r.bottom + 6) + 'px';
+    hatchColorPop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - w - 8)) + 'px';
+  });
+
+  /* 팝업 바깥 클릭 시 닫기 (색상 입력창 조작 중에는 유지) */
+  document.addEventListener('mousedown', e => {
+    if (hatchColorPop.classList.contains('hidden')) return;
+    if (e.target.closest('#hatch-color-pop') || e.target.closest('#hatch-color-btn')) return;
+    _closeHatchPop();
+  });
+
+  hatchColorInp.addEventListener('input', e => {
+    /* 새로 그리는 도형에만 적용 — 기존 도형은 생성 시점 색상을 유지한다 */
+    _setHatchColor(e.target.value);
+    CanvasManager.renderAnnotations(Annotation.getAll());
   });
 
   /* ── 선 스타일 ── */
@@ -624,6 +736,18 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (isInput) return; // 이하 단축키: 입력 필드에서는 무시
 
+    /* Delete: 선택된 항목 삭제 — 해치 도형은 사이드바 목록에 없으므로 이 경로로 지운다 */
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      const sid = CanvasManager.getSelectedId();
+      if (sid !== null) {
+        e.preventDefault();
+        Annotation.remove(sid);
+        CanvasManager.clearSelection();
+        showMsg('삭제됨', 'warn');
+      }
+      return;
+    }
+
     /* Enter: 합치기 확정(모드 ON일 때) | 부동침하 다각형 확정 */
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -758,7 +882,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     /* 전체 페이지 항목 수집 (페이지별 접두어 포함) */
     const pagesData = _collectAllPagesData();
     const allItemsWithPrefix = pagesData.flatMap(p =>
-      p.items.map(item => ({ ...item, _pagePrefix: p.prefix }))
+      p.items.filter(item => !item.noNum).map(item => ({ ...item, _pagePrefix: p.prefix }))
     );
 
     if (!allItemsWithPrefix.length) { showMsg('넘버링이 없습니다', 'warn'); return; }
@@ -1223,6 +1347,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (el) el.value = cfg.prefix || '';
     const tc = document.getElementById('color-text');
     if (tc) tc.value = cfg.textColor || '#ffffff';
+    const hcv = cfg.hatchColor || '#e05555';
+    const hc  = document.getElementById('hatch-color');
+    if (hc) hc.value = hcv;
+    const hcb = document.getElementById('hatch-color-btn');
+    if (hcb) hcb.style.background = hcv;
+    const hch = document.getElementById('hatch-color-hex');
+    if (hch) hch.textContent = hcv.toUpperCase();
     const scSlider = document.getElementById('annotation-scale');
     const scLabel  = document.getElementById('annotation-scale-val');
     if (scSlider) scSlider.value = cfg.scale || 1.0;
@@ -1475,6 +1606,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         el.textContent = '클릭: 측정점 추가 | Enter: 완료 | Q: 직교 | ESC: 취소';
         return;
       }
+    }
+    const st = CanvasManager.getShapeTool();
+    if (st) {
+      const nm = st === 'hatch-rect' ? '사각' : '원형';
+      el.textContent = state.phase === 0
+        ? `클릭: ${nm} 도형 첫 모서리 지정`
+        : `클릭: 반대 모서리 지정 | ESC: 취소`;
+      return;
     }
     if (CanvasManager.getTool() === 'none') {
       el.textContent = '클릭: 번호 위치 지정 (지시선 없음)';
