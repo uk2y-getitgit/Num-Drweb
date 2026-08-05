@@ -41,6 +41,15 @@ const CanvasManager = (() => {
   let afterRenderCb     = null;
   let onAddLabelCb      = null;   // 장비 모드: 기존 지시선에 다른 장비 넘버 추가
   let onAddShapeCb      = null;   // 장비 모드: 도형(기울기/부동침하) 추가
+  let onEditNoteCb      = null;   // 번호박스 더블클릭 → 메모 편집
+  let onMergeSelCb      = null;   // 합치기 모드 선택 변경
+
+  /* 합치기 모드 — ON이면 클릭이 그리기/선택 대신 병합 대상 토글로 동작 */
+  let mergeMode = false;
+  let mergeSel  = [];             // 선택 순서 유지 (첫 항목이 대표가 된다)
+
+  /* 직전 클릭으로 자동 추가된 장비 넘버 — 더블클릭(메모 편집) 시 되돌리기용 */
+  let lastAutoLabel = null;
 
   /* 부동침하: 클릭으로 측정점 수집, Enter로 확정 */
   let shapeState = { collecting: false, points: [], cursor: null };
@@ -153,6 +162,7 @@ const CanvasManager = (() => {
     wrap.addEventListener('mousemove',   _onMouseMove);
     wrap.addEventListener('mouseup',     _onMouseUp);
     wrap.addEventListener('mouseleave',  _onMouseLeave);
+    wrap.addEventListener('dblclick',    _onDblClick);
     wrap.addEventListener('contextmenu', e => e.preventDefault());
   }
 
@@ -203,6 +213,13 @@ const CanvasManager = (() => {
       return;
     }
 
+    /* 합치기 모드: 클릭은 병합 대상 토글만 — 새 넘버링·드래그·묶음 추가 모두 차단 */
+    if (mergeMode) {
+      const hit = _hitTestBox(cp) || _hitTest(cp);
+      if (hit) _toggleMergeSel(hit.item.id);
+      return;
+    }
+
     /* 부동침하: 클릭으로 측정점 수집 (Enter로 확정)
        직교모드 ON이면 직전 점 기준으로 수평·수직 정렬 */
     if (drawState.phase === 0 && _activeEquipKind() === 'settle') {
@@ -222,7 +239,12 @@ const CanvasManager = (() => {
         dragState.active  = true;
         dragState.item    = hit.item;
         dragState.handle  = hit.handle;
-        if (hit.handle === 'poly' || hit.handle === 'shape' || hit.handle === 'label') {
+        dragState.sub     = hit.sub || null;
+        if (hit.handle === 'mergedP1') {
+          /* 합쳐진(유지된) 지시선의 지시점 개별 이동 */
+          dragState.offsetX = cp.x - hit.sub.p1.x;
+          dragState.offsetY = cp.y - hit.sub.p1.y;
+        } else if (hit.handle === 'poly' || hit.handle === 'shape' || hit.handle === 'label') {
           dragState.lastCp = { x: cp.x, y: cp.y };   // 도형 전체 / 번호박스 이동
         } else {
           dragState.offsetX = cp.x - hit.item[hit.handle].x;
@@ -273,6 +295,11 @@ const CanvasManager = (() => {
     }
     if (dragState.active) {
       const cp = _toCanvasPos(e.clientX, e.clientY);
+      if (dragState.handle === 'mergedP1' && dragState.sub) {
+        dragState.sub.p1 = { x: cp.x - dragState.offsetX, y: cp.y - dragState.offsetY };
+        renderAnnotations(Annotation.getAll());
+        return;
+      }
       if (dragState.handle === 'label') {
         _translateLabel(dragState.item, cp);
         renderAnnotations(Annotation.getAll());
@@ -319,8 +346,14 @@ const CanvasManager = (() => {
       const clickedHandle = dragState.handle;
       dragState.item = null;
       dragState.handle = null;
+      dragState.sub = null;
       mousedownPos = null;
 
+      if (wasClick && e.detail >= 2) {
+        /* 더블클릭의 두 번째 클릭 — 메모 편집이므로 넘버 추가·선택 토글을 하지 않는다 */
+        wrap.style.cursor = 'crosshair';
+        return;
+      }
       if (wasClick) {
         /* 장비 모드: 다른 장비 활성 상태로 기존 지시선 클릭 → 그 지시선에 넘버 추가 */
         if (_tryAddEquipLabel(clickedItem)) {
@@ -330,7 +363,8 @@ const CanvasManager = (() => {
         selectedItemId = (selectedItemId === clickedItem.id) ? null : clickedItem.id;
         if (onSelectItem) onSelectItem(selectedItemId);
         renderAnnotations(Annotation.getAll());
-      } else if (clickedHandle === 'poly' || clickedHandle === 'shape' || clickedHandle === 'label') {
+      } else if (clickedHandle === 'poly' || clickedHandle === 'shape' ||
+                 clickedHandle === 'label' || clickedHandle === 'mergedP1') {
         Annotation.updateItem(clickedItem.id, {});   // 도형·번호박스 이동 저장(markDirty)
       }
       wrap.style.cursor = 'crosshair';
@@ -358,9 +392,13 @@ const CanvasManager = (() => {
     if (item.shape) return false;                      // 도형에는 라벨 추가 안 함
     if (!item.equipment) return false;                 // 외관 항목은 제외
     if (item.equipment === eq.key) return false;       // 같은 장비면 선택 동작 유지
-    if (item.labels && item.labels.some(l => l.equipment === eq.key)) return false;
-    if (onAddLabelCb) return onAddLabelCb(item.id, { key: eq.key, color: eq.color });
-    return false;
+    /* 이미 같은 장비가 묶여 있어도 계속 쌓을 수 있다 (SZ-01 위에 SZ-02 …) */
+    if (!onAddLabelCb) return false;
+    const label = onAddLabelCb(item.id, { key: eq.key, color: eq.color });
+    if (!label) return false;
+    /* 더블클릭(메모 편집)의 첫 클릭으로 추가된 것이면 되돌릴 수 있게 기록해 둔다 */
+    lastAutoLabel = { itemId: item.id, lid: label.lid, t: performance.now() };
+    return true;
   }
 
   function _hitTest(cp) {
@@ -392,10 +430,97 @@ const CanvasManager = (() => {
       if (item.shape) continue;
       if (Math.hypot(cp.x - item.p2.x, cp.y - item.p2.y) < 14 * scale)
         return { item, handle: 'p2' };
+      /* 스택된 번호박스 전체를 p2 핸들로 취급 — 박스가 여러 개여도 아래쪽까지 잡힌다 */
+      for (const r of _leaderBoxRects(item, scale)) {
+        if (cp.x >= r.x && cp.x <= r.x + r.w && cp.y >= r.y && cp.y <= r.y + r.h)
+          return { item, handle: 'p2' };
+      }
       if (Math.hypot(cp.x - item.p1.x, cp.y - item.p1.y) < 10 * scale)
         return { item, handle: 'p1' };
+      /* 유지된 병합 지시선의 지시점 */
+      if (item.merged && item.mergeKeepLeaders) {
+        for (const m of item.merged) {
+          if (m.p1 && Math.hypot(cp.x - m.p1.x, cp.y - m.p1.y) < 10 * scale)
+            return { item, handle: 'mergedP1', sub: m };
+        }
+      }
     }
     return null;
+  }
+
+  /* 번호박스 사각형 단위 히트 테스트 — 세로로 쌓인 박스 중 어느 것인지 구분한다.
+     반환 ref: '' = 본체 | 'L<lid>' = 묶인 장비 번호 */
+  function _hitTestBox(cp) {
+    const items = Annotation.getAll();
+    const scale = Annotation.getConfig().scale || 1;
+    const inside = (r) => cp.x >= r.x && cp.x <= r.x + r.w && cp.y >= r.y && cp.y <= r.y + r.h;
+    for (let i = items.length - 1; i >= 0; i--) {
+      const item = items[i];
+      if (item.shape) {
+        const lr = _shapeLabelRect(item, scale);
+        if (lr && inside(lr)) return { item, ref: '' };
+        continue;
+      }
+      const rects = _leaderBoxRects(item, scale);
+      for (const r of rects) if (inside(r)) return { item, ref: r.ref };
+    }
+    return null;
+  }
+
+  /* 지시선 항목의 번호박스들 (스택 순서대로) — 그리기와 같은 치수·간격을 사용 */
+  function _leaderBoxRects(item, scale) {
+    if (!item.p2) return [];
+    const boxes = _buildBoxList(item, Annotation.getConfig().prefix);
+    const stepY = _stackStepY(scale);
+    return boxes.map((b, i) => {
+      const m  = _measureNumBox(b.text, scale);
+      const cx = item.p2.x, cy = item.p2.y + i * stepY;
+      return { x: cx - m.bw / 2, y: cy - m.bh / 2, w: m.bw, h: m.bh, ref: b.ref };
+    });
+  }
+
+  /* 번호박스 더블클릭 → 메모 편집 */
+  function _onDblClick(e) {
+    if (e.button !== 0 || !paperW) return;
+    if (mergeMode || drawState.phase !== 0) return;
+    const hit = _hitTestBox(_toCanvasPos(e.clientX, e.clientY));
+    if (!hit) return;
+    /* 첫 클릭이 장비 넘버를 쌓아 버렸다면 되돌린다 — 더블클릭은 메모 편집 의도 */
+    if (lastAutoLabel && lastAutoLabel.itemId === hit.item.id &&
+        performance.now() - lastAutoLabel.t < 600) {
+      Annotation.removeSub(lastAutoLabel.itemId, 'L' + lastAutoLabel.lid);
+      lastAutoLabel = null;
+    }
+    dragState.active = false;
+    dragState.item   = null;
+    dragState.sub    = null;
+    mousedownPos     = null;
+    if (onEditNoteCb) onEditNoteCb(hit.item.id, hit.ref);
+  }
+
+  /* ── 합치기 모드 ── */
+  function setMergeMode(on) {
+    mergeMode = !!on;
+    if (!mergeMode) mergeSel = [];
+    else {
+      selectedItemId = null;
+      cancelDraw();
+      /* 툴바 버튼 클릭으로 켜지므로 재진입 대기가 걸려 있다 — 첫 선택 클릭이 먹히지 않게 해제 */
+      needsReactivation = false;
+    }
+    wrap.style.cursor = mergeMode ? 'pointer' : 'crosshair';
+    if (onMergeSelCb) onMergeSelCb(mergeSel.slice());
+    renderAnnotations(Annotation.getAll());
+  }
+  function isMergeMode()  { return mergeMode; }
+  function getMergeSel()  { return mergeSel.slice(); }
+
+  function _toggleMergeSel(id) {
+    const idx = mergeSel.indexOf(id);
+    if (idx === -1) mergeSel.push(id);
+    else            mergeSel.splice(idx, 1);
+    if (onMergeSelCb) onMergeSelCb(mergeSel.slice());
+    renderAnnotations(Annotation.getAll());
   }
 
   /* 도형 번호박스만 이동 — 기본 위치 대비 오프셋으로 저장 */
@@ -508,41 +633,113 @@ const CanvasManager = (() => {
       const boxList = _buildBoxList(item, Annotation.getConfig().prefix);
       if (item.shape) _drawShape({ ...item, boxList, selected: isSelected });
       else            _drawLeader({ ...item, boxList, preview: false, selected: isSelected });
+      if (mergeMode) {
+        const k = mergeSel.indexOf(item.id);
+        if (k !== -1) _drawMergeMark(item, k);
+      }
     });
 
     if (afterRenderCb) afterRenderCb(ctx, drawCanvas.width, drawCanvas.height);
+  }
+
+  /* 합치기 대상 표시 — 번호박스를 감싸는 파선 + 선택 순서 (1 = 대표 번호) */
+  function _drawMergeMark(item, order) {
+    const scale = Annotation.getConfig().scale || 1;
+    let r = null;
+    if (item.shape) {
+      const lr = _shapeLabelRect(item, scale);
+      if (lr) r = { x: lr.x, y: lr.y, w: lr.w, h: lr.h };
+    } else {
+      const rects = _leaderBoxRects(item, scale);
+      if (rects.length) {
+        const x1 = Math.min(...rects.map(v => v.x));
+        const y1 = Math.min(...rects.map(v => v.y));
+        const x2 = Math.max(...rects.map(v => v.x + v.w));
+        const y2 = Math.max(...rects.map(v => v.y + v.h));
+        r = { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
+      }
+    }
+    if (!r) return;
+
+    const pad = 5 * scale;
+    ctx.save();
+    ctx.strokeStyle = '#C7830A';
+    ctx.lineWidth   = 2;
+    ctx.setLineDash([4, 3]);
+    ctx.strokeRect(r.x - pad, r.y - pad, r.w + pad * 2, r.h + pad * 2);
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.arc(r.x - pad, r.y - pad, 8 * scale, 0, Math.PI * 2);
+    ctx.fillStyle = '#C7830A';
+    ctx.fill();
+    ctx.fillStyle    = '#fff';
+    ctx.font         = `bold ${Math.round(10 * scale)}px "Segoe UI", sans-serif`;
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(String(order + 1), r.x - pad, r.y - pad);
+    ctx.restore();
   }
 
   function _buildLabel(item) {
     return _labelFor(item, Annotation.getConfig().prefix);
   }
 
-  /* 지시선 하나에 표시할 번호박스 목록 (primary + 추가 장비 라벨) */
+  /* 지시선 하나에 표시할 번호박스 목록 (primary + 추가 장비 라벨).
+     ref = 더블클릭 메모 편집 대상 식별자 ('' = 본체, 'L<lid>' = 묶인 장비 번호) */
   function _buildBoxList(item, fallbackPrefix) {
-    let text = _labelFor(item, fallbackPrefix);
+    let text = _mergedLabel(item, fallbackPrefix);
     /* 기울기 도형: 측정값이 있으면 둘째 줄에 (2mm) 형태로 표기 */
     if (_shapeKind(item.shape) === 'tilt' && item.measure) text += '\n(' + item.measure + ')';
-    const list = [{ text, color: item.color }];
+    const list = [{ text, color: item.color, ref: '' }];
     if (item.labels && item.labels.length) {
       item.labels.forEach(l => {
-        list.push({ text: _labelFor({ equipment: l.equipment, num: l.num }, ''), color: l.color });
+        list.push({
+          text:  _labelFor(l, '') + _noteSuffix(l),
+          color: l.color,
+          ref:   'L' + l.lid,
+        });
       });
     }
     return list;
   }
 
-  /* 레이블 생성 — 장비 항목은 장비 접두어, 일반 항목은 페이지 접두어(fallback) 사용 */
-  function _labelFor(item, fallbackPrefix) {
-    let prefix = fallbackPrefix || '';
-    if (item.equipment && typeof Equipment !== 'undefined') {
-      const eq = Equipment.get(item.equipment);
-      if (eq) prefix = eq.prefix || '';
+  /* 합쳐진 번호까지 결합한 본체 레이블 — 접두어가 모두 같으면 접두어 1회 (R-01,02),
+     섞여 있으면 각각 표기 (R-01,SZ-01). 메모는 대표 번호의 것만 붙인다. */
+  function _mergedLabel(item, fallbackPrefix) {
+    const merged = item.merged || [];
+    if (!merged.length) return _labelFor(item, fallbackPrefix) + _noteSuffix(item);
+    const entries = [item, ...merged];
+    const pfx     = _prefixOf(item, fallbackPrefix);
+    const same    = entries.every(e => _prefixOf(e, fallbackPrefix) === pfx);
+    const body = same
+      ? (pfx ? pfx + '-' : '') + entries.map(e => String(e.num).padStart(2, '0')).join(',')
+      : entries.map(e => _labelFor(e, fallbackPrefix)).join(',');
+    return body + _noteSuffix(item);
+  }
+
+  /* 사용자 메모 — 번호 뒤에 한 칸 띄고 같은 줄에 표기 (R-01 중앙부) */
+  function _noteSuffix(entry) {
+    return entry && entry.note ? ' ' + entry.note : '';
+  }
+
+  /* 장비 항목은 장비 접두어, 일반 항목은 페이지 접두어(fallback) 사용 */
+  function _prefixOf(entry, fallbackPrefix) {
+    if (entry.equipment && typeof Equipment !== 'undefined') {
+      const eq = Equipment.get(entry.equipment);
+      if (eq) return eq.prefix || '';
     }
+    return fallbackPrefix || '';
+  }
+
+  /* 레이블 생성 (번호만) */
+  function _labelFor(item, fallbackPrefix) {
+    const prefix = _prefixOf(item, fallbackPrefix);
     const pfx = prefix ? prefix + '-' : '';
     return pfx + String(item.num).padStart(2, '0');
   }
 
-  function _drawLeader({ p1, p2, type, lineStyle, arrowFlip, color, textColor, num, label, boxList, preview, selected }) {
+  function _drawLeader({ p1, p2, type, lineStyle, arrowFlip, color, textColor, num, label, boxList,
+                         merged, mergeKeepLeaders, preview, selected }) {
     const scale = preview ? 1 : (Annotation.getConfig().scale || 1);
     ctx.save();
     ctx.globalAlpha  = preview ? 0.5 : 1;
@@ -594,6 +791,38 @@ const CanvasManager = (() => {
       ctx.beginPath();
       ctx.arc(p1.x, p1.y, 4 * scale, 0, Math.PI * 2);
       ctx.fill();
+    }
+
+    /* 합쳐진 번호의 지시선 유지 — 각자의 지시점에서 이 번호박스까지 그린다 */
+    if (!preview && merged && mergeKeepLeaders) {
+      merged.forEach(m => {
+        if (!m.p1) return;
+        const mType = m.type || type;
+        if (mType === 'none') return;
+        const mPath = _buildPath(m.p1, p2Anchor, m.lineStyle || style);
+        const mCol  = m.color || color;
+        ctx.save();
+        ctx.strokeStyle = mCol;
+        ctx.fillStyle   = mCol;
+        ctx.lineWidth   = drawState.lineWidth * scale;
+        ctx.beginPath();
+        ctx.moveTo(mPath[0].x, mPath[0].y);
+        for (let i = 1; i < mPath.length; i++) ctx.lineTo(mPath[i].x, mPath[i].y);
+        ctx.stroke();
+        const mFwd = mPath.length >= 2
+          ? { x: mPath[1].x - mPath[0].x, y: mPath[1].y - mPath[0].y }
+          : { x: 1, y: 0 };
+        const mFlip = m.arrowFlip ?? flipActive;
+        const mDir  = mFlip ? { x: -mFwd.x, y: -mFwd.y } : mFwd;
+        if (mType === 'arrow') {
+          _drawArrowHead(m.p1, mDir, mCol);
+        } else {
+          ctx.beginPath();
+          ctx.arc(m.p1.x, m.p1.y, 4 * scale, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      });
     }
 
     if (!preview) {
@@ -996,6 +1225,12 @@ const CanvasManager = (() => {
     selectedItemId = null;
     renderAnnotations(Annotation.getAll());
   }
+  /* 사이드바 목록에서 선택 — onSelectItem 콜백은 호출하지 않는다(사이드바 선택이 되돌려 지워짐 방지) */
+  function selectItem(id) {
+    if (mergeMode) return;
+    selectedItemId = (id === null || id === undefined) ? null : Number(id);
+    renderAnnotations(Annotation.getAll());
+  }
 
   /* ── 캔버스 비우기 (작업공간 전환 시 이전 도면 제거) ── */
   function clear() {
@@ -1042,12 +1277,16 @@ const CanvasManager = (() => {
     paperH = savedPH;
   }
 
+  function onEditNote(cb)   { onEditNoteCb = cb; }
+  function onMergeSel(cb)   { onMergeSelCb = cb; }
+
   return {
     init, loadImage, fitToView, renderAnnotations,
     setTool, getTool, setOrtho, setLineWidth, cancelDraw, deactivate,
     getCanvasSize, getCanvas, getImage,
     zoomIn, zoomOut, onAdd, onStateChange, setAfterRender, onAddLabel, onAddShape, finishShape,
     createPageExport, renderAnnotationsTo,
-    getSelectedId, clearSelection, clear, onSelect,
+    getSelectedId, clearSelection, selectItem, clear, onSelect,
+    onEditNote, onMergeSel, setMergeMode, isMergeMode, getMergeSel,
   };
 })();

@@ -5,12 +5,14 @@ const Sidebar = (() => {
   let onSelectNum  = null;
   let onDeleteNum  = null;
   let onMatchPhoto = null;
+  let onEditNote   = null;
   let selectedId   = null;
 
   function init(callbacks) {
     onSelectNum  = callbacks.onSelectNum;
     onDeleteNum  = callbacks.onDeleteNum;
     onMatchPhoto = callbacks.onMatchPhoto;
+    onEditNote   = callbacks.onEditNote;
   }
 
   /* ── 넘버링 목록 렌더 ──
@@ -84,25 +86,29 @@ const Sidebar = (() => {
         if (onSelectNum) onSelectNum(Number(el.dataset.id));
         renderNumList(items, allPages);
       });
+      /* 더블클릭 → 메모 편집 (캔버스 번호박스 더블클릭과 동일) */
+      el.addEventListener('dblclick', e => {
+        if (e.target.closest('.num-del') || e.target.closest('.photo-num-input')) return;
+        if (onEditNote) onEditNote(Number(el.dataset.id), el.dataset.sub || '');
+      });
     });
 
     wrap.querySelectorAll('.num-del').forEach(btn => {
       btn.addEventListener('click', e => {
         e.stopPropagation();
-        /* 묶인 장비 번호 행이면 그 번호만 삭제 */
-        if (onDeleteNum) onDeleteNum(Number(btn.dataset.id), btn.dataset.labelKey || null);
+        /* 묶인·합쳐진 번호 행이면 그 번호만 처리 */
+        if (onDeleteNum) onDeleteNum(Number(btn.dataset.id), btn.dataset.sub || '');
       });
     });
 
     wrap.querySelectorAll('.photo-num-input').forEach((input, _i, arr) => {
       input.addEventListener('click', e => e.stopPropagation());
+      input.addEventListener('dblclick', e => e.stopPropagation());
       input.addEventListener('blur', e => {
-        const id       = Number(e.target.dataset.id);
-        const labelKey = e.target.dataset.labelKey || null;
-        const val      = e.target.value.trim();
-        const patch    = { customPhotoNum: val !== '' ? Number(val) : null };
-        if (labelKey) Annotation.updateLabel(id, labelKey, patch);
-        else          Annotation.updateItem(id, patch);
+        const id     = Number(e.target.dataset.id);
+        const subKey = e.target.dataset.sub || '';
+        const val    = e.target.value.trim();
+        Annotation.updateSub(id, subKey, { customPhotoNum: val !== '' ? Number(val) : null });
       });
       /* Tab 키 순차 이동 — blur로 DOM 재구성 후 포커스 복구 */
       input.addEventListener('keydown', e => {
@@ -146,57 +152,76 @@ const Sidebar = (() => {
     });
   }
 
+  /* 번호 엔트리(본체·묶인 번호·합쳐진 번호)의 표시 속성 */
+  function _entryStyle(entry, cfg, cats, pagePrefix) {
+    if (entry.equipment && typeof Equipment !== 'undefined') {
+      const eq = Equipment.get(entry.equipment);
+      return {
+        isEquip:  true,
+        label:    ((eq && eq.prefix) ? eq.prefix + '-' : '') + String(entry.num).padStart(2, '0'),
+        color:    (eq && eq.color) || entry.color || 'var(--accent)',
+        catLabel: eq ? eq.label : (entry.equipment || '장비'),
+      };
+    }
+    const prefix  = (pagePrefix !== undefined ? pagePrefix : cfg.prefix);
+    const catInfo = cats[entry.category];
+    return {
+      isEquip:  false,
+      label:    (prefix ? prefix + '-' : '') + String(entry.num).padStart(2, '0'),
+      color:    catInfo?.color || entry.color || 'var(--accent)',
+      catLabel: catInfo?.label || entry.category || '신규',
+    };
+  }
+
   /* ── 넘버 항목 HTML 생성 ──
-     한 지시선에 여러 장비 번호가 묶여 있으면 각 번호를 개별 행으로 펼쳐
-     번호마다 삭제·매칭번호 수정이 가능하게 한다. */
+     한 지시선에 여러 번호(묶음·합침)가 딸려 있으면 각 번호를 개별 행으로 펼쳐
+     번호마다 삭제·메모·매칭번호 수정이 가능하게 한다. */
   function _renderNumItem(item, cfg, cats, isActive, pagePrefix) {
-    const isEquipItem = !!item.equipment && typeof Equipment !== 'undefined';
     const typeLabel = (item.shape === 'tilt'   || item.shape === 'triangle') ? '기울기'
                     : (item.shape === 'settle' || item.shape === 'polygon')  ? '부동침하'
                     : (item.type === 'none' ? '없음' : item.type === 'arrow' ? '화살표' : '점');
 
     /* 기본(지시선 소유) 행 */
-    let prefix, color, catLabel;
-    if (isEquipItem) {
-      const eq = Equipment.get(item.equipment);
-      prefix   = eq ? eq.prefix : '';
-      color    = (eq && eq.color) || item.color || 'var(--accent)';
-      catLabel = eq ? eq.label : (item.equipment || '장비');
-    } else {
-      prefix   = (pagePrefix !== undefined ? pagePrefix : cfg.prefix);
-      const catInfo = cats[item.category];
-      color    = catInfo?.color || item.color || 'var(--accent)';
-      catLabel = catInfo?.label || item.category || '신규';
-    }
+    const st = _entryStyle(item, cfg, cats, pagePrefix);
+    const mergedCount = (item.merged || []).length;
 
     let html = _renderNumRow({
-      item, cfg, cats, isActive, isEquipItem, sub: false, labelKey: '',
-      label: (prefix ? prefix + '-' : '') + String(item.num).padStart(2, '0'),
-      color, catLabel, typeLabel,
-      num: item.num, customPhotoNum: item.customPhotoNum, photoName: item.photoName,
+      item, cfg, cats, isActive, isEquipItem: st.isEquip, sub: false, subKey: '',
+      label: st.label, color: st.color, catLabel: st.catLabel,
+      typeLabel: mergedCount ? typeLabel + ' · 합침 ' + (mergedCount + 1) : typeLabel,
+      num: item.num, note: item.note,
+      customPhotoNum: item.customPhotoNum, photoName: item.photoName,
     });
 
-    /* 묶인 장비 번호 행 */
-    if (isEquipItem && item.labels && item.labels.length) {
-      item.labels.forEach(l => {
-        const eq = Equipment.get(l.equipment);
-        html += _renderNumRow({
-          item, cfg, cats, isActive, isEquipItem: true, sub: true, labelKey: l.equipment,
-          label: ((eq && eq.prefix) ? eq.prefix + '-' : '') + String(l.num).padStart(2, '0'),
-          color: (eq && eq.color) || l.color || 'var(--accent)',
-          catLabel: eq ? eq.label : (l.equipment || '장비'),
-          typeLabel: '묶음',
-          num: l.num, customPhotoNum: l.customPhotoNum, photoName: l.photoName,
-        });
+    /* 합쳐진 번호 행 — 같은 번호박스에 표기되는 번호들 */
+    (item.merged || []).forEach(m => {
+      const ms = _entryStyle(m, cfg, cats, pagePrefix);
+      html += _renderNumRow({
+        item, cfg, cats, isActive, isEquipItem: ms.isEquip, sub: true, subKey: 'M' + m.mid,
+        label: ms.label, color: ms.color, catLabel: ms.catLabel, typeLabel: '합침',
+        num: m.num, note: m.note,
+        customPhotoNum: m.customPhotoNum, photoName: m.photoName,
       });
-    }
+    });
+
+    /* 묶인 장비 번호 행 — 별도 번호박스로 쌓이는 번호들 */
+    (item.labels || []).forEach(l => {
+      const ls = _entryStyle(l, cfg, cats, pagePrefix);
+      html += _renderNumRow({
+        item, cfg, cats, isActive, isEquipItem: ls.isEquip, sub: true, subKey: 'L' + l.lid,
+        label: ls.label, color: ls.color, catLabel: ls.catLabel, typeLabel: '묶음',
+        num: l.num, note: l.note,
+        customPhotoNum: l.customPhotoNum, photoName: l.photoName,
+      });
+    });
     return html;
   }
 
-  /* 넘버 목록의 행 하나 (기본 행 / 묶인 장비 번호 행 공용) */
+  /* 넘버 목록의 행 하나 (기본 행 / 묶인·합쳐진 번호 행 공용) */
   function _renderNumRow(r) {
-    const { item, cats, isActive, isEquipItem, sub, labelKey, label, color, catLabel, typeLabel, num } = r;
-    const rowKey    = item.id + (labelKey ? ':' + labelKey : '');
+    const { item, cats, isActive, isEquipItem, sub, subKey, label, color, catLabel, typeLabel, num } = r;
+    const rowKey    = item.id + (subKey ? ':' + subKey : '');
+    const noteHtml  = r.note ? `<span class="num-note" title="${r.note}">${r.note}</span>` : '';
     const customVal = (r.customPhotoNum !== null && r.customPhotoNum !== undefined) ? r.customPhotoNum : '';
     const photoStr  = r.photoName ? r.photoName
                     : '<span style="color:var(--text-placeholder)">미매칭</span>';
@@ -205,7 +230,7 @@ const Sidebar = (() => {
       <div class="num-info">
         <div class="num-type">
           <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${color};flex-shrink:0;"></span>
-          ${catLabel} · ${typeLabel}
+          ${catLabel} · ${typeLabel}${noteHtml}
         </div>
         <div class="num-photo">${photoStr}</div>
       </div>`;
@@ -230,16 +255,21 @@ const Sidebar = (() => {
         }).join('')}
       </div>` : '';
 
+    const delTitle = subKey[0] === 'M' ? '합치기 해제'
+                   : subKey[0] === 'L' ? '이 장비 번호만 삭제'
+                   : '삭제';
+
     return `
       <div class="num-item ${isSelected ? 'selected' : ''}${sub ? ' num-item-sub' : ''}"
-           data-id="${item.id}" data-label-key="${labelKey}" data-active="true">
+           data-id="${item.id}" data-sub="${subKey}" data-active="true"
+           title="더블클릭: 메모 편집">
         ${badge}${info}
         ${catBtns}
         <input type="number" class="photo-num-input" value="${customVal}"
-          placeholder="${num}" data-id="${item.id}" data-label-key="${labelKey}"
+          placeholder="${num}" data-id="${item.id}" data-sub="${subKey}"
           data-row="${rowKey}" title="사진 매칭 번호 (빈칸: 기본)">
-        <button class="num-del" data-id="${item.id}" data-label-key="${labelKey}"
-          title="${labelKey ? '이 장비 번호만 삭제' : '삭제'}">✕</button>
+        <button class="num-del" data-id="${item.id}" data-sub="${subKey}"
+          title="${delTitle}">✕</button>
       </div>`;
   }
 

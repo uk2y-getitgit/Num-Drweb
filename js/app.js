@@ -39,11 +39,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   /* ── Sidebar 초기화 ── */
   Sidebar.init({
-    onSelectNum:  () => { CanvasManager.cancelDraw(); },
-    onDeleteNum:  (id, labelKey) => {
-      if (labelKey) { Annotation.removeLabel(id, labelKey); showMsg('장비 번호 삭제됨', 'warn'); }
-      else          { Annotation.remove(id);                showMsg('넘버링 삭제됨', 'warn'); }
+    onSelectNum:  (id) => { CanvasManager.cancelDraw(); CanvasManager.selectItem(id); },
+    onDeleteNum:  (id, subKey) => {
+      if (subKey && subKey[0] === 'M') {
+        Annotation.unmerge(id, Number(subKey.slice(1)));
+        showMsg('합치기 해제됨', 'warn');
+      } else if (subKey) {
+        Annotation.removeSub(id, subKey);
+        showMsg('장비 번호 삭제됨', 'warn');
+      } else {
+        Annotation.remove(id);
+        showMsg('넘버링 삭제됨', 'warn');
+      }
     },
+    onEditNote:   (id, subKey) => _editNote(id, subKey),
     onMatchPhoto: () => {},
   });
 
@@ -103,6 +112,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     _updateCursorHint(state);
   });
 
+  /* 번호박스 더블클릭 → 메모 편집 */
+  CanvasManager.onEditNote((id, subKey) => _editNote(id, subKey));
+
+  /* 합치기 모드 선택 변경 → 안내 문구 갱신 */
+  CanvasManager.onMergeSel((sel) => _updateMergeHint(sel));
+
   /* 장비 모드: 기존 지시선 클릭 → 활성 장비 넘버 추가 (item 2·3) */
   CanvasManager.onAddLabel((itemId, equip) => {
     const label = Annotation.addLabelToItem(itemId, equip);
@@ -110,7 +125,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const eq  = Equipment.get(equip.key);
     const pfx = eq && eq.prefix ? eq.prefix + '-' : '';
     showMsg((eq ? eq.label : '') + ' ' + pfx + String(label.num).padStart(2, '0') + ' 추가', 'success');
-    return true;
+    return label;   // canvas가 더블클릭 시 되돌릴 수 있도록 생성된 라벨을 반환
   });
 
   /* ── PageManager 초기화 ── */
@@ -598,6 +613,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const isInput = tag === 'INPUT' || tag === 'TEXTAREA';
 
     if (e.key === 'Escape') {
+      /* 합치기 모드가 켜져 있으면 모드 해제가 우선 */
+      if (CanvasManager.isMergeMode()) { _setMergeMode(false); showMsg('합치기 취소', 'info'); return; }
       CanvasManager.cancelDraw();
       CanvasManager.clearSelection();
       return;
@@ -607,8 +624,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (isInput) return; // 이하 단축키: 입력 필드에서는 무시
 
-    /* Enter: 부동침하 다각형 확정 */
-    if (e.key === 'Enter') { e.preventDefault(); CanvasManager.finishShape(); return; }
+    /* Enter: 합치기 확정(모드 ON일 때) | 부동침하 다각형 확정 */
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (CanvasManager.isMergeMode()) _commitMerge();
+      else                             CanvasManager.finishShape();
+      return;
+    }
 
     /* A: 화살표 도구 선택 또는 선택된 항목 타입 변경 */
     if (e.key === 'a' || e.key === 'A') {
@@ -1239,10 +1261,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   /* ── 파일명 미리보기 헬퍼 (전 페이지 항목 사용 + 각 항목의 pagePrefix 포함) ── */
   function _refreshRenamePreview() {
     const pagesWithPrefix = _collectAllPagesData();
-    /* 묶인 장비 번호도 개별 행으로 펼쳐 파일명 변경 대상에 포함 */
+    /* 묶인·합쳐진 번호도 개별 행으로 펼쳐 파일명 변경 대상에 포함 */
     const allItemsWithPrefix = pagesWithPrefix.flatMap(p =>
       p.items.flatMap(item => [
         { ...item, _pagePrefix: p.prefix },
+        ...(item.merged || []).map(m => ({ ...m, _pagePrefix: p.prefix })),
         ...(item.labels || []).map(l => ({ ...l, _pagePrefix: p.prefix })),
       ])
     );
@@ -1264,6 +1287,149 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     el.textContent = String(Annotation.getNextNum()).padStart(2, '0');
   }
+
+  /* ── 넘버링 메모 ── */
+
+  /* 번호 엔트리(본체·묶음·합침) 하나의 표시 라벨 — 모달 제목용 */
+  function _entryLabelOf(id, subKey) {
+    const item = Annotation.getAll().find(i => i.id === Number(id));
+    if (!item) return '';
+    let entry = item;
+    if (subKey && subKey[0] === 'L') entry = (item.labels || []).find(l => l.lid === Number(subKey.slice(1)));
+    if (subKey && subKey[0] === 'M') entry = (item.merged || []).find(m => m.mid === Number(subKey.slice(1)));
+    if (!entry) return '';
+    let prefix = Annotation.getConfig().prefix || '';
+    if (entry.equipment) {
+      const eq = Equipment.get(entry.equipment);
+      if (eq) prefix = eq.prefix || '';
+    }
+    return (prefix ? prefix + '-' : '') + String(entry.num).padStart(2, '0');
+  }
+
+  function _currentNoteOf(id, subKey) {
+    const item = Annotation.getAll().find(i => i.id === Number(id));
+    if (!item) return '';
+    if (subKey && subKey[0] === 'L') {
+      const l = (item.labels || []).find(x => x.lid === Number(subKey.slice(1)));
+      return (l && l.note) || '';
+    }
+    if (subKey && subKey[0] === 'M') {
+      const m = (item.merged || []).find(x => x.mid === Number(subKey.slice(1)));
+      return (m && m.note) || '';
+    }
+    return item.note || '';
+  }
+
+  function _editNote(id, subKey) {
+    const label = _entryLabelOf(id, subKey);
+    if (!label) return;
+    _askNote(label, _currentNoteOf(id, subKey), (val) => {
+      if (val === null) return;                      // 취소
+      Annotation.setNote(id, subKey || '', val);
+      showMsg(val ? label + ' 메모: ' + val : label + ' 메모 삭제', 'info');
+    });
+  }
+
+  /* 메모 입력 모달 — cb(문자열 | null). null = 취소, '' = 메모 삭제 */
+  function _askNote(label, current, cb) {
+    const modal = document.getElementById('modal-note');
+    const input = document.getElementById('note-text');
+    const title = document.getElementById('modal-note-target');
+    if (!modal || !input) { cb(null); return; }
+
+    const done = (val) => { modal.classList.add('hidden'); input.onkeydown = null; cb(val); };
+
+    if (title) title.textContent = label;
+    input.value = current || '';
+    modal.classList.remove('hidden');
+    input.focus();
+    input.select();
+
+    document.getElementById('modal-note-apply').onclick  = () => done(input.value);
+    document.getElementById('modal-note-cancel').onclick = () => done(null);
+    document.getElementById('modal-note-close').onclick  = () => done(null);
+    input.onkeydown = (e) => {
+      if (e.key === 'Enter')       { e.preventDefault(); done(input.value); }
+      else if (e.key === 'Escape') { e.preventDefault(); done(null); }
+      e.stopPropagation();   // 전역 단축키(Enter=도형확정, ESC=그리기취소) 차단
+    };
+  }
+
+  /* ── 넘버링 합치기 ── */
+
+  function _setMergeMode(on) {
+    CanvasManager.setMergeMode(on);
+    const btn = document.getElementById('btn-merge');
+    if (btn) btn.classList.toggle('merging', on);
+    if (on) showMsg('합칠 넘버링을 클릭한 뒤 Enter (ESC: 취소)', 'info');
+    _updateMergeHint(CanvasManager.getMergeSel());
+  }
+
+  function _updateMergeHint(sel) {
+    const el = document.getElementById('cursor-hint');
+    if (!el) return;
+    if (!CanvasManager.isMergeMode()) { _updateCursorHint({ phase: 0 }); return; }
+    el.textContent = sel.length
+      ? `합치기: ${sel.length}개 선택 (${_mergePreviewText(sel)}) | Enter: 합치기 | ESC: 취소`
+      : '합치기: 합칠 넘버링을 클릭하세요 | ESC: 취소';
+  }
+
+  /* 합쳐졌을 때의 라벨 미리보기 — 접두어가 모두 같으면 접두어 1회 */
+  function _mergePreviewText(sel) {
+    const items = sel.map(id => Annotation.getAll().find(i => i.id === id)).filter(Boolean);
+    if (!items.length) return '';
+    const pfxOf = (it) => {
+      if (it.equipment) { const eq = Equipment.get(it.equipment); return eq ? (eq.prefix || '') : ''; }
+      return Annotation.getConfig().prefix || '';
+    };
+    const entries = [];
+    items.forEach(it => { entries.push(it); (it.merged || []).forEach(m => entries.push(m)); });
+    const pfx  = pfxOf(entries[0]);
+    const same = entries.every(e => pfxOf(e) === pfx);
+    return same
+      ? (pfx ? pfx + '-' : '') + entries.map(e => String(e.num).padStart(2, '0')).join(',')
+      : entries.map(e => (pfxOf(e) ? pfxOf(e) + '-' : '') + String(e.num).padStart(2, '0')).join(',');
+  }
+
+  function _commitMerge() {
+    const sel = CanvasManager.getMergeSel();
+    if (sel.length < 2) { showMsg('2개 이상 선택해야 합칠 수 있습니다', 'warn'); return; }
+    const items  = Annotation.getAll();
+    const chosen = sel.map(id => items.find(i => i.id === id)).filter(Boolean);
+    if (chosen.some(i => i.shape)) {
+      showMsg('기울기·부동침하 도형은 합칠 수 없습니다', 'warn');
+      return;
+    }
+    _askMergeStyle(_mergePreviewText(sel), (keepLeaders) => {
+      if (keepLeaders === null) return;              // 취소 — 선택 유지
+      const res = Annotation.mergeItems(sel, keepLeaders);
+      if (!res.ok) {
+        showMsg(res.reason === 'shape' ? '도형은 합칠 수 없습니다' : '합칠 수 없습니다', 'warn');
+        return;
+      }
+      _setMergeMode(false);
+      showMsg('넘버링 합침', 'success');
+    });
+  }
+
+  /* 합치기 방식 모달 — cb(true=지시선 유지 | false=하나로 병합 | null=취소) */
+  function _askMergeStyle(previewText, cb) {
+    const modal = document.getElementById('modal-merge');
+    if (!modal) { cb(null); return; }
+    const done = (val) => { modal.classList.add('hidden'); cb(val); };
+
+    const pv = document.getElementById('modal-merge-preview');
+    if (pv) pv.textContent = previewText;
+    modal.classList.remove('hidden');
+
+    document.getElementById('modal-merge-keep').onclick   = () => done(true);
+    document.getElementById('modal-merge-one').onclick    = () => done(false);
+    document.getElementById('modal-merge-cancel').onclick = () => done(null);
+    document.getElementById('modal-merge-close').onclick  = () => done(null);
+  }
+
+  const btnMerge = document.getElementById('btn-merge');
+  if (btnMerge) btnMerge.addEventListener('click', () => _setMergeMode(!CanvasManager.isMergeMode()));
 
   /* 기울기 측정값 입력 모달 — cb(값 | null). Electron에서 prompt()가 막히므로 자체 모달 사용 */
   function _askTiltMeasure(cb) {
@@ -1294,6 +1460,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   function _updateCursorHint(state) {
     const el = document.getElementById('cursor-hint');
     if (!el) return;
+    /* 합치기 모드 중에는 합치기 안내를 유지 */
+    if (CanvasManager.isMergeMode()) { _updateMergeHint(CanvasManager.getMergeSel()); return; }
     if (AppMode.get() === AppMode.MODES.EQUIP) {
       const eq = Equipment.getActive();
       if (eq && eq.kind === 'tilt') {

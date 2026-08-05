@@ -1590,3 +1590,83 @@ input[type=range]::-webkit-slider-thumb {
   padding-top: 0;
   margin-top: 0;
 }
+
+/* ============================================================
+   넘버링 메모 & 합치기
+   ============================================================ */
+.field-hint {
+  font-size: 10px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+/* 사이드바 목록의 메모 표시 */
+.num-note {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-dim);
+  border-radius: var(--radius-sm);
+  padding: 0 4px;
+  margin-left: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 90px;
+  flex-shrink: 1;
+}
+
+/* 합치기 모드 활성 툴바 버튼 */
+#btn-merge.merging {
+  background: var(--warning-dim);
+  border-color: var(--warning);
+  color: var(--warning);
+  font-weight: 600;
+}
+
+/* 합치기 모달 */
+.merge-preview {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+.merge-preview-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.merge-preview-val {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--accent);
+  word-break: break-all;
+}
+.merge-question {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 14px 0 8px;
+}
+.merge-choice-row { display: flex; flex-direction: column; gap: 8px; }
+.merge-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  text-align: left;
+  padding: 11px 13px;
+  background: var(--bg-panel);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-family: var(--font);
+  transition: border-color 0.12s, background 0.12s;
+}
+.merge-choice:hover { border-color: var(--accent); background: var(--accent-dim); }
+.merge-choice strong { font-size: 13px; font-weight: 700; color: var(--text-primary); }
+.merge-choice span   { font-size: 11px; color: var(--text-dim); line-height: 1.45; }

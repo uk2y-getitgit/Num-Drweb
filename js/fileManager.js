@@ -78,7 +78,8 @@ const FileManager = (() => {
     };
     annotations.forEach(item => {
       matchOne(item);
-      /* 한 지시선에 묶인 장비 번호도 각각 매칭 */
+      /* 한 지시선에 묶인·합쳐진 번호도 각각 매칭 */
+      if (item.merged) item.merged.forEach(matchOne);
       if (item.labels) item.labels.forEach(matchOne);
     });
   }

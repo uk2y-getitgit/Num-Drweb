@@ -99,6 +99,10 @@
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
       자동정렬
     </button>
+    <button class="btn" id="btn-merge" title="넘버링 합치기 — 대상 클릭 후 Enter">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5h5l4 7 4-7h5"/><path d="M12 12v7"/><polyline points="9 16 12 19 15 16"/></svg>
+      합치기
+    </button>
     <button class="btn" id="btn-export-pdf">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="12" y2="12"/><line x1="15" y1="15" x2="12" y2="12"/></svg>
       PDF 저장
@@ -483,6 +487,57 @@
     <div class="modal-footer">
       <button class="btn" id="modal-tilt-cancel">번호만</button>
       <button class="btn btn-accent" id="modal-tilt-apply">확인</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 넘버링 메모 입력 모달 ===== -->
+<div class="modal-overlay hidden" id="modal-note">
+  <div class="modal-box" style="max-width:360px;">
+    <div class="modal-header">
+      <h2>넘버링 메모</h2>
+      <button class="modal-close" id="modal-note-close">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field-row">
+        <label><span id="modal-note-target">R-01</span> — 번호 뒤에 표기됩니다</label>
+        <input type="text" class="field-input" id="note-text" placeholder="예: 중앙부" autocomplete="off">
+        <span class="field-hint">비워두고 확인하면 메모가 삭제됩니다.</span>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" id="modal-note-cancel">취소</button>
+      <button class="btn btn-accent" id="modal-note-apply">확인</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 합치기 방식 선택 모달 ===== -->
+<div class="modal-overlay hidden" id="modal-merge">
+  <div class="modal-box" style="max-width:400px;">
+    <div class="modal-header">
+      <h2>넘버링 합치기</h2>
+      <button class="modal-close" id="modal-merge-close">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="merge-preview">
+        <span class="merge-preview-label">결과</span>
+        <span class="merge-preview-val" id="modal-merge-preview">R-01,02</span>
+      </div>
+      <p class="merge-question">지시선을 어떻게 할까요?</p>
+      <div class="merge-choice-row">
+        <button class="merge-choice" id="modal-merge-keep">
+          <strong>지시선 모두 유지</strong>
+          <span>각 지시점의 화살표를 그대로 두고 번호박스만 합칩니다</span>
+        </button>
+        <button class="merge-choice" id="modal-merge-one">
+          <strong>하나로 병합</strong>
+          <span>대표 넘버링의 지시선만 남기고 나머지는 숨깁니다</span>
+        </button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" id="modal-merge-cancel">취소</button>
     </div>
   </div>
 </div>
