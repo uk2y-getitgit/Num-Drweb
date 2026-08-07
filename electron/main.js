@@ -58,6 +58,44 @@ ipcMain.handle('get-startup-file', () => {
   try { return fs.readFileSync(openFilePath, 'utf8'); } catch { return null; }
 });
 
+/* ── 라이선스 ──
+   메인 프로세스에서만 검증하고 preload 브리지로 결과만 렌더러에 내려준다.
+   모듈 로드가 실패해도 앱은 켜져야 하므로 체험판 상태로 폴백한다. */
+let License = null;
+try {
+  License = require('./license');
+} catch (e) {
+  console.error('[license] 모듈 로드 실패 — 체험판으로 동작합니다:', e.message);
+}
+
+const TRIAL_FALLBACK = {
+  edition: 'trial',
+  features: { watermark: true, maxPages: 1 },
+  reason: 'MODULE_ERROR',
+  device: '', deviceShort: '', pubkeyReady: false, endpointReady: false, supportContact: '',
+};
+
+ipcMain.handle('license:status', () => {
+  try { return License ? License.getStatus() : TRIAL_FALLBACK; }
+  catch (e) { console.error('[license] 상태 판정 실패:', e.message); return TRIAL_FALLBACK; }
+});
+
+ipcMain.handle('license:activate', async (_e, key) => {
+  if (!License) return { ok: false, code: 'MODULE_ERROR', message: '라이선스 모듈을 불러올 수 없습니다.', status: TRIAL_FALLBACK };
+  try {
+    return await License.activateWithKey(String(key || ''), app.getVersion());
+  } catch (e) {
+    console.error('[license] 활성화 실패:', e.message);
+    return { ok: false, code: 'SERVER_ERROR', message: '활성화 중 오류가 발생했습니다.', status: License.getStatus() };
+  }
+});
+
+ipcMain.handle('license:deactivate', () => {
+  if (!License) return TRIAL_FALLBACK;
+  try { return License.deactivateLocal(); }
+  catch { return TRIAL_FALLBACK; }
+});
+
 /* ── BrowserWindow 생성 ── */
 let mainWindow = null;
 

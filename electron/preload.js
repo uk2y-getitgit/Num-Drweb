@@ -11,4 +11,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onOpenFile: (callback) => {
     ipcRenderer.on('open-numdraw-file', (_, content) => callback(content));
   },
+
+  /* 라이선스 — 검증은 전부 메인 프로세스에서 수행하고 결과만 받는다 */
+  license: {
+    getStatus:  ()    => ipcRenderer.invoke('license:status'),
+    activate:   (key) => ipcRenderer.invoke('license:activate', key),
+    deactivate: ()    => ipcRenderer.invoke('license:deactivate'),
+  },
 });

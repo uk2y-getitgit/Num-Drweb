@@ -322,6 +322,110 @@ body {
   white-space: nowrap;
 }
 
+/* ── 정품 인증 배지 (툴바) ── */
+.license-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.license-badge:hover { background: var(--bg-hover); }
+.license-badge svg { flex-shrink: 0; }
+.license-badge.trial {
+  background: var(--warning-dim);
+  border-color: var(--warning);
+  color: var(--warning);
+}
+.license-badge.trial:hover { background: var(--warning-dim); border-color: var(--warning); }
+.license-badge.full {
+  background: var(--success-dim);
+  border-color: var(--success);
+  color: var(--success);
+}
+
+/* ── 정품 인증 모달 ── */
+.license-state {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+}
+.license-state strong { font-size: 13px; font-weight: 700; }
+.license-state span   { font-size: 11.5px; color: var(--text-secondary); line-height: 1.5; }
+.license-state.trial  { background: var(--warning-dim); border-color: var(--warning); }
+.license-state.trial strong { color: var(--warning); }
+.license-state.full   { background: var(--success-dim); border-color: var(--success); }
+.license-state.full strong  { color: var(--success); }
+
+.license-notice {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-primary);
+  background: var(--accent-dim);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+}
+.license-notice.hidden { display: none; }
+
+#license-form { display: flex; flex-direction: column; gap: 10px; }
+#license-form.hidden { display: none; }
+
+.field-input.license-key {
+  font-family: 'Consolas', 'Menlo', monospace;
+  letter-spacing: 1.2px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+}
+.field-hint { font-size: 11px; color: var(--text-dim); line-height: 1.5; }
+
+.license-result { font-size: 12px; font-weight: 600; min-height: 16px; }
+.license-result.ok   { color: var(--success); }
+.license-result.fail { color: var(--danger); }
+.license-result.info { color: var(--text-secondary); }
+
+.license-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-dim);
+  border-top: 1px solid var(--border-light);
+  padding-top: 10px;
+}
+.license-meta code {
+  font-family: 'Consolas', 'Menlo', monospace;
+  color: var(--text-secondary);
+  background: var(--bg-card);
+  border-radius: var(--radius-sm);
+  padding: 2px 6px;
+}
+
+.license-setup-warn {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--danger);
+  background: var(--danger-dim);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+}
+.license-setup-warn.hidden { display: none; }
+
 /* ── 토글 스위치 ── */
 .toggle {
   position: relative;

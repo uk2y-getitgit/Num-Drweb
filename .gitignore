@@ -25,3 +25,6 @@ num-drweb-deploy/
 .electron-builder-cache/
 dist/
 node_modules/
+
+# Cloudflare Workers 로컬 개발 상태 (server/)
+.wrangler/

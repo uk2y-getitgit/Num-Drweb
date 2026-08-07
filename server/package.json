@@ -1,0 +1,18 @@
+{
+  "name": "numdraw-activation-server",
+  "private": true,
+  "type": "module",
+  "version": "1.0.0",
+  "description": "NumDraw 라이선스 활성화 서버 (Cloudflare Workers + D1)",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "genkeys": "node scripts/genkeys.mjs",
+    "db:create": "wrangler d1 create numdraw-license",
+    "db:init:local": "wrangler d1 execute numdraw-license --local --file=schema.sql",
+    "db:init:remote": "wrangler d1 execute numdraw-license --remote --file=schema.sql"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

@@ -13,6 +13,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   const statusMsg      = document.getElementById('status-msg');
   const orthoToggle    = document.getElementById('ortho-toggle');
 
+  /* ── 라이선스 게이트 ──
+     증서가 없거나 무효면 체험판으로 계속 사용할 수 있다(앱을 막지 않는다).
+     기능 제한값(워터마크·최대 페이지)은 LicenseUI 를 통해서만 조회한다. */
+  let _licReady = false;   // 시작 시 콜백에서는 안내를 띄우지 않는다
+  await LicenseUI.init((st) => {
+    if (_licReady && st.edition === 'full') showMsg('정품 인증되었습니다', 'success');
+  });
+  _licReady = true;
+
   /* ── CanvasManager 초기화 (canvas-area 전달 — D) ── */
   CanvasManager.init(canvasArea, container, imgEl, drawCanvas, interactionLayer);
 
@@ -405,18 +414,27 @@ document.addEventListener('DOMContentLoaded', async () => {
       loading.classList.remove('hidden');
       const buf    = await file.arrayBuffer();
       const pdfDoc = await pdfjsLib.getDocument({ data: buf }).promise;
-      await PageManager.loadPDFPages(pdfDoc, (cur, total) => {
+      const r = await PageManager.loadPDFPages(pdfDoc, (cur, total) => {
         if (loadText) loadText.textContent = `추가 중 ${cur}/${total}`;
       }, true);
       loading.classList.add('hidden');
-      showMsg(file.name + ' 페이지 추가 완료', 'success');
+      if (r && r.limited) _notifyPageLimit();
+      else showMsg(file.name + ' 페이지 추가 완료', 'success');
     } else {
       PageManager.addPageFromFile(file, status => {
-        if (status === 'ok') showMsg(file.name + ' 페이지 추가됨', 'success');
+        if (status === 'ok')        showMsg(file.name + ' 페이지 추가됨', 'success');
+        else if (status === 'limit') _notifyPageLimit();
         else showMsg('지원하지 않는 파일 형식입니다', 'warn');
       });
     }
   });
+
+  /* 체험판 페이지 제한 안내 — 상태 메시지 + 인증 모달 */
+  function _notifyPageLimit() {
+    const max = PageManager.getMaxPages();
+    showMsg('체험판은 도면 ' + max + '장까지만 사용할 수 있습니다', 'warn');
+    LicenseUI.promptUpgrade('체험판에서는 도면을 ' + max + '장까지만 사용할 수 있습니다. 정품 인증 후 제한 없이 사용하세요.');
+  }
 
   document.getElementById('btn-page-del').addEventListener('click', () => {
     if (!PageManager.hasPages()) { showMsg('페이지가 없습니다', 'warn'); return; }
@@ -463,7 +481,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   function _loadImageFile(file, append = false) {
     if (!append) PageManager.clearAll();
     PageManager.addPageFromFile(file, status => {
-      if (status === 'ok') showMsg(file.name + (append ? ' 페이지 추가됨' : ' 불러오기 완료'), 'success');
+      if (status === 'ok')        showMsg(file.name + (append ? ' 페이지 추가됨' : ' 불러오기 완료'), 'success');
+      else if (status === 'limit') _notifyPageLimit();
       else showMsg('지원하지 않는 파일 형식입니다', 'warn');
     });
   }
@@ -477,13 +496,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     const arrayBuffer = await file.arrayBuffer();
     const pdfDoc      = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
-    await PageManager.loadPDFPages(pdfDoc, (cur, total) => {
+    const r = await PageManager.loadPDFPages(pdfDoc, (cur, total) => {
       if (loadText) loadText.textContent = `${cur} / ${total} 페이지`;
     }, append);
 
     loading.classList.add('hidden');
     document.getElementById('file-name').textContent = file.name;
-    showMsg(file.name + ' ' + pdfDoc.numPages + '페이지 ' + (append ? '추가됨' : '불러오기 완료'), 'success');
+    if (r && r.limited) _notifyPageLimit();
+    else showMsg(file.name + ' ' + pdfDoc.numPages + '페이지 ' + (append ? '추가됨' : '불러오기 완료'), 'success');
   }
 
   /* ── 지시점 도구 ── */
@@ -1146,6 +1166,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         page.imgSrc, page.imgW, page.imgH, page.annJSON, page.imgLayout || null, page.legendEquip
       );
 
+      /* 체험판 워터마크 — 페이지 순회 구조는 건드리지 않고 이 페이지 캔버스에만 덧그린다.
+         off 는 createPageExport 가 매 페이지 새로 만든 캔버스라 다음 페이지에 남지 않는다. */
+      if (LicenseUI.hasWatermark()) _drawTrialWatermark(off, w, h);
+
       const orient  = w >= h ? 'landscape' : 'portrait';
       const imgData = off.toDataURL('image/jpeg', 0.95);
 
@@ -1166,6 +1190,42 @@ document.addEventListener('DOMContentLoaded', async () => {
       pdf.save(fname.replace(/[\\/:*?"<>|]/g, '_'));
       showMsg('PDF 저장 완료', 'success');
     }
+  }
+
+  /* ── 체험판 워터마크 ── */
+  function _drawTrialWatermark(canvas, w, h) {
+    const c = canvas.getContext('2d');
+    c.save();
+
+    /* 대각선 큰 문구 1개 */
+    const diag = Math.sqrt(w * w + h * h);
+    c.translate(w / 2, h / 2);
+    c.rotate(-Math.atan2(h, w));
+    c.textAlign    = 'center';
+    c.textBaseline = 'middle';
+    c.font         = '700 ' + Math.round(diag * 0.075) + 'px Inter, sans-serif';
+    c.fillStyle    = 'rgba(120,120,140,0.20)';
+    c.fillText('NumDraw TRIAL — 체험판', 0, 0);
+    c.restore();
+
+    /* 반복 타일 문구 — 잘라내기 어렵게 전면에 옅게 깐다 */
+    c.save();
+    c.globalAlpha = 0.10;
+    c.fillStyle   = '#5A5A6E';
+    c.font        = '600 ' + Math.round(diag * 0.018) + 'px Inter, sans-serif';
+    c.textAlign   = 'center';
+    c.textBaseline = 'middle';
+    const stepX = w / 3, stepY = h / 6;
+    for (let ry = 0; ry < 6; ry++) {
+      for (let rx = 0; rx < 3; rx++) {
+        c.save();
+        c.translate(stepX * (rx + 0.5), stepY * (ry + 0.5));
+        c.rotate(-Math.PI / 9);
+        c.fillText('체험판 NumDraw TRIAL', 0, 0);
+        c.restore();
+      }
+    }
+    c.restore();
   }
 
   /* ── Undo ── */
@@ -1687,6 +1747,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       // 3. 페이지 복원
       PageManager.fromJSON(data.pages);
+
+      // 3-b. 체험판 제한으로 잘린 페이지가 있으면 안내 (불러오기로 제한을 우회하지 못하게)
+      const cut = PageManager.getTruncatedCount();
+      if (cut > 0) {
+        setTimeout(() => {
+          showMsg('체험판 제한으로 ' + cut + '개 페이지를 불러오지 못했습니다', 'warn');
+          LicenseUI.promptUpgrade('체험판에서는 도면을 ' + PageManager.getMaxPages() + '장까지만 사용할 수 있어 ' + cut + '개 페이지를 불러오지 못했습니다.');
+        }, 400);
+      }
 
       // 4. TitleBlock 복원
       if (data.titleBlock) {
