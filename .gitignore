@@ -28,3 +28,7 @@ node_modules/
 
 # Cloudflare Workers 로컬 개발 상태 (server/)
 .wrangler/
+
+# wrangler 로컬 시크릿 — CERT_PRIVATE_KEY·ADMIN_TOKEN 이 들어가는 파일. 절대 커밋 금지
+.dev.vars
+.dev.vars.*

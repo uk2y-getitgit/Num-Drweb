@@ -77,8 +77,12 @@ export async function handleAdminIssueSubmit(request, env) {
   const buyerName = String(form.get('buyer_name') || '').trim();
   const buyerEmail = String(form.get('buyer_email') || '').trim();
   const memo = String(form.get('memo') || '').trim();
+  // 폼의 min/max는 클라이언트 힌트일 뿐이라 서버에서 다시 가둔다.
+  // 상한이 없으면 운영자 오타(20 → 200) 한 번으로 좌석 제한이 사실상 사라진다. 2차 검수 L-18.
+  const MAX_SEATS_LIMIT = 10;
   let maxSeats = parseInt(form.get('max_seats'), 10);
   if (!Number.isInteger(maxSeats) || maxSeats < 1) maxSeats = 2;
+  if (maxSeats > MAX_SEATS_LIMIT) maxSeats = MAX_SEATS_LIMIT;
 
   let displayKey = null;
   let hash, masked;

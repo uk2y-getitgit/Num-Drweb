@@ -12,6 +12,15 @@
  *   L-3    : 서버가 발급한 증서가 앱(electron/license/verify.js) 검증을 통과하는가
  *   L-5    : /api/activate 응답에 CORS 헤더가 없는가
  *   M-2    : ADMIN_TOKEN 길이 미달 시 503 / 로그인 연속 실패 시 잠금
+ *   M-7    : 관리자 POST에 교차 사이트 요청(CSRF) 차단
+ *
+ * ── 이 스위트가 보증하지 못하는 것 (오해 방지) ──
+ *   1) 다중 isolate. 하네스는 단일 프로세스라 rate limit·잠금 버킷이 항상 공유된다.
+ *      실환경 Workers에서는 요청이 여러 isolate에 흩어져 "8회 실패 → 잠금"이
+ *      그대로 성립하지 않는다 (util.js 주석의 최선노력 방어 한계).
+ *   2) 실제 workerd·실제 D1·실제 HTTP 계층. 계획서 11-3 실환경 재검증이 별도로 필요하다.
+ *   3) activate.js의 cachedPrivateKey는 모듈 전역이라 첫 env의 키를 영구 보관한다.
+ *      나중에 "키 회전" 테스트를 넣으면 거짓 통과하니, 그때는 모듈을 새로 import할 것.
  */
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -54,7 +63,17 @@ function basicAuth(pass) {
   return 'Basic ' + Buffer.from('admin:' + pass).toString('base64');
 }
 
-function makeRequest(path, { method = 'GET', json, form, auth, ip = '203.0.113.1' } = {}) {
+// ⚠ 라우트 모듈의 rate limit 버킷은 **모듈 전역**이라 resetDb()로 초기화되지 않는다.
+//   IP를 고정하면 테스트를 추가할수록 조용히 한도(20회/10분)에 걸려 429가 나고,
+//   논리 버그처럼 보인다. 그래서 지정하지 않으면 매 요청 새 IP를 쓴다.
+//   같은 IP가 필요한 테스트(관리자 잠금)만 ip를 명시한다. 2차 검수 L-19.
+let ipCounter = 0;
+function freshIp() {
+  ipCounter++;
+  return `198.18.${(ipCounter >> 8) & 0xff}.${ipCounter & 0xff}`;
+}
+
+function makeRequest(path, { method = 'GET', json, form, auth, ip = freshIp() } = {}) {
   const headers = new Headers({ 'cf-connecting-ip': ip });
   let body;
   if (json !== undefined) {
@@ -94,7 +113,7 @@ function resetDb(adminToken = ADMIN_TOKEN) {
 const call = (path, opts) => worker.fetch(makeRequest(path, opts), env);
 
 /** 관리자 화면으로 키를 발급하고 평문 키를 뽑아낸다 (운영자가 실제로 하는 절차 그대로) */
-async function issueKey(maxSeats = 2, ip = '203.0.113.9') {
+async function issueKey(maxSeats = 2, ip = undefined) {
   const res = await call('/admin/issue', {
     method: 'POST',
     form: { buyer_name: '홍길동', buyer_email: 'a@b.c', memo: '테스트', max_seats: String(maxSeats) },
@@ -107,7 +126,7 @@ async function issueKey(maxSeats = 2, ip = '203.0.113.9') {
   return m[1].trim();
 }
 
-const activate = (key, device, ip = '203.0.113.1') =>
+const activate = (key, device, ip = undefined) =>
   call('/api/activate', { method: 'POST', json: { key, device, product: 'numdraw' }, ip });
 
 const activeSeats = (hashPrefixIgnored) =>
@@ -121,11 +140,24 @@ group('기본 — 발급 · 활성화 · 좌석');
 
 const key = await issueKey(2);
 check('키 발급 형식 ND2-XXXXX-XXXXX-XXXXX-XXXXX', /^ND2(-[0-9A-Z]{5}){4}$/.test(key), key);
+// licenses 행의 **모든 컬럼**을 뒤져 평문 키 흔적이 없는지 본다.
+// (key_hash만 보면 안 된다 — 소문자 hex라 대문자 키가 들어갈 수 없어 항상 통과한다.
+//  memo·buyer_name 등 다른 컬럼으로 새는 회귀를 잡지 못했다. 2차 검수 L-20.)
+const keyNoDash = key.replace(/-/g, '');
+const keyBody = keyNoDash.slice(3); // 접두어 ND2 제외 — 이것만 새도 사고다
 check(
-  '평문 키가 DB에 저장되지 않음',
-  db.query('SELECT key_hash, key_masked FROM licenses').every(
-    (r) => !r.key_hash.includes(key.replace(/-/g, '')) && r.key_masked.includes('****')
-  )
+  '평문 키가 licenses 어느 컬럼에도 저장되지 않음',
+  db.query('SELECT * FROM licenses').every((row) =>
+    Object.values(row).every((v) => {
+      const s = String(v ?? '').toUpperCase().replace(/-/g, '');
+      return !s.includes(keyNoDash) && !s.includes(keyBody);
+    })
+  ),
+  JSON.stringify(db.query('SELECT * FROM licenses'))
+);
+check(
+  '대장 표기는 마스킹됨',
+  db.query('SELECT key_masked FROM licenses').every((r) => r.key_masked.includes('****'))
 );
 
 const devA = randomDevice();
@@ -320,6 +352,118 @@ for (let i = 0; i < 5; i++) await call('/admin/list', { auth: basicAuth('y' + i)
 const rAfterReset = await call('/admin/list', { auth: basicAuth(ADMIN_TOKEN), ip: RESET_IP });
 check('성공 시 실패 카운터 초기화', rAfterReset.status === 200, `status=${rAfterReset.status}`);
 
+// ---- M-7: 교차 사이트 요청(CSRF) 차단 ----------------------------------------
+resetDb();
+group('M-7 — 관리자 POST CSRF 차단');
+
+const keyCsrf = await issueKey(2);
+const devCsrf = randomDevice();
+await activate(keyCsrf, devCsrf);
+const csrfList = await (await call('/admin/list', { auth: basicAuth(ADMIN_TOKEN) })).text();
+const csrfRel = csrfList.match(
+  /action="\/admin\/release"[\s\S]*?name="key_hash" value="([^"]+)"[\s\S]*?name="activation_id" value="(\d+)"/
+);
+
+/** 공격자 페이지에서 발사된 폼 POST를 흉내 낸다 (브라우저가 Basic 자격증명을 자동 첨부한 상황) */
+function crossSiteRequest(path, form, extraHeaders) {
+  const headers = new Headers({
+    'cf-connecting-ip': '198.18.250.1',
+    'content-type': 'application/x-www-form-urlencoded',
+    authorization: basicAuth(ADMIN_TOKEN),
+    ...extraHeaders,
+  });
+  return new Request('https://numdraw.test' + path, {
+    method: 'POST',
+    headers,
+    body: new URLSearchParams(form).toString(),
+  });
+}
+
+const rCsrfRelease = await worker.fetch(
+  crossSiteRequest(
+    '/admin/release',
+    { key_hash: csrfRel[1], activation_id: csrfRel[2] },
+    { 'sec-fetch-site': 'cross-site' }
+  ),
+  env
+);
+check('교차 사이트 좌석 반납 → 403', rCsrfRelease.status === 403, `status=${rCsrfRelease.status}`);
+check('좌석이 실제로 반납되지 않음', activeSeats() === 1, `rows=${activeSeats()}`);
+
+const rCsrfRevoke = await worker.fetch(
+  crossSiteRequest('/admin/revoke', { key_hash: csrfRel[1] }, { 'sec-fetch-site': 'cross-site' }),
+  env
+);
+check('교차 사이트 키 정지 → 403', rCsrfRevoke.status === 403);
+check(
+  '키가 실제로 정지되지 않음',
+  db.query("SELECT status FROM licenses")[0].status === 'active'
+);
+
+const rCsrfOrigin = await worker.fetch(
+  crossSiteRequest('/admin/revoke', { key_hash: csrfRel[1] }, { origin: 'https://evil.example' }),
+  env
+);
+check('Origin 불일치 → 403 (Sec-Fetch-Site 없어도 차단)', rCsrfOrigin.status === 403);
+
+const rSameOrigin = await worker.fetch(
+  crossSiteRequest('/admin/revoke', { key_hash: csrfRel[1] }, { 'sec-fetch-site': 'same-origin' }),
+  env
+);
+check('same-origin 폼 POST → 정상 처리 (303)', rSameOrigin.status === 303, `status=${rSameOrigin.status}`);
+
+resetDb();
+const keyCsrf2 = await issueKey(2);
+const rNoFetchHeaders = await worker.fetch(
+  crossSiteRequest('/admin/revoke', { key_hash: db.query('SELECT key_hash FROM licenses')[0].key_hash }, {}),
+  env
+);
+check(
+  'Sec-Fetch-Site·Origin 둘 다 없으면 통과 (curl 등 비브라우저 도구)',
+  rNoFetchHeaders.status === 303,
+  `status=${rNoFetchHeaders.status}`
+);
+
+const rGetCrossSite = await worker.fetch(
+  new Request('https://numdraw.test/admin/list', {
+    headers: {
+      'cf-connecting-ip': '198.18.250.9',
+      authorization: basicAuth(ADMIN_TOKEN),
+      'sec-fetch-site': 'cross-site',
+    },
+  }),
+  env
+);
+check('GET은 교차 사이트여도 차단하지 않음 (상태 변경 없음)', rGetCrossSite.status === 200);
+
+// ---- L-10: 비ASCII ADMIN_TOKEN ----------------------------------------------
+group('L-10 — 비ASCII 관리자 토큰');
+
+const KOREAN_TOKEN = '넘드로우관리자화면비밀번호입니다스물네글자이상으로충분히길게';
+resetDb(KOREAN_TOKEN);
+const rKorean = await call('/admin/list', { auth: basicAuth(KOREAN_TOKEN), ip: '198.18.251.1' });
+check(
+  '한글 토큰으로 로그인 성공 (atob의 Latin-1 함정 회피)',
+  rKorean.status === 200,
+  `status=${rKorean.status}`
+);
+const rKoreanWrong = await call('/admin/list', { auth: basicAuth('다른비밀번호입니다스물네자이상채우기'), ip: '198.18.251.2' });
+check('한글 토큰 오입력 → 401', rKoreanWrong.status === 401);
+
+// ---- L-18: max_seats 상한 ----------------------------------------------------
+group('L-18 — max_seats 서버측 상한');
+
+resetDb();
+await issueKey(999);
+check(
+  '999 요청 → 10으로 제한됨',
+  db.query('SELECT max_seats FROM licenses')[0].max_seats === 10,
+  `max_seats=${db.query('SELECT max_seats FROM licenses')[0].max_seats}`
+);
+resetDb();
+await issueKey(0);
+check('0 요청 → 기본값 2', db.query('SELECT max_seats FROM licenses')[0].max_seats === 2);
+
 // ADMIN_TOKEN 최소 길이
 resetDb('short');
 const rShort = await call('/admin/list', { auth: basicAuth('short'), ip: '198.51.100.80' });
@@ -389,10 +533,23 @@ const tamperedCert =
   Buffer.from(JSON.stringify(tamperedPayload), 'utf8').toString('base64url') + '.' + sig;
 check('payload 위조 → BAD_SIGNATURE', verifyMod.verifyCert(tamperedCert, devV).reason === 'BAD_SIGNATURE');
 
-const flippedSig = sig.slice(0, -1) + (sig.at(-1) === 'A' ? 'B' : 'A');
+// 서명은 반드시 **바이트 단위로** 변조한다.
+// base64url 마지막 글자를 바꾸는 방식은 쓰면 안 된다 — 64바이트(512비트)를 6비트씩 담으면
+// 86번째 글자의 하위 4비트가 패딩이라, 그 글자만 바꾸면 디코드 결과가 그대로인 경우가 생긴다
+// (마지막 글자는 항상 A/Q/g/w 중 하나이고, A→B 변조는 25% 확률로 무효). 실제로 이 방식 때문에
+// 테스트가 25% 확률로 실패했다. 2차 검수 M-8.
+const sigBytes = Buffer.from(sig, 'base64url');
+sigBytes[0] ^= 0x01;
+const flippedSig = sigBytes.toString('base64url');
 check(
-  '서명 1자 변조 → BAD_SIGNATURE',
-  verifyMod.verifyCert(seg + '.' + flippedSig, devV).reason === 'BAD_SIGNATURE'
+  '서명 바이트 변조 → BAD_SIGNATURE',
+  verifyMod.verifyCert(seg + '.' + flippedSig, devV).reason === 'BAD_SIGNATURE',
+  `flipped=${flippedSig.slice(0, 12)}…`
+);
+check(
+  '서명 길이가 64바이트가 아니면 → BAD_SIGNATURE',
+  verifyMod.verifyCert(seg + '.' + Buffer.alloc(63).toString('base64url'), devV).reason ===
+    'BAD_SIGNATURE'
 );
 
 check('빈 증서 → NO_CERT', verifyMod.verifyCert('', devV).reason === 'NO_CERT');

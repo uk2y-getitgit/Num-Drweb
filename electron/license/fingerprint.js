@@ -21,7 +21,14 @@ let _cache = null;
 /* reg.exe 절대경로 확정.
    Windows 실행파일 탐색은 CWD 를 System32 보다 먼저 본다 → 'reg' 만 넘기면
    공격자가 놓아둔 폴더에서 앱을 실행했을 때 그 폴더의 reg.exe 가 메인 프로세스 권한으로 돈다.
-   경로를 고정하고, 실제로 존재하는 파일일 때만 실행한다(없으면 폴백 지문으로 간다). */
+   경로를 고정하고, 실제로 존재하는 파일일 때만 실행한다(없으면 폴백 지문으로 간다).
+
+   ⚠ 막는 범위를 오해하지 말 것 — 이건 **CWD 하이재킹만** 막는다.
+   SystemRoot / windir 환경변수를 직접 바꿔 실행하면(set SystemRoot=C:\fake) 여전히
+   가짜 reg.exe 가 돌아 임의의 MachineGuid 를 흘려 넣을 수 있다. 절대경로인지와 파일이
+   존재하는지만 보고, 그것이 진짜 시스템 reg.exe 인지는 확인하지 않는다.
+   이는 계획서 9장이 이미 수용한 위험(MachineGuid 조작으로 지문 복제 가능)과 같은 급이며,
+   여기서 더 막으려 해도 설치 폴더 JS 가 평문 노출(asar:false)인 이상 실익이 없다. */
 let _regExe;   // undefined = 아직 찾지 않음, null = 없음
 function _regExePath() {
   if (_regExe !== undefined) return _regExe;

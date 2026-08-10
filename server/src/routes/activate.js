@@ -8,12 +8,23 @@ import { jsonResponse } from '../util.js';
 // (콜드스타트·다중 엣지 분산 시 초기화되는 최선노력 방어 — README에 한계 명시)
 const RATE_LIMIT_MAX = 20;
 const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
+const RATE_BUCKET_CAP = 5000; // 메모리 무한 증식 방지 (2차 검수 L-12)
 const rateBuckets = new Map();
 
 function checkRateLimit(ip) {
   const now = Date.now();
   const bucket = rateBuckets.get(ip);
   if (!bucket || now > bucket.resetAt) {
+    // 여기는 미인증 공개 엔드포인트다. IP를 갈아가며 두드리면 버킷이 무한히 쌓이므로
+    // 만료분을 정리하고, 그래도 넘치면 오래된 것부터 버린다(Map은 삽입 순서 유지).
+    if (rateBuckets.size >= RATE_BUCKET_CAP) {
+      for (const [k, b] of rateBuckets) {
+        if (now > b.resetAt) rateBuckets.delete(k);
+      }
+      while (rateBuckets.size >= RATE_BUCKET_CAP) {
+        rateBuckets.delete(rateBuckets.keys().next().value);
+      }
+    }
     rateBuckets.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
     return true;
   }
