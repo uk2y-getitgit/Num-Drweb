@@ -8,8 +8,8 @@
  *
  * package.json의 "prebuild"로 연결돼 있어 `npm run build` 시 자동 실행된다.
  *
- * 체험판 배포본이나 UI 확인용 빌드를 일부러 만들려면:
- *   NUMDRAW_ALLOW_UNCONFIGURED_BUILD=1 npm run build
+ * 체험판 배포본이나 UI 확인용 빌드를 일부러 만들려면 (PowerShell):
+ *   $env:NUMDRAW_ALLOW_UNCONFIGURED_BUILD=1; npm run build; $env:NUMDRAW_ALLOW_UNCONFIGURED_BUILD=$null
  */
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
@@ -111,7 +111,9 @@ if (bypass) {
 }
 
 console.error('  이 상태로 만든 설치파일은 구매자 전원이 활성화에 실패하고 체험판으로 동작합니다.');
-console.error('  체험판 배포본을 일부러 만드는 것이라면:');
-console.error('     NUMDRAW_ALLOW_UNCONFIGURED_BUILD=1 npm run build');
+console.error('  체험판 배포본을 일부러 만드는 것이라면 (PowerShell):');
+console.error('     $env:NUMDRAW_ALLOW_UNCONFIGURED_BUILD=1');
+console.error('     npm run build');
+console.error('     $env:NUMDRAW_ALLOW_UNCONFIGURED_BUILD=$null    ← 끝나면 반드시 해제');
 console.error(BAR + '\n');
 process.exit(1);
