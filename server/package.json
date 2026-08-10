@@ -5,6 +5,7 @@
   "version": "1.0.0",
   "description": "NumDraw 라이선스 활성화 서버 (Cloudflare Workers + D1)",
   "scripts": {
+    "test": "node test/run.mjs",
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "genkeys": "node scripts/genkeys.mjs",

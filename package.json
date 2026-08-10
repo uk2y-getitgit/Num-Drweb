@@ -6,6 +6,8 @@
   "main": "electron/main.js",
   "scripts": {
     "start": "electron .",
+    "checkrelease": "node scripts/check-release-config.mjs",
+    "prebuild": "node scripts/check-release-config.mjs",
     "build": "electron-builder --win --x64"
   },
   "devDependencies": {

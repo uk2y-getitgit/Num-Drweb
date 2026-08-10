@@ -85,6 +85,10 @@ export async function handleAdminIssueSubmit(request, env) {
   for (let attempt = 0; attempt < 5 && !displayKey; attempt++) {
     const candidate = generateLicenseKey();
     const parsed = parseAndValidate(candidate);
+    // generateLicenseKey는 항상 유효한 키를 만들지만, 확인 없이 .normalized를 쓰면
+    // 생성기가 깨졌을 때 undefined가 그대로 sha256("undefined")로 해싱돼
+    // 모든 구매자에게 같은 key_hash가 박힌다. 값이 이상하면 발급하지 않는다. L-8 수정.
+    if (!parsed.valid) continue;
     const h = await keyHash(parsed.normalized);
     const exists = await env.DB.prepare('SELECT 1 FROM licenses WHERE key_hash = ?')
       .bind(h)

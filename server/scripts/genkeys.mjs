@@ -38,8 +38,8 @@ async function main() {
   console.log('-----------------------------------------------------------------');
   console.log('');
   console.log('다음 할 일:');
-  console.log('  1) 공개키를 electron/license/pubkey.js 에 상수로 저장한다.');
-  console.log('     예) export const NUMDRAW_PUBLIC_KEY = "' + pubB64 + '";');
+  console.log('  1) electron/license/pubkey.js 의 PUBLIC_KEY 값을 아래 줄로 교체한다.');
+  console.log("     const PUBLIC_KEY = '" + pubB64 + "';");
   console.log('  2) 개인키를 Secret으로 등록한다 (server/ 폴더에서 실행):');
   console.log('       npx wrangler secret put CERT_PRIVATE_KEY');
   console.log('     프롬프트가 뜨면 위 [개인키] 값을 붙여넣는다. 다른 곳에 저장하지 않는다.');

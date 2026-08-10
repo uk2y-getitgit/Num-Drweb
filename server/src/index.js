@@ -11,28 +11,18 @@ import {
 } from './routes/admin.js';
 import { requireAdmin, jsonResponse } from './util.js';
 
-const CORS_HEADERS = {
-  'access-control-allow-origin': '*',
-  'access-control-allow-methods': 'POST, OPTIONS',
-  'access-control-allow-headers': 'content-type',
-};
-
 export default {
   async fetch(request, env) {
     const { pathname } = new URL(request.url);
     const method = request.method;
 
     try {
-      // 활성화 엔드포인트는 Electron 렌더러(app:// 오리진)에서 직접 fetch할 가능성을
-      // 배제할 수 없어 CORS를 허용한다. 세션/쿠키를 쓰지 않으므로 * 허용이 안전하다.
-      if (pathname === '/api/activate' && method === 'OPTIONS') {
-        return new Response(null, { status: 204, headers: CORS_HEADERS });
-      }
+      // CORS 헤더를 붙이지 않는다. 활성화 요청은 Electron **메인 프로세스**의 Node fetch로만
+      // 나가며(electron/license/activate.js), 그 경로에는 오리진 개념도 프리플라이트도 없다.
+      // 예전 버전은 'access-control-allow-origin: *' 를 달아 임의의 웹페이지가 방문자 브라우저로
+      // 활성화를 시도하고 응답 증서까지 읽을 수 있었다 — 쓰지 않는 권한이므로 제거한다. L-5 수정.
       if (pathname === '/api/activate' && method === 'POST') {
-        const res = await handleActivate(request, env);
-        const withCors = new Response(res.body, res);
-        for (const [k, v] of Object.entries(CORS_HEADERS)) withCors.headers.set(k, v);
-        return withCors;
+        return await handleActivate(request, env);
       }
 
       if (pathname === '/admin/issue' && method === 'GET') {
