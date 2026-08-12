@@ -32,3 +32,8 @@ node_modules/
 # wrangler 로컬 시크릿 — CERT_PRIVATE_KEY·ADMIN_TOKEN 이 들어가는 파일. 절대 커밋 금지
 .dev.vars
 .dev.vars.*
+
+# 운영자가 키·토큰을 적어 두는 곳. 공개 저장소이므로 절대 커밋 금지
+배포정보/
+*.key
+*.pem
