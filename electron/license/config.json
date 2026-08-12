@@ -1,6 +1,6 @@
 {
   "_comment": "운영자 설정 파일. 시크릿은 절대 넣지 않는다(공개 엔드포인트 URL·연락처만). 환경변수 NUMDRAW_ACTIVATION_URL / NUMDRAW_SUPPORT_CONTACT 가 있으면 그 값이 우선한다.",
-  "activationUrl": "",
-  "supportContact": "",
+  "activationUrl": "https://numdraw-activation.numdraw.workers.dev/api/activate",
+  "supportContact": "chistonsop@gmail.com",
   "enforceKeyChecksum": true
 }

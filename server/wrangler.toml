@@ -10,4 +10,4 @@ binding = "DB"                          # env.DB 로 접근
 database_name = "numdraw-license"
 # 아래 database_id는 실제 값으로 교체해야 한다 (server/README.md 참조).
 # 로컬 개발(`npm run dev`)은 이 값이 자리표시자여도 동작한다.
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "6bdf1196-d87a-4a74-9a83-8a3794d3d471"

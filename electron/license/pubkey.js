@@ -21,7 +21,7 @@ const crypto = require('crypto');
 /* ⚠ 자리표시자 — 실제 키로 교체하기 전까지 모든 증서 검증이 실패한다(= 체험판 동작) */
 const PLACEHOLDER = 'REPLACE_WITH_ED25519_PUBLIC_KEY';
 
-const PUBLIC_KEY = 'REPLACE_WITH_ED25519_PUBLIC_KEY';
+const PUBLIC_KEY = 'LJ4WoXQ7NmUbpISPKP6nqO2gTaTS4lsHohJZm1MeirI';
 
 /* SPKI DER 헤더 (Ed25519, RFC 8410) — raw 32바이트 앞에 붙이면 표준 SPKI가 된다 */
 const SPKI_PREFIX = Buffer.from('302a300506032b6570032100', 'hex');
