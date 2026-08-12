@@ -414,27 +414,18 @@ document.addEventListener('DOMContentLoaded', async () => {
       loading.classList.remove('hidden');
       const buf    = await file.arrayBuffer();
       const pdfDoc = await pdfjsLib.getDocument({ data: buf }).promise;
-      const r = await PageManager.loadPDFPages(pdfDoc, (cur, total) => {
+      await PageManager.loadPDFPages(pdfDoc, (cur, total) => {
         if (loadText) loadText.textContent = `추가 중 ${cur}/${total}`;
       }, true);
       loading.classList.add('hidden');
-      if (r && r.limited) _notifyPageLimit();
-      else showMsg(file.name + ' 페이지 추가 완료', 'success');
+      showMsg(file.name + ' 페이지 추가 완료', 'success');
     } else {
       PageManager.addPageFromFile(file, status => {
-        if (status === 'ok')        showMsg(file.name + ' 페이지 추가됨', 'success');
-        else if (status === 'limit') _notifyPageLimit();
+        if (status === 'ok') showMsg(file.name + ' 페이지 추가됨', 'success');
         else showMsg('지원하지 않는 파일 형식입니다', 'warn');
       });
     }
   });
-
-  /* 체험판 페이지 제한 안내 — 상태 메시지 + 인증 모달 */
-  function _notifyPageLimit() {
-    const max = PageManager.getMaxPages();
-    showMsg('체험판은 도면 ' + max + '장까지만 사용할 수 있습니다', 'warn');
-    LicenseUI.promptUpgrade('체험판에서는 도면을 ' + max + '장까지만 사용할 수 있습니다. 정품 인증 후 제한 없이 사용하세요.');
-  }
 
   document.getElementById('btn-page-del').addEventListener('click', () => {
     if (!PageManager.hasPages()) { showMsg('페이지가 없습니다', 'warn'); return; }
@@ -481,8 +472,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   function _loadImageFile(file, append = false) {
     if (!append) PageManager.clearAll();
     PageManager.addPageFromFile(file, status => {
-      if (status === 'ok')        showMsg(file.name + (append ? ' 페이지 추가됨' : ' 불러오기 완료'), 'success');
-      else if (status === 'limit') _notifyPageLimit();
+      if (status === 'ok') showMsg(file.name + (append ? ' 페이지 추가됨' : ' 불러오기 완료'), 'success');
       else showMsg('지원하지 않는 파일 형식입니다', 'warn');
     });
   }
@@ -496,14 +486,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     const arrayBuffer = await file.arrayBuffer();
     const pdfDoc      = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
-    const r = await PageManager.loadPDFPages(pdfDoc, (cur, total) => {
+    await PageManager.loadPDFPages(pdfDoc, (cur, total) => {
       if (loadText) loadText.textContent = `${cur} / ${total} 페이지`;
     }, append);
 
     loading.classList.add('hidden');
     document.getElementById('file-name').textContent = file.name;
-    if (r && r.limited) _notifyPageLimit();
-    else showMsg(file.name + ' ' + pdfDoc.numPages + '페이지 ' + (append ? '추가됨' : '불러오기 완료'), 'success');
+    showMsg(file.name + ' ' + pdfDoc.numPages + '페이지 ' + (append ? '추가됨' : '불러오기 완료'), 'success');
   }
 
   /* ── 지시점 도구 ── */
@@ -1148,10 +1137,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     /* PDF 저장 전 현재 페이지 어노테이션 상태를 PageManager에 반영 */
     PageManager.saveCurrentPageState();
 
+    /* ── 체험판 게이트 ──
+       편집·불러오기는 제한하지 않는다. 저장만 maxPages 장으로 막는다(0 = 무제한).
+       잘라낼 때는 첫 페이지가 아니라 **지금 보고 있는 페이지**부터 담는다 —
+       어느 페이지든 결과물을 확인해 보고 구매를 판단할 수 있어야 하기 때문. */
+    const _maxOut  = PageManager.getMaxPages();
+    const _all     = PageManager.getPages();
+    let   allPages = _all;
+    let   trimmed  = 0;
+    if (_maxOut > 0 && _all.length > _maxOut) {
+      const from = Math.max(0, _all.findIndex(p => p.id === PageManager.getActiveId()));
+      allPages   = _all.slice(from, from + _maxOut);
+      trimmed    = _all.length - allPages.length;
+    }
+
     showMsg('PDF 생성 중...', 'info');
 
     const { jsPDF } = window.jspdf;
-    const allPages = PageManager.getPages();
     const savedDrawingName = TitleBlock.getSettings().drawingName;
 
     let pdf = null;
@@ -1188,7 +1190,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       const s     = TitleBlock.getSettings();
       const fname = (s.projectTitle || 'numdraw') + '_' + (s.drawingName || 'drawing') + '.pdf';
       pdf.save(fname.replace(/[\\/:*?"<>|]/g, '_'));
-      showMsg('PDF 저장 완료', 'success');
+
+      if (trimmed > 0) {
+        showMsg('체험판은 ' + _maxOut + '장까지만 저장됩니다 — ' + trimmed + '장이 빠졌습니다', 'warn');
+        LicenseUI.promptUpgrade(
+          '체험판은 PDF를 ' + _maxOut + '장까지만 저장할 수 있어 나머지 ' + trimmed + '장이 저장되지 않았습니다. ' +
+          '도면 작업은 몇 장이든 자유롭게 하실 수 있고, 정품 인증하시면 전체가 워터마크 없이 저장됩니다.'
+        );
+      } else {
+        showMsg('PDF 저장 완료', 'success');
+      }
     }
   }
 
@@ -1745,17 +1756,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         _syncSettingsUI();
       }
 
-      // 3. 페이지 복원
+      // 3. 페이지 복원 — 체험판도 전 페이지를 그대로 복원한다(게이트는 PDF 저장에만 있다)
       PageManager.fromJSON(data.pages);
-
-      // 3-b. 체험판 제한으로 잘린 페이지가 있으면 안내 (불러오기로 제한을 우회하지 못하게)
-      const cut = PageManager.getTruncatedCount();
-      if (cut > 0) {
-        setTimeout(() => {
-          showMsg('체험판 제한으로 ' + cut + '개 페이지를 불러오지 못했습니다', 'warn');
-          LicenseUI.promptUpgrade('체험판에서는 도면을 ' + PageManager.getMaxPages() + '장까지만 사용할 수 있어 ' + cut + '개 페이지를 불러오지 못했습니다.');
-        }, 400);
-      }
 
       // 4. TitleBlock 복원
       if (data.titleBlock) {

@@ -102,7 +102,8 @@ const LicenseUI = (() => {
         stateEl.className = 'license-state trial';
         stateEl.innerHTML =
           '<strong>체험판</strong>' +
-          '<span>PDF 저장 시 워터마크가 표시되고, 도면은 ' + getMaxPages() + '장까지만 사용할 수 있습니다.</span>';
+          '<span>도면 작업은 몇 장이든 자유롭게 하실 수 있습니다. ' +
+          'PDF 저장 시 워터마크가 찍히고 ' + getMaxPages() + '장까지만 저장됩니다.</span>';
       } else {
         const km = _status.keyMasked ? ' · ' + _status.keyMasked : '';
         stateEl.className = 'license-state full';

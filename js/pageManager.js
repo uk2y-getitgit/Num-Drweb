@@ -10,7 +10,6 @@ const PageManager = (() => {
   let onSwitch    = null;
   let onListChange = null;
   let nextPageId  = 1;
-  let _fromJSONTruncated = 0;   // 직전 fromJSON 에서 체험판 제한으로 잘려나간 페이지 수
 
   /* A4 기준 치수 (150dpi) */
   const A4 = {
@@ -23,26 +22,22 @@ const PageManager = (() => {
     onListChange = listCb;
   }
 
-  /* ── 사용 가능 페이지 수 ──
+  /* ── PDF 저장 가능 페이지 수 ──
      라이선스 증서의 features.maxPages 에서 온다. 0 = 무제한(정품).
-     상태를 알 수 없으면 제한이 걸린 쪽(1장)으로 간다. */
+     상태를 알 수 없으면 제한이 걸린 쪽(1장)으로 간다.
+     ⚠ 편집(불러오기·페이지 추가)에는 제한을 걸지 않는다 — 체험판도 전체 도면을
+       작업해 볼 수 있어야 유료 전환 판단이 가능하다. 게이트는 PDF 저장에만 있다. */
   function _maxPages() {
     if (typeof LicenseUI === 'undefined') return 1;
     return LicenseUI.getMaxPages();
   }
-  function _canAdd(count) {
-    const max = _maxPages();
-    return max === 0 || pages.length + count <= max;
-  }
 
   /* ── 단일 이미지 페이지 생성 ── */
   function addImagePage(imgSrc, imgW, imgH, name, imgLayout) {
-    if (!_canAdd(1)) return false;
     _saveCurrentAnnotations();
     const page = _createPage(name || ('도면 ' + (pages.length + 1)), imgSrc, imgW, imgH, imgLayout);
     pages.push(page);
     _activate(page.id);
-    return true;
   }
 
   /* ── 파일 객체에서 페이지 추가 (A4 자동 맞춤 포함) ── */
@@ -57,8 +52,8 @@ const PageManager = (() => {
       const img = new Image();
       img.onload = () => {
         const { dataURL, w, h, imgLayout } = _fitImageToA4(img, img.naturalWidth, img.naturalHeight);
-        const ok = addImagePage(dataURL, w, h, file.name, imgLayout);
-        if (callback) callback(ok ? 'ok' : 'limit');
+        addImagePage(dataURL, w, h, file.name, imgLayout);
+        if (callback) callback('ok');
       };
       img.src = e.target.result;
     };
@@ -80,10 +75,8 @@ const PageManager = (() => {
     const total    = pdfDoc.numPages;
     const firstNew = pages.length;
     let   added    = 0;
-    let   limited  = false;
 
     for (let i = 1; i <= total; i++) {
-      if (!_canAdd(1)) { limited = true; break; }   // 체험판: 남은 장수까지만 불러온다
       if (progressCb) progressCb(i, total);
       const { dataURL, w, h, imgLayout } = await _renderPDFPage(pdfDoc, i);
       const defaultName = total === 1 ? '도면' : `P${i}`;
@@ -92,7 +85,7 @@ const PageManager = (() => {
     }
 
     if (pages.length) _activate(pages[Math.min(firstNew, pages.length - 1)].id);
-    return { added, total, limited };
+    return { added, total };
   }
 
   /* ── 전체 초기화 ── */
@@ -156,16 +149,6 @@ const PageManager = (() => {
       const d = JSON.parse(json);
       pages      = d.pages      || [];
       nextPageId = d.nextPageId || pages.length + 1;
-
-      /* 체험판 제한은 불러오기 경로에도 적용한다 — 아니면 다른 PC에서 만든
-         여러 장짜리 프로젝트를 여는 것만으로 제한이 무력화된다 */
-      const max = _maxPages();
-      if (max > 0 && pages.length > max) {
-        _fromJSONTruncated = pages.length - max;
-        pages = pages.slice(0, max);
-      } else {
-        _fromJSONTruncated = 0;
-      }
 
       const targetId = (pages.some(p => p.id === d.activeId) ? d.activeId : null) || (pages[0] && pages[0].id);
       if (targetId) _activate(targetId, true /* skipSave */);
@@ -299,6 +282,5 @@ const PageManager = (() => {
     toJSON, fromJSON,
     saveCurrentPageState,
     getMaxPages: _maxPages,
-    getTruncatedCount: () => _fromJSONTruncated,
   };
 })();
