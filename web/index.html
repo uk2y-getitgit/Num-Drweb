@@ -1,0 +1,784 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NumDraw — 시설물 안전점검 도면 넘버링 도구</title>
+<meta name="description" content="외관조사망도에 지시선을 긋고 번호를 매기고 현장 사진까지 연결하는 Windows 프로그램. 클릭 두 번이면 번호 하나가 끝납니다.">
+<meta property="og:title" content="NumDraw — 도면 넘버링 도구">
+<meta property="og:description" content="클릭 두 번이면 번호 하나. 시설물 안전점검 결과보고서용 도면 넘버링 프로그램.">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%235B5BD6'/%3E%3Ctext x='16' y='23' font-family='monospace' font-size='19' font-weight='700' fill='white' text-anchor='middle'%3E7%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════════════
+   NumDraw 제품 소개 — 도면 한 장으로 만든 페이지
+   용지(paper) 위에 도곽·지시선·번호박스라는 제품의 어휘를 그대로 쓴다.
+   ═══════════════════════════════════════════════════════════ */
+
+:root{
+  --paper:      #F4F5F7;
+  --paper-2:    #FFFFFF;
+  --grid:       #E3E5EB;
+  --ink:        #15171E;
+  --ink-2:      #4C5060;
+  --ink-3:      #8A8FA3;
+  --rule:       #D9DCE4;
+  --indigo:     #5B5BD6;
+  --indigo-dk:  #4747C2;
+  --defect:     #E05555;
+  --repair:     #4A9EFF;
+
+  --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --sans: 'IBM Plex Sans KR', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif;
+
+  --sheet: 1120px;
+  --pad: clamp(20px, 5vw, 56px);
+}
+
+*,*::before,*::after{ box-sizing:border-box; margin:0; padding:0; }
+
+html{ scroll-behavior:smooth; }
+
+body{
+  font-family:var(--sans);
+  color:var(--ink);
+  background:var(--paper);
+  /* 모눈 — 도면 용지 */
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size:28px 28px;
+  line-height:1.65;
+  -webkit-font-smoothing:antialiased;
+  text-underline-offset:3px;
+}
+
+img,svg{ max-width:100%; }
+a{ color:inherit; }
+
+/* ── 용지 한 장 ─────────────────────────────────────────── */
+.sheet{
+  max-width:var(--sheet);
+  margin:0 auto;
+  background:var(--paper-2);
+  border-left:1px solid var(--rule);
+  border-right:1px solid var(--rule);
+  overflow:hidden;
+}
+
+/* ── 상단 바 ────────────────────────────────────────────── */
+.topbar{
+  position:sticky; top:0; z-index:50;
+  display:flex; align-items:center; gap:16px;
+  padding:14px var(--pad);
+  background:rgba(255,255,255,.92);
+  backdrop-filter:blur(8px);
+  border-bottom:1px solid var(--rule);
+}
+.mark{ display:flex; align-items:center; gap:10px; text-decoration:none; font-weight:700; letter-spacing:-.01em; }
+.mark__box{
+  width:26px; height:26px; border-radius:6px; background:var(--indigo);
+  color:#fff; font-family:var(--mono); font-size:14px; font-weight:600;
+  display:grid; place-items:center;
+}
+.mark__ver{ font-family:var(--mono); font-size:11px; color:var(--ink-3); font-weight:400; padding-top:2px; }
+.topbar__spacer{ flex:1; }
+.topbar__link{
+  font-size:13.5px; color:var(--ink-2); text-decoration:none; padding:6px 2px;
+}
+.topbar__link:hover{ color:var(--ink); text-decoration:underline; }
+
+/* ── 버튼 ───────────────────────────────────────────────── */
+.btn{
+  display:inline-flex; align-items:center; gap:8px;
+  font-family:var(--sans); font-size:14.5px; font-weight:600;
+  padding:11px 18px; border-radius:8px; border:1px solid transparent;
+  text-decoration:none; cursor:pointer; transition:background .15s, border-color .15s, color .15s;
+}
+.btn--primary{ background:var(--indigo); color:#fff; }
+.btn--primary:hover{ background:var(--indigo-dk); }
+.btn--ghost{ background:transparent; color:var(--ink); border-color:var(--rule); }
+.btn--ghost:hover{ border-color:var(--ink-3); }
+.btn--sm{ padding:8px 14px; font-size:13.5px; }
+.btn__note{ font-family:var(--mono); font-size:11.5px; font-weight:400; opacity:.75; }
+:focus-visible{ outline:2px solid var(--indigo); outline-offset:3px; border-radius:4px; }
+
+/* ── 섹션 공통 ──────────────────────────────────────────── */
+.band{ padding:clamp(56px,8vw,92px) var(--pad); border-top:1px solid var(--rule); }
+.band--dark{ background:var(--ink); color:#EDEEF2; border-top:none; }
+.band--tint{ background:#FAFAFC; }
+
+.eyebrow{
+  font-family:var(--mono); font-size:11.5px; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--ink-3); display:flex; align-items:center; gap:10px; margin-bottom:18px;
+}
+.eyebrow::after{ content:''; height:1px; flex:1; background:var(--rule); }
+.band--dark .eyebrow{ color:#7C8296; }
+.band--dark .eyebrow::after{ background:#2C3040; }
+
+/* 섹션 제목 — 제품의 번호박스가 그대로 마커가 된다 */
+.mark-num{
+  display:inline-grid; place-items:center;
+  min-width:30px; height:26px; padding:0 8px; border-radius:5px;
+  background:var(--indigo); color:#fff;
+  font-family:var(--mono); font-size:14px; font-weight:600; line-height:1;
+  vertical-align:.16em; margin-right:12px;
+}
+.mark-num--defect{ background:var(--defect); }
+.mark-num--repair{ background:var(--repair); }
+
+h2{
+  font-size:clamp(26px,3.6vw,38px); font-weight:700; letter-spacing:-.02em;
+  line-height:1.3; margin-bottom:14px;
+}
+h3{ font-size:17px; font-weight:600; letter-spacing:-.01em; margin-bottom:6px; }
+.lead{ font-size:clamp(15.5px,1.6vw,17px); color:var(--ink-2); max-width:62ch; }
+.band--dark .lead{ color:#A8AEC2; }
+
+/* ── 히어로 ─────────────────────────────────────────────── */
+.hero{ padding:clamp(48px,7vw,84px) var(--pad) 0; }
+.hero__grid{ display:grid; gap:clamp(32px,4vw,48px); }
+@media(min-width:900px){ .hero__grid{ grid-template-columns:minmax(0,1fr) minmax(0,1.15fr); align-items:center; } }
+
+.hero h1{
+  font-size:clamp(34px,5.4vw,58px); font-weight:700; letter-spacing:-.035em;
+  line-height:1.14; margin-bottom:20px;
+}
+.hero h1 em{
+  font-style:normal; position:relative; white-space:nowrap;
+}
+/* 밑줄이 아니라 지시선 — 제품의 선을 제목에 그린다 */
+.hero h1 em::after{
+  content:''; position:absolute; left:0; right:0; bottom:-.08em; height:3px;
+  background:var(--indigo); border-radius:2px;
+  transform:scaleX(0); transform-origin:left;
+  animation:draw .7s .35s cubic-bezier(.2,.7,.3,1) forwards;
+}
+@keyframes draw{ to{ transform:scaleX(1); } }
+
+.hero__cta{ display:flex; flex-wrap:wrap; gap:12px; margin-top:26px; }
+.hero__meta{
+  font-family:var(--mono); font-size:12px; color:var(--ink-3);
+  margin-top:18px; display:flex; flex-wrap:wrap; gap:6px 18px;
+}
+
+/* ── 인터랙티브 도면 ────────────────────────────────────── */
+.demo{
+  border:1px solid var(--rule); border-radius:10px; background:#fff;
+  overflow:hidden; box-shadow:0 1px 2px rgba(21,23,30,.04), 0 12px 32px -18px rgba(21,23,30,.28);
+}
+.demo__bar{
+  display:flex; align-items:center; gap:10px;
+  padding:9px 12px; border-bottom:1px solid var(--rule); background:#FAFAFC;
+  font-family:var(--mono); font-size:11.5px; color:var(--ink-3);
+}
+.demo__dot{ width:8px; height:8px; border-radius:50%; background:var(--defect); flex:none; }
+.demo__bar-spacer{ flex:1; }
+.demo__reset{
+  font-family:var(--mono); font-size:11.5px; color:var(--ink-2);
+  background:none; border:1px solid var(--rule); border-radius:5px;
+  padding:3px 9px; cursor:pointer;
+}
+.demo__reset:hover{ border-color:var(--ink-3); color:var(--ink); }
+.demo__stage{ display:block; width:100%; height:auto; background:#fff; cursor:crosshair; touch-action:manipulation; }
+.demo__hint{
+  padding:10px 12px; border-top:1px solid var(--rule); background:#FAFAFC;
+  font-size:12.5px; color:var(--ink-2); display:flex; align-items:center; gap:8px; min-height:39px;
+}
+.demo__hint kbd{
+  font-family:var(--mono); font-size:11px; background:#fff; border:1px solid var(--rule);
+  border-bottom-width:2px; border-radius:4px; padding:1px 5px;
+}
+
+/* ── 기능 해부도 ────────────────────────────────────────── */
+.anatomy{ display:grid; gap:clamp(28px,4vw,44px); margin-top:34px; }
+@media(min-width:900px){ .anatomy{ grid-template-columns:minmax(0,1.25fr) minmax(0,1fr); align-items:start; } }
+.anatomy__fig{ border:1px solid var(--rule); border-radius:10px; background:#fff; padding:14px; }
+.anatomy__list{ display:grid; gap:2px; }
+.feat{
+  display:grid; grid-template-columns:auto 1fr; gap:14px;
+  padding:14px 0; border-bottom:1px solid var(--rule);
+}
+.feat:last-child{ border-bottom:none; }
+.feat__key{
+  font-family:var(--mono); font-size:11.5px; color:var(--ink-3);
+  padding-top:4px; letter-spacing:.06em;
+}
+.feat p{ font-size:14px; color:var(--ink-2); }
+
+/* ── 비교표 ─────────────────────────────────────────────── */
+.plans{ display:grid; gap:18px; margin-top:34px; }
+@media(min-width:760px){ .plans{ grid-template-columns:1fr 1fr; } }
+.plan{ border:1px solid var(--rule); border-radius:12px; padding:26px; background:#fff; }
+.plan--full{ border-color:var(--indigo); box-shadow:0 0 0 3px rgba(91,91,214,.1); }
+.plan__tag{
+  font-family:var(--mono); font-size:11.5px; letter-spacing:.12em; text-transform:uppercase;
+  color:var(--ink-3); margin-bottom:10px;
+}
+.plan--full .plan__tag{ color:var(--indigo); }
+.plan__price{ font-size:30px; font-weight:700; letter-spacing:-.02em; margin-bottom:4px; }
+.plan__price small{ font-size:14px; font-weight:400; color:var(--ink-3); letter-spacing:0; }
+.plan__price-tbd{
+  color:var(--ink-3); font-family:var(--mono); font-size:26px;
+  border-bottom:2px dashed var(--rule); padding-bottom:2px;
+}
+.plan__sub{ font-size:13.5px; color:var(--ink-3); margin-bottom:18px; }
+.plan ul{ list-style:none; display:grid; gap:9px; margin-bottom:22px; }
+.plan li{ font-size:14px; color:var(--ink-2); display:grid; grid-template-columns:18px 1fr; gap:8px; align-items:start; }
+.plan li b{ color:var(--ink); font-weight:600; }
+.tick{ color:var(--indigo); font-family:var(--mono); line-height:1.5; }
+.tick--muted{ color:var(--ink-3); }
+
+/* ── 구매 절차 ──────────────────────────────────────────── */
+.steps{ display:grid; gap:0; margin-top:30px; counter-reset:step; }
+@media(min-width:860px){ .steps{ grid-template-columns:repeat(4,1fr); } }
+.step{ padding:22px 22px 22px 0; border-top:1px solid #2C3040; }
+@media(min-width:860px){
+  .step{ border-top:1px solid #2C3040; border-right:1px solid #2C3040; padding:24px 22px; }
+  .step:first-child{ padding-left:0; }
+  .step:last-child{ border-right:none; padding-right:0; }
+}
+.step__n{
+  font-family:var(--mono); font-size:12px; color:var(--indigo);
+  letter-spacing:.1em; margin-bottom:10px; display:block;
+}
+.step h3{ color:#F3F4F8; }
+.step p{ font-size:13.5px; color:#A8AEC2; }
+.step code{ font-family:var(--mono); font-size:12.5px; color:#D6D9E4; }
+
+/* ── FAQ ────────────────────────────────────────────────── */
+.faq{ margin-top:30px; border-top:1px solid var(--rule); }
+.faq details{ border-bottom:1px solid var(--rule); }
+.faq summary{
+  padding:18px 34px 18px 0; cursor:pointer; font-weight:600; font-size:15px;
+  list-style:none; position:relative;
+}
+.faq summary::-webkit-details-marker{ display:none; }
+.faq summary::after{
+  content:'+'; position:absolute; right:6px; top:50%; transform:translateY(-50%);
+  font-family:var(--mono); font-size:18px; color:var(--ink-3); font-weight:400;
+}
+.faq details[open] summary::after{ content:'−'; }
+.faq p{ font-size:14.5px; color:var(--ink-2); padding:0 0 20px; max-width:70ch; }
+
+/* ── 다운로드 ───────────────────────────────────────────── */
+.dl{ display:grid; gap:22px; align-items:center; margin-top:26px; }
+@media(min-width:760px){ .dl{ grid-template-columns:1fr auto; } }
+.dl__file{ font-family:var(--mono); font-size:12.5px; color:var(--ink-3); margin-top:10px; }
+
+/* ── 도곽 푸터 ──────────────────────────────────────────── */
+.titleblock{ border-top:2px solid var(--ink); background:#fff; }
+.tb__row{ display:grid; border-bottom:1px solid var(--rule); }
+.tb__row:last-child{ border-bottom:none; }
+@media(min-width:760px){
+  .tb__row--main{ grid-template-columns:150px 1fr 150px 1fr 110px 1fr; }
+}
+.tb__label,.tb__value{ padding:12px 16px; }
+.tb__label{
+  font-family:var(--mono); font-size:10.5px; letter-spacing:.11em; text-transform:uppercase;
+  color:var(--ink-3); background:#FAFAFC; border-right:1px solid var(--rule);
+}
+.tb__value{ font-size:14px; border-right:1px solid var(--rule); }
+.tb__value:last-child{ border-right:none; }
+.tb__value a{ color:var(--indigo); text-decoration:none; }
+.tb__value a:hover{ text-decoration:underline; }
+.tb__foot{
+  display:flex; flex-wrap:wrap; gap:6px 20px; justify-content:space-between;
+  padding:14px 16px; font-family:var(--mono); font-size:11px; color:var(--ink-3);
+}
+
+@media(prefers-reduced-motion:reduce){
+  *{ animation-duration:.001ms !important; transition-duration:.001ms !important; }
+  .hero h1 em::after{ transform:scaleX(1); }
+  html{ scroll-behavior:auto; }
+}
+</style>
+</head>
+<body>
+
+<div class="sheet">
+
+<header class="topbar">
+  <a class="mark" href="#top"><span class="mark__box">7</span>NumDraw <span class="mark__ver">v1.2.0</span></a>
+  <span class="topbar__spacer"></span>
+  <a class="topbar__link" href="#기능">기능</a>
+  <a class="topbar__link" href="#가격">가격</a>
+  <a class="topbar__link" href="#구매">구매</a>
+  <a class="btn btn--primary btn--sm" href="#다운로드">체험판 받기</a>
+</header>
+
+<!-- ═══ 히어로 ═══════════════════════════════════════════ -->
+<section class="hero" id="top">
+  <div class="hero__grid">
+    <div>
+      <p class="eyebrow">시설물 안전점검 · 도면 넘버링</p>
+      <h1>클릭 두 번이면<br><em>번호 하나</em>가 끝납니다</h1>
+      <p class="lead">
+        외관조사망도에 지시선을 긋고, 번호를 매기고, 현장 사진까지 번호에 붙입니다.
+        결과보고서에 넣을 도면 한 장을 정리하는 일만 하는 Windows 프로그램입니다.
+      </p>
+      <div class="hero__cta">
+        <a class="btn btn--primary" href="#다운로드">체험판 내려받기 <span class="btn__note">무료 · 기간 제한 없음</span></a>
+        <a class="btn btn--ghost" href="#가격">가격 보기</a>
+      </div>
+      <p class="hero__meta">
+        <span>Windows 10 / 11 · 64bit</span>
+        <span>설치형 · 인터넷 없이 작업</span>
+        <span>PDF · JPG · PNG</span>
+      </p>
+    </div>
+
+    <div class="demo">
+      <div class="demo__bar">
+        <span class="demo__dot"></span>
+        <span>외관조사망도.pdf — 1/1</span>
+        <span class="demo__bar-spacer"></span>
+        <button class="demo__reset" type="button" id="demoReset">지우기</button>
+      </div>
+      <svg class="demo__stage" id="stage" viewBox="0 0 720 460" role="img"
+           aria-label="도면 위에서 두 번 클릭하면 지시선과 번호가 그려지는 예시입니다. 실제 프로그램의 동작을 그대로 옮긴 것입니다.">
+        <defs>
+          <pattern id="hatch" width="9" height="9" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+            <line x1="0" y1="0" x2="0" y2="9" stroke="#E05555" stroke-width="1.1"/>
+          </pattern>
+          <marker id="head" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" fill="context-stroke"/>
+          </marker>
+        </defs>
+
+        <!-- 건물 입면 (예시 도면) -->
+        <g stroke="#9AA0B0" fill="none" stroke-width="1.2">
+          <rect x="70" y="60" width="580" height="330"/>
+          <line x1="70" y1="130" x2="650" y2="130"/>
+          <line x1="70" y1="215" x2="650" y2="215"/>
+          <line x1="70" y1="300" x2="650" y2="300"/>
+          <g stroke="#C3C8D4">
+            <rect x="110" y="150" width="70" height="45"/><rect x="215" y="150" width="70" height="45"/>
+            <rect x="320" y="150" width="70" height="45"/><rect x="425" y="150" width="70" height="45"/>
+            <rect x="530" y="150" width="70" height="45"/>
+            <rect x="110" y="235" width="70" height="45"/><rect x="215" y="235" width="70" height="45"/>
+            <rect x="320" y="235" width="70" height="45"/><rect x="425" y="235" width="70" height="45"/>
+            <rect x="530" y="235" width="70" height="45"/>
+            <rect x="110" y="320" width="70" height="45"/><rect x="215" y="320" width="70" height="45"/>
+            <rect x="425" y="320" width="70" height="45"/><rect x="530" y="320" width="70" height="45"/>
+          </g>
+          <path d="M320 320 h70 v45 h-70 z" stroke="#C3C8D4"/>
+          <!-- 균열 -->
+          <path d="M258 96 l14 22 l-9 13 l16 19" stroke="#8A8FA3" stroke-width="1.4"/>
+          <path d="M472 262 l10 18 l-7 11" stroke="#8A8FA3" stroke-width="1.4"/>
+        </g>
+        <!-- 해치 도형 (외관조사망도 손상 범위) -->
+        <rect x="238" y="78" width="66" height="62" fill="url(#hatch)" fill-opacity=".55" stroke="#E05555" stroke-width="1.3"/>
+
+        <g id="shapes"></g>
+        <g id="ghost"></g>
+      </svg>
+      <p class="demo__hint" id="hint"><kbd>클릭 1</kbd> 점검 위치 → <kbd>클릭 2</kbd> 번호 자리. 직접 해보세요.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 기능 ════════════════════════════════════════════ -->
+<section class="band" id="기능">
+  <p class="eyebrow">도면 한 장에 들어가는 것</p>
+  <h2><span class="mark-num">1</span>도면 한 장을 끝까지 만듭니다</h2>
+  <p class="lead">
+    번호만 찍는 도구가 아닙니다. 도면을 A4 규격에 앉히고, 손상 범위를 표시하고,
+    표제란을 채우고, PDF로 내보내는 것까지 한 프로그램 안에서 끝납니다.
+  </p>
+
+  <div class="anatomy">
+    <div class="anatomy__fig">
+      <svg viewBox="0 0 620 440" role="img" aria-label="A4 도면 한 장의 구성: 지시선과 번호, 해치로 표시한 손상 범위, 아래쪽 표제란(도곽)">
+        <defs>
+          <pattern id="hatch2" width="8" height="8" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+            <line x1="0" y1="0" x2="0" y2="8" stroke="#4A9EFF" stroke-width="1"/>
+          </pattern>
+        </defs>
+        <!-- 용지 -->
+        <rect x="30" y="16" width="440" height="408" fill="#fff" stroke="#D9DCE4"/>
+        <rect x="44" y="30" width="412" height="380" fill="none" stroke="#E3E5EB" stroke-dasharray="3 3"/>
+
+        <!-- 도면 내용 -->
+        <g stroke="#9AA0B0" fill="none" stroke-width="1.1">
+          <rect x="72" y="58" width="356" height="230"/>
+          <line x1="72" y1="128" x2="428" y2="128"/><line x1="72" y1="205" x2="428" y2="205"/>
+          <g stroke="#C7CBD6">
+            <rect x="98" y="78" width="52" height="34"/><rect x="176" y="78" width="52" height="34"/>
+            <rect x="254" y="78" width="52" height="34"/><rect x="332" y="78" width="52" height="34"/>
+            <rect x="98" y="148" width="52" height="34"/><rect x="176" y="148" width="52" height="34"/>
+            <rect x="254" y="148" width="52" height="34"/><rect x="332" y="148" width="52" height="34"/>
+            <rect x="98" y="225" width="52" height="34"/><rect x="254" y="225" width="52" height="34"/>
+          </g>
+        </g>
+        <rect x="170" y="212" width="64" height="60" fill="url(#hatch2)" fill-opacity=".5" stroke="#4A9EFF" stroke-width="1.2"/>
+
+        <!-- 지시선 + 번호 (결함 / 보수) -->
+        <g stroke-linecap="round">
+          <line x1="150" y1="95" x2="112" y2="42" stroke="#E05555" stroke-width="1.6" marker-start="url(#head)"/>
+          <rect x="88" y="24" width="46" height="24" rx="5" fill="#E05555"/>
+          <text x="111" y="41" font-family="IBM Plex Mono, monospace" font-size="13" fill="#fff" text-anchor="middle">1F-01</text>
+
+          <line x1="290" y1="168" x2="360" y2="118" stroke="#E05555" stroke-width="1.6" marker-start="url(#head)"/>
+          <rect x="338" y="98" width="46" height="24" rx="5" fill="#E05555"/>
+          <text x="361" y="115" font-family="IBM Plex Mono, monospace" font-size="13" fill="#fff" text-anchor="middle">1F-02</text>
+
+          <line x1="202" y1="242" x2="150" y2="318" stroke="#4A9EFF" stroke-width="1.6"/>
+          <circle cx="202" cy="242" r="4" fill="#4A9EFF"/>
+          <rect x="127" y="318" width="46" height="24" rx="5" fill="#4A9EFF"/>
+          <text x="150" y="335" font-family="IBM Plex Mono, monospace" font-size="13" fill="#fff" text-anchor="middle">1F-03</text>
+        </g>
+
+        <!-- 표제란 -->
+        <g>
+          <rect x="44" y="352" width="412" height="44" fill="#FAFAFC" stroke="#15171E" stroke-width="1.2"/>
+          <line x1="152" y1="352" x2="152" y2="396" stroke="#15171E" stroke-width="1.2"/>
+          <line x1="272" y1="352" x2="272" y2="396" stroke="#15171E" stroke-width="1.2"/>
+          <line x1="380" y1="352" x2="380" y2="396" stroke="#15171E" stroke-width="1.2"/>
+          <g font-family="IBM Plex Mono, monospace" font-size="8" fill="#8A8FA3" letter-spacing="1">
+            <text x="52" y="366">PROJECT TITLE</text><text x="160" y="366">DRAWING NAME</text><text x="280" y="366">SCALE</text><text x="388" y="366">DATE</text>
+          </g>
+          <g font-family="IBM Plex Sans KR, sans-serif" font-size="11" fill="#15171E">
+            <text x="52" y="384">○○아파트 정밀안전점검</text><text x="160" y="384">외관조사망도</text><text x="280" y="384">N.T.S</text><text x="388" y="384">2026-08</text>
+          </g>
+        </g>
+
+        <!-- 콜아웃 -->
+        <g stroke="#C3C8D4" stroke-width="1" stroke-dasharray="3 3">
+          <line x1="384" y1="110" x2="510" y2="110"/>
+          <line x1="234" y1="242" x2="510" y2="242"/>
+          <line x1="456" y1="374" x2="510" y2="374"/>
+        </g>
+        <g font-family="IBM Plex Mono, monospace" font-size="11" fill="#4C5060">
+          <text x="516" y="106">지시선 + 번호</text><text x="516" y="120" font-size="9.5" fill="#8A8FA3">색·꺾임·접두어</text>
+          <text x="516" y="238">해치 범위</text><text x="516" y="252" font-size="9.5" fill="#8A8FA3">사각 · 원형</text>
+          <text x="516" y="370">표제란</text><text x="516" y="384" font-size="9.5" fill="#8A8FA3">항목·너비 조정</text>
+        </g>
+      </svg>
+    </div>
+
+    <div class="anatomy__list">
+      <div class="feat">
+        <span class="feat__key">그리기</span>
+        <div>
+          <h3>2클릭 지시선, 번호는 알아서</h3>
+          <p>첫 클릭은 점검 위치, 두 번째 클릭은 번호 자리. 번호는 순서대로 자동으로 붙고, 중간 것을 지우면 다시 정렬됩니다. <b>Q</b>를 누르면 수평·수직으로 고정됩니다.</p>
+        </div>
+      </div>
+      <div class="feat">
+        <span class="feat__key">표기</span>
+        <div>
+          <h3>결함·보수를 색으로 구분</h3>
+          <p>카테고리별 색을 지정하고, 화살표와 점, 꺾임 4종(직선·ㄱ자·ㄴ자·번개) 중에 고릅니다. <code>1F-01</code>처럼 층별 접두어도 붙습니다.</p>
+        </div>
+      </div>
+      <div class="feat">
+        <span class="feat__key">범위</span>
+        <div>
+          <h3>손상 범위는 해치로</h3>
+          <p>외관조사망도에 쓰는 45° 해치 도형을 사각·원형으로 그립니다. 번호를 차지하지 않아 지시선과 겹쳐 써도 됩니다.</p>
+        </div>
+      </div>
+      <div class="feat">
+        <span class="feat__key">사진</span>
+        <div>
+          <h3>사진 폴더를 번호에 연결</h3>
+          <p>현장 사진 폴더를 열면 파일명 끝 숫자를 읽어 번호와 자동으로 짝지어 줍니다. <code>DSC_042.jpg</code> → 42번. 파일명을 바꿔 저장하는 것도 앱에서 합니다.</p>
+        </div>
+      </div>
+      <div class="feat">
+        <span class="feat__key">출력</span>
+        <div>
+          <h3>A4 규격 그대로 PDF</h3>
+          <p>불러온 도면을 A4에 맞춰 앉히고, 표제란을 채워 PDF로 내보냅니다. 여러 장이면 여러 장 그대로 나옵니다.</p>
+        </div>
+      </div>
+      <div class="feat">
+        <span class="feat__key">저장</span>
+        <div>
+          <h3>작업 중 자동 저장</h3>
+          <p>고칠 때마다 자동으로 저장되고, 프로그램을 다시 켜면 하던 작업을 이어서 엽니다. 프로젝트 파일(<code>.numdraw</code>)로 따로 보관할 수도 있습니다.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 가격 ════════════════════════════════════════════ -->
+<section class="band band--tint" id="가격">
+  <p class="eyebrow">체험판과 정품</p>
+  <h2><span class="mark-num mark-num--defect">2</span>먼저 써 보고 정하세요</h2>
+  <p class="lead">
+    체험판은 기간 제한이 없습니다. 도면을 몇 장이든 불러와 번호를 다 매겨 보고,
+    결과물이 쓸 만한지 확인한 다음에 구매하시면 됩니다.
+  </p>
+
+  <div class="plans">
+    <div class="plan">
+      <p class="plan__tag">체험판</p>
+      <p class="plan__price">0원 <small>기간 제한 없음</small></p>
+      <p class="plan__sub">기능은 전부 열려 있고, 저장만 막혀 있습니다.</p>
+      <ul>
+        <li><span class="tick">+</span><span>도면 불러오기·페이지 추가 <b>무제한</b></span></li>
+        <li><span class="tick">+</span><span>넘버링·해치·표제란 <b>모든 기능</b></span></li>
+        <li><span class="tick tick--muted">−</span><span>PDF 저장은 <b>1장만</b></span></li>
+        <li><span class="tick tick--muted">−</span><span>저장된 PDF에 <b>워터마크</b></span></li>
+      </ul>
+      <a class="btn btn--ghost" href="#다운로드">내려받기</a>
+    </div>
+
+    <div class="plan plan--full">
+      <p class="plan__tag">정품</p>
+      <!-- ▼▼ 가격이 정해지면 이 한 줄만 고치면 됩니다 ▼▼ -->
+      <p class="plan__price"><span class="plan__price-tbd">___,___원</span></p>
+      <!-- ▲▲ 예: <p class="plan__price">99,000원 <small>1회 구매</small></p> ▲▲ -->
+      <p class="plan__sub">가격은 확정 후 공개합니다. 먼저 문의 주셔도 됩니다.</p>
+      <ul>
+        <li><span class="tick">+</span><span>PDF 저장 <b>제한 없음</b>, 워터마크 없음</span></li>
+        <li><span class="tick">+</span><span><b>PC 2대</b>까지 사용 (사무실·현장 노트북)</span></li>
+        <li><span class="tick">+</span><span>최초 1회만 인증, 이후 <b>인터넷 없이</b> 사용</span></li>
+        <li><span class="tick">+</span><span>PC를 바꾸면 <b>등록 옮기기</b> 가능</span></li>
+      </ul>
+      <a class="btn btn--primary" href="#구매">구매 방법 보기</a>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 구매 ════════════════════════════════════════════ -->
+<section class="band band--dark" id="구매">
+  <p class="eyebrow">구매 절차</p>
+  <h2>메일 한 통이면 됩니다</h2>
+  <p class="lead">무통장입금으로 받고 있습니다. 카드 결제는 아직 지원하지 않습니다.</p>
+
+  <div class="steps">
+    <div class="step">
+      <span class="step__n">STEP 01</span>
+      <h3>구매 문의</h3>
+      <p>아래 메일로 <code>구매 문의</code>라고 보내 주시면 계좌와 금액을 안내드립니다.</p>
+    </div>
+    <div class="step">
+      <span class="step__n">STEP 02</span>
+      <h3>입금</h3>
+      <p>안내받은 계좌로 입금하고, 입금자명을 메일로 알려 주세요.</p>
+    </div>
+    <div class="step">
+      <span class="step__n">STEP 03</span>
+      <h3>인증키 받기</h3>
+      <p>확인되면 <code>ND2-</code>로 시작하는 인증키를 메일로 보내 드립니다.</p>
+    </div>
+    <div class="step">
+      <span class="step__n">STEP 04</span>
+      <h3>인증</h3>
+      <p>설치한 프로그램에 인증키를 붙여넣고 인증을 누르면 바로 정품이 됩니다.</p>
+    </div>
+  </div>
+
+  <p style="margin-top:34px">
+    <a class="btn btn--primary" href="mailto:chistonsop@gmail.com?subject=NumDraw%20%EA%B5%AC%EB%A7%A4%20%EB%AC%B8%EC%9D%98">구매 문의 메일 쓰기</a>
+  </p>
+</section>
+
+<!-- ═══ 다운로드 ═════════════════════════════════════════ -->
+<section class="band" id="다운로드">
+  <p class="eyebrow">내려받기</p>
+  <h2><span class="mark-num mark-num--repair">3</span>체험판 설치</h2>
+  <div class="dl">
+    <div>
+      <p class="lead">
+        내려받아 실행하면 설치됩니다. 별도 설정은 없고, 인증하지 않은 상태에서도
+        모든 기능을 그대로 써 볼 수 있습니다.
+      </p>
+      <p class="dl__file" id="dlFile">NumDraw Setup 1.2.0.exe · 약 79MB · Windows 10/11 64bit</p>
+    </div>
+    <p><a class="btn btn--primary" id="dlBtn" href="mailto:chistonsop@gmail.com?subject=NumDraw%20%EC%B2%B4%ED%97%98%ED%8C%90%20%EC%9A%94%EC%B2%AD">체험판 받기</a></p>
+  </div>
+
+  <div class="faq">
+    <details>
+      <summary>인터넷이 안 되는 현장에서도 쓸 수 있나요?</summary>
+      <p>됩니다. 인증할 때 한 번만 인터넷이 필요하고, 그 뒤로는 인터넷 없이 사용합니다. 체험판은 인증이 없으므로 처음부터 끝까지 인터넷 없이 씁니다.</p>
+    </details>
+    <details>
+      <summary>PC를 바꾸면 어떻게 하나요?</summary>
+      <p>쓰던 PC의 등록을 반납 처리해 드리면 새 PC에서 다시 인증할 수 있습니다. 메일로 알려 주세요. 인증키는 그대로 씁니다.</p>
+    </details>
+    <details>
+      <summary>사무실 PC와 현장 노트북에 같이 깔아도 되나요?</summary>
+      <p>인증키 하나로 2대까지 됩니다. 3대째부터는 인증이 되지 않습니다.</p>
+    </details>
+    <details>
+      <summary>Mac에서도 되나요?</summary>
+      <p>지금은 Windows 10·11 64비트만 지원합니다.</p>
+    </details>
+    <details>
+      <summary>사진첩(Excel) 보고서도 만들어지나요?</summary>
+      <p>아직입니다. 지금은 번호와 사진을 연결하고 파일명을 정리하는 데까지 됩니다. Excel 사진첩 자동 생성은 준비 중입니다.</p>
+    </details>
+    <details>
+      <summary>설치할 때 파란 경고창이 뜹니다.</summary>
+      <p>코드 서명 인증서가 없어 Windows가 처음 보는 프로그램에 띄우는 경고입니다. <b>추가 정보</b> → <b>실행</b>을 누르면 설치됩니다.</p>
+    </details>
+  </div>
+</section>
+
+<!-- ═══ 도곽 ════════════════════════════════════════════ -->
+<footer class="titleblock">
+  <div class="tb__row tb__row--main">
+    <div class="tb__label">Project title</div>
+    <div class="tb__value">NumDraw — 도면 넘버링 도구</div>
+    <div class="tb__label">Drawing name</div>
+    <div class="tb__value">제품 소개</div>
+    <div class="tb__label">Contact</div>
+    <div class="tb__value"><a href="mailto:chistonsop@gmail.com">chistonsop@gmail.com</a></div>
+  </div>
+  <div class="tb__foot">
+    <span>NumDraw v1.2.0 · Windows x64</span>
+    <span>© 2026 NumDraw</span>
+  </div>
+</footer>
+
+</div><!-- /sheet -->
+
+<script>
+(function(){
+  'use strict';
+
+  /* ── 다운로드 링크 ────────────────────────────────────────
+     R2에 설치파일을 올린 뒤 아래 주소만 채우면 버튼이 바로 다운로드로 바뀐다.
+     비워 두면 메일 요청 링크로 동작한다.                        */
+  var DOWNLOAD_URL = '';
+
+  if (DOWNLOAD_URL) {
+    var b = document.getElementById('dlBtn');
+    b.href = DOWNLOAD_URL;
+    b.textContent = '체험판 내려받기';
+    b.setAttribute('download', '');
+  }
+
+  /* ── 히어로 도면 데모 ──────────────────────────────────── */
+  var svg    = document.getElementById('stage');
+  var layer  = document.getElementById('shapes');
+  var ghost  = document.getElementById('ghost');
+  var hint   = document.getElementById('hint');
+  var reset  = document.getElementById('demoReset');
+  if (!svg) return;
+
+  var SVG_NS = 'http://www.w3.org/2000/svg';
+  var COLORS = ['#E05555', '#E05555', '#4A9EFF', '#E05555'];
+  var anchor = null;   // 1클릭 지점
+  var num    = 1;
+
+  var HINT_START = '<kbd>클릭 1</kbd> 점검 위치 → <kbd>클릭 2</kbd> 번호 자리. 직접 해보세요.';
+  var HINT_MID   = '<kbd>클릭 2</kbd> 이제 번호가 들어갈 자리를 클릭하세요.';
+
+  function el(name, attrs){
+    var n = document.createElementNS(SVG_NS, name);
+    for (var k in attrs) n.setAttribute(k, attrs[k]);
+    return n;
+  }
+
+  /* 화면 좌표 → SVG 좌표 */
+  function toLocal(evt){
+    var r = svg.getBoundingClientRect();
+    var vb = svg.viewBox.baseVal;
+    return {
+      x: (evt.clientX - r.left) / r.width  * vb.width,
+      y: (evt.clientY - r.top)  / r.height * vb.height
+    };
+  }
+
+  function color(){ return COLORS[(num - 1) % COLORS.length]; }
+
+  function drawLeader(p1, p2, c, dashed){
+    var line = el('line', {
+      x1:p1.x, y1:p1.y, x2:p2.x, y2:p2.y,
+      stroke:c, 'stroke-width':1.8, 'stroke-linecap':'round',
+      'marker-start':'url(#head)'
+    });
+    if (dashed) { line.setAttribute('stroke-dasharray','5 4'); line.setAttribute('opacity','.7'); }
+    return line;
+  }
+
+  function drawBox(p, label, c){
+    var g = el('g', {});
+    var w = 34 + (String(label).length - 1) * 9;
+    g.appendChild(el('rect', { x:p.x - w/2, y:p.y - 14, width:w, height:28, rx:6, fill:c }));
+    var t = el('text', {
+      x:p.x, y:p.y + 6, 'text-anchor':'middle', fill:'#fff',
+      'font-family':'IBM Plex Mono, monospace', 'font-size':15, 'font-weight':600
+    });
+    t.textContent = label;
+    g.appendChild(t);
+    return g;
+  }
+
+  function place(p1, p2, label){
+    var c = color();
+    var g = el('g', {});
+    g.appendChild(drawLeader(p1, p2, c, false));
+    g.appendChild(el('circle', { cx:p1.x, cy:p1.y, r:3.2, fill:c }));
+    g.appendChild(drawBox(p2, label, c));
+    layer.appendChild(g);
+    num++;
+  }
+
+  svg.addEventListener('click', function(e){
+    var p = toLocal(e);
+    if (!anchor) {
+      anchor = p;
+      ghost.appendChild(el('circle', { cx:p.x, cy:p.y, r:3.2, fill:color() }));
+      hint.innerHTML = HINT_MID;
+    } else {
+      ghost.textContent = '';
+      place(anchor, p, num);
+      anchor = null;
+      hint.innerHTML = HINT_START;
+    }
+  });
+
+  svg.addEventListener('mousemove', function(e){
+    if (!anchor) return;
+    var p = toLocal(e);
+    ghost.textContent = '';
+    ghost.appendChild(drawLeader(anchor, p, color(), true));
+    ghost.appendChild(el('circle', { cx:anchor.x, cy:anchor.y, r:3.2, fill:color() }));
+  });
+
+  svg.addEventListener('mouseleave', function(){
+    if (anchor) { ghost.textContent = ''; ghost.appendChild(el('circle', { cx:anchor.x, cy:anchor.y, r:3.2, fill:color() })); }
+  });
+
+  reset.addEventListener('click', function(){
+    layer.textContent = ''; ghost.textContent = '';
+    anchor = null; num = 1;
+    hint.innerHTML = HINT_START;
+  });
+
+  /* 처음 보는 사람에게 한 번만 시범을 보인다 */
+  var seed = [
+    [{x:271,y:110}, {x:150,y:52},  1],
+    [{x:478,y:272}, {x:596,y:340}, 2]
+  ];
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  if (reduce) {
+    seed.forEach(function(s){ place(s[0], s[1], s[2]); });
+  } else {
+    seed.forEach(function(s, i){
+      setTimeout(function(){
+        place(s[0], s[1], s[2]);
+        var g = layer.lastChild;
+        g.style.opacity = 0;
+        g.style.transition = 'opacity .45s ease';
+        requestAnimationFrame(function(){ g.style.opacity = 1; });
+      }, 700 + i * 550);
+    });
+  }
+})();
+</script>
+
+</body>
+</html>
