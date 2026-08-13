@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>사용 가이드 — NumDraw</title>
+<meta name="description" content="NumDraw 설치, 넘버링 작업, 단축키, 자주 묻는 질문을 정리한 사용 가이드입니다.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%235B5BD6'/%3E%3Ctext x='16' y='23' font-family='monospace' font-size='19' font-weight='700' fill='white' text-anchor='middle'%3E7%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:      #F4F5F7;
+  --paper-2:    #FFFFFF;
+  --grid:       #E3E5EB;
+  --ink:        #15171E;
+  --ink-2:      #4C5060;
+  --ink-3:      #8A8FA3;
+  --rule:       #D9DCE4;
+  --indigo:     #5B5BD6;
+
+  --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --sans: 'IBM Plex Sans KR', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif;
+  --sheet: 980px;
+  --pad: clamp(20px, 5vw, 56px);
+}
+*,*::before,*::after{ box-sizing:border-box; margin:0; padding:0; }
+html{ scroll-behavior:smooth; }
+body{
+  font-family:var(--sans); color:var(--ink); background:var(--paper);
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size:28px 28px;
+  line-height:1.7; -webkit-font-smoothing:antialiased;
+}
+a{ color:var(--indigo); text-decoration:none; }
+a:hover{ text-decoration:underline; }
+
+.sheet{
+  max-width:var(--sheet); margin:0 auto; background:var(--paper-2);
+  border-left:1px solid var(--rule); border-right:1px solid var(--rule);
+  display:grid; grid-template-columns:1fr;
+}
+@media(min-width:860px){ .sheet{ grid-template-columns:220px 1fr; } }
+
+.topbar{
+  grid-column:1/-1;
+  position:sticky; top:0; z-index:50;
+  display:flex; align-items:center; gap:16px;
+  padding:14px var(--pad);
+  background:rgba(255,255,255,.92); backdrop-filter:blur(8px);
+  border-bottom:1px solid var(--rule);
+}
+.mark{ display:flex; align-items:center; gap:10px; font-weight:700; letter-spacing:-.01em; color:var(--ink); }
+.mark__box{
+  width:26px; height:26px; border-radius:6px; background:var(--indigo);
+  color:#fff; font-family:var(--mono); font-size:14px; font-weight:600;
+  display:grid; place-items:center;
+}
+.topbar__spacer{ flex:1; }
+.topbar__link{ font-size:13.5px; color:var(--ink-2); }
+
+nav.toc{ padding:28px var(--pad); border-right:1px solid var(--rule); }
+nav.toc p{ font-family:var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); margin-bottom:12px; }
+nav.toc a{ display:block; font-size:13.5px; color:var(--ink-2); padding:5px 0; }
+nav.toc a:hover{ color:var(--indigo); }
+
+main{ padding:clamp(36px,5vw,56px) var(--pad) 80px; }
+.eyebrow{ font-family:var(--mono); font-size:11.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-3); margin-bottom:14px; }
+h1{ font-size:clamp(26px,4vw,32px); font-weight:700; letter-spacing:-.02em; margin-bottom:8px; }
+.lead{ font-size:15px; color:var(--ink-2); max-width:60ch; margin-bottom:40px; }
+
+.sec{ margin-bottom:48px; scroll-margin-top:70px; }
+.sec h2{ font-size:19px; font-weight:700; padding-bottom:8px; margin-bottom:14px; border-bottom:2px solid var(--ink); }
+.sec p, .sec li{ font-size:14.5px; color:var(--ink-2); }
+.sec ul, .sec ol{ padding-left:1.3em; display:grid; gap:6px; }
+.sec table{ width:100%; border-collapse:collapse; margin-top:12px; font-size:13.5px; }
+.sec th, .sec td{ border:1px solid var(--rule); padding:7px 10px; text-align:left; }
+.sec th{ background:#FAFAFC; font-family:var(--mono); font-size:11px; color:var(--ink-3); font-weight:500; }
+kbd{
+  font-family:var(--mono); font-size:12px; background:#FAFAFC; border:1px solid var(--rule);
+  border-bottom-width:2px; border-radius:4px; padding:1px 6px;
+}
+.todo{
+  display:inline-block; margin-top:14px; font-family:var(--mono); font-size:11.5px;
+  color:#C7830A; background:#FFF7E6; border:1px solid #E8C36B; border-radius:6px; padding:6px 10px;
+}
+
+.titleblock{ grid-column:1/-1; border-top:2px solid var(--ink); background:#fff; }
+.tb__row{ display:grid; border-bottom:1px solid var(--rule); }
+@media(min-width:760px){ .tb__row--main{ grid-template-columns:150px 1fr 150px 1fr; } }
+.tb__label,.tb__value{ padding:12px 16px; }
+.tb__label{ font-family:var(--mono); font-size:10.5px; letter-spacing:.11em; text-transform:uppercase; color:var(--ink-3); background:#FAFAFC; border-right:1px solid var(--rule); }
+.tb__value{ font-size:14px; border-right:1px solid var(--rule); }
+.tb__value:last-child{ border-right:none; }
+</style>
+</head>
+<body>
+
+<div class="sheet">
+
+<header class="topbar">
+  <a class="mark" href="index.html"><span class="mark__box">7</span>NumDraw</a>
+  <span class="topbar__spacer"></span>
+  <a class="topbar__link" href="index.html#기능">홈으로</a>
+</header>
+
+<nav class="toc">
+  <p>목차</p>
+  <a href="#설치">설치 · 실행</a>
+  <a href="#작업순서">기본 작업 순서</a>
+  <a href="#단축키">단축키</a>
+  <a href="#저장">저장 · 내보내기</a>
+  <a href="#장비시험망도">장비시험망도</a>
+  <a href="#faq">자주 묻는 질문</a>
+</nav>
+
+<main>
+  <p class="eyebrow">Guide</p>
+  <h1>사용 가이드</h1>
+  <p class="lead">
+    이 페이지는 준비 중입니다. 아래 목차는 뼈대만 잡혀 있고, 스크린샷·상세 절차는
+    순서대로 채워 넣을 예정입니다.
+  </p>
+
+  <section class="sec" id="설치">
+    <h2>설치 · 실행</h2>
+    <p>설치 파일을 내려받아 실행하면 설치가 진행됩니다. 별도 설정 없이 바로 실행할 수 있습니다.</p>
+    <table>
+      <tr><th>지원 OS</th><td>Windows 10 / 11 (64bit)</td></tr>
+      <tr><th>설치 방식</th><td>설치형 (.exe) — 더블클릭으로 설치·실행</td></tr>
+      <tr><th>인터넷</th><td>정품 인증 시 최초 1회만 필요, 이후 오프라인 사용 가능</td></tr>
+    </table>
+    <p class="todo">TODO: 설치 화면 스크린샷, 최소 사양(RAM/디스크) 확인 후 추가</p>
+  </section>
+
+  <section class="sec" id="작업순서">
+    <h2>기본 작업 순서</h2>
+    <ol>
+      <li>도면 불러오기 — PDF 또는 이미지를 드래그하거나 파일 선택으로 불러옵니다.</li>
+      <li>넘버링 — 점검 위치를 1클릭, 번호가 표시될 자리를 2클릭.</li>
+      <li>사진 폴더 연결 — 현장 사진 폴더를 지정하면 파일명 끝 숫자로 자동 매칭됩니다.</li>
+      <li>내보내기 — 도곽을 채우고 PDF로 저장합니다.</li>
+    </ol>
+    <p class="todo">TODO: 전체 메뉴·툴바 버튼 설명용 스크린샷(번호 매김) 추가</p>
+  </section>
+
+  <section class="sec" id="단축키">
+    <h2>단축키</h2>
+    <table>
+      <tr><th>동작</th><th>단축키</th></tr>
+      <tr><td>직교모드 토글</td><td><kbd>Q</kbd></td></tr>
+      <tr><td>도면 전체 화면 맞추기</td><td><kbd>F5</kbd></td></tr>
+      <tr><td>마지막 넘버링 되돌리기</td><td><kbd>Ctrl</kbd>+<kbd>Z</kbd></td></tr>
+      <tr><td>그리기 취소</td><td><kbd>Esc</kbd></td></tr>
+    </table>
+    <p class="todo">TODO: 전체 단축키 목록 최종 확인 (도면 배율 Ctrl+휠 등 최신 기능 반영)</p>
+  </section>
+
+  <section class="sec" id="저장">
+    <h2>저장 · 내보내기</h2>
+    <p>작업 중에는 자동으로 저장되며, PDF로 내보내면 도면·넘버링·도곽이 합쳐진 결과물이 만들어집니다.</p>
+    <p class="todo">TODO: 저장·내보내기 절차 단계별 캡처, 사진첩 PDF 출력 절차 추가</p>
+  </section>
+
+  <section class="sec" id="장비시험망도">
+    <h2>장비시험망도</h2>
+    <p class="todo">TODO: 장비시험망도 상세 조작법 스크린샷 (현재 자료 2장뿐 — 단계별 보완 필요)</p>
+  </section>
+
+  <section class="sec" id="faq">
+    <h2>자주 묻는 질문</h2>
+    <p class="todo">TODO: 자주 발생하는 오류와 해결법 정리</p>
+  </section>
+</main>
+
+<footer class="titleblock">
+  <div class="tb__row tb__row--main">
+    <div class="tb__label">Project title</div>
+    <div class="tb__value">NumDraw — 도면 넘버링 도구</div>
+    <div class="tb__label">Contact</div>
+    <div class="tb__value"><a href="mailto:chistonsop@gmail.com">chistonsop@gmail.com</a></div>
+  </div>
+</footer>
+
+</div><!-- /sheet -->
+</body>
+</html>
