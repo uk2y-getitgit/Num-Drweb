@@ -62,6 +62,9 @@ a:hover{ text-decoration:underline; }
 }
 .topbar__spacer{ flex:1; }
 .topbar__link{ font-size:13.5px; color:var(--ink-2); }
+.btn{ display:inline-flex; align-items:center; font-family:var(--sans); font-size:13.5px; font-weight:600; padding:8px 14px; border-radius:8px; text-decoration:none; }
+.btn--primary{ background:var(--indigo); color:#fff; }
+.btn--primary:hover{ background:var(--indigo-dk); }
 
 main{ padding:clamp(40px,6vw,72px) var(--pad) 80px; }
 .eyebrow{
@@ -108,8 +111,12 @@ h1{ font-size:clamp(26px,4vw,34px); font-weight:700; letter-spacing:-.02em; marg
 
 <header class="topbar">
   <a class="mark" href="index.html"><span class="mark__box">7</span>NumDraw</a>
+  <nav style="display:flex; gap:16px;">
+    <a class="topbar__link" href="product.html">제품 소개</a>
+    <a class="topbar__link" href="purchase.html#가격">가격</a>
+  </nav>
   <span class="topbar__spacer"></span>
-  <a class="topbar__link" href="index.html#기능">홈으로</a>
+  <a class="btn btn--primary btn--sm" href="index.html">홈으로</a>
 </header>
 
 <main>
