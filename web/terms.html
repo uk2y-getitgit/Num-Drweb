@@ -95,7 +95,7 @@ h1{ font-size:clamp(26px,4vw,34px); font-weight:700; letter-spacing:-.02em; marg
 
 .titleblock{ border-top:2px solid var(--ink); background:#fff; }
 .tb__row{ display:grid; border-bottom:1px solid var(--rule); }
-@media(min-width:760px){ .tb__row--main{ grid-template-columns:150px 1fr 150px 1fr; } }
+@media(min-width:760px){ .tb__row--main{ grid-template-columns:150px 1fr 150px 1fr 150px 1fr; } }
 .tb__label,.tb__value{ padding:12px 16px; }
 .tb__label{
   font-family:var(--mono); font-size:10.5px; letter-spacing:.11em; text-transform:uppercase;
@@ -125,15 +125,28 @@ h1{ font-size:clamp(26px,4vw,34px); font-weight:700; letter-spacing:-.02em; marg
   <p class="updated">최종 수정일: 2026-08-13</p>
 
   <div class="notice">
-    <b>사업자등록 전 임시 문서입니다.</b> 사업자등록번호·통신판매업 신고번호 등 표기 항목은
-    등록 완료 후 실제 정보로 교체합니다. 그 전까지 문의는
+    <b>사업자 정보 등록 진행 중입니다.</b> 상호·사업자등록번호·대표자는 아래와 같이 확정되었고,
+    주소·통신판매업 신고번호·전화번호는 등록되는 대로 갱신합니다. 그 전까지 문의는
     <a href="mailto:chistonsop@gmail.com">chistonsop@gmail.com</a>으로 받습니다.
   </div>
 
   <section class="doc">
+    <h2>사업자 정보</h2>
+    <table>
+      <tr><th style="width:160px;">상호</th><td>골드랜드</td></tr>
+      <tr><th>사업자등록번호</th><td>313-14-63489</td></tr>
+      <tr><th>대표자</th><td>장경진</td></tr>
+      <tr><th>주소</th><td class="ph">등록 예정</td></tr>
+      <tr><th>통신판매업 신고번호</th><td class="ph">등록 예정</td></tr>
+      <tr><th>전화</th><td class="ph">등록 예정</td></tr>
+      <tr><th>이메일</th><td><a href="mailto:chistonsop@gmail.com">chistonsop@gmail.com</a></td></tr>
+    </table>
+  </section>
+
+  <section class="doc">
     <h2>이용약관</h2>
     <h3>제1조 (목적)</h3>
-    <p>이 약관은 NumDraw(이하 "회사")가 제공하는 소프트웨어 "NumDraw"(이하 "제품")의
+    <p>이 약관은 골드랜드(사업자등록번호 313-14-63489, 대표 장경진, 이하 "회사")가 제공하는 소프트웨어 "NumDraw"(이하 "제품")의
     이용 조건 및 절차, 이용자와 회사의 권리·의무를 정함을 목적으로 합니다.</p>
 
     <h3>제2조 (제품의 형태 및 라이선스)</h3>
@@ -220,6 +233,14 @@ h1{ font-size:clamp(26px,4vw,34px); font-weight:700; letter-spacing:-.02em; marg
 </main>
 
 <footer class="titleblock">
+  <div class="tb__row tb__row--main">
+    <div class="tb__label">상호</div>
+    <div class="tb__value">골드랜드</div>
+    <div class="tb__label">대표자</div>
+    <div class="tb__value">장경진</div>
+    <div class="tb__label">사업자등록번호</div>
+    <div class="tb__value">313-14-63489</div>
+  </div>
   <div class="tb__row tb__row--main">
     <div class="tb__label">Project title</div>
     <div class="tb__value">NumDraw — 도면 넘버링 도구</div>
