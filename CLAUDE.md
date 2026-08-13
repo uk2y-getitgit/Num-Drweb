@@ -335,7 +335,8 @@ Num-Drweb/
 **주의**: `photoBook.js` 의 색상 리터럴은 캔버스 렌더라 CSS 변수를 쓸 수 없다 (§8 예외).
 
 ### Phase 3-d — 장기 예정
-- [ ] Electron 패키징 (Windows .exe 설치파일)
+- [x] Electron 패키징 (Windows .exe 설치파일) — `electron-builder` 구성 완료, `npm run build`로
+      `dist\NumDraw Setup 1.2.3.exe` 생성 확인 (2026-08-13)
 - [ ] CDN → 로컬 lib 파일 교체 (오프라인 지원)
 - [x] ~~Excel 사진첩 보고서 내보내기 (SheetJS)~~ — **제외**. Phase 3-e에서 PDF 단일 출력으로 대체
 
