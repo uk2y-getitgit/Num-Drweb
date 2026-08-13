@@ -329,6 +329,23 @@ const Annotation = (() => {
 
   function getAll() { return items; }
 
+  /* ── 좌표 일괄 변환 ──
+     도면 크기를 바꿀 때 지시점이 도면의 같은 위치를 계속 가리키도록
+     모든 좌표(p1·p2·points)를 같은 변환으로 옮긴다.
+     합쳐진 번호(merged)도 자기 좌표를 갖고 있으므로 함께 변환한다. */
+  function transformCoords(fn) {
+    const move = o => { if (!o) return; const p = fn(o.x, o.y); o.x = p.x; o.y = p.y; };
+    const each = i => {
+      move(i.p1); move(i.p2);
+      if (i.points) i.points.forEach(move);
+    };
+    items.forEach(i => {
+      each(i);
+      if (i.merged) i.merged.forEach(each);
+    });
+    if (onChange) onChange();
+  }
+
   /* nextNum = 외관 넘버링의 기준 시작번호. 실제 부여 번호는 빈 자리 우선 */
   function setNextNum(n) { nextNum = Math.max(1, Number(n) || 1); }
   function getNextNum()  { return _nextNumGlobal(); }
@@ -464,7 +481,7 @@ const Annotation = (() => {
   }
 
   return {
-    init, add, remove, removeSub, updateSub, setNote, clear, updateItem, getAll,
+    init, add, remove, removeSub, updateSub, setNote, clear, updateItem, getAll, transformCoords,
     setNextNum, getNextNum, getNextNumForEquipment, addLabelToItem, addShape, addHatch,
     mergeItems, unmerge, setMergeKeepLeaders,
     resequence,

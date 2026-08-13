@@ -45,6 +45,8 @@ const CanvasManager = (() => {
   let onAddShapeCb      = null;   // 장비 모드: 도형(기울기/부동침하) 추가
   let onEditNoteCb      = null;   // 번호박스 더블클릭 → 메모 편집
   let onMergeSelCb      = null;   // 합치기 모드 선택 변경
+  let onImageScaleCb    = null;   // Ctrl+휠 → 도면 크기 조절
+  let showBounds        = true;   // 넘버링 가능 영역 안내선 (화면 전용, PDF에는 그리지 않는다)
 
   /* 합치기 모드 — ON이면 클릭이 그리기/선택 대신 병합 대상 토글로 동작 */
   let mergeMode = false;
@@ -170,6 +172,11 @@ const CanvasManager = (() => {
 
   function _onWheel(e) {
     e.preventDefault();
+    /* Ctrl+휠 = 도면 자체 크기 조절 (배율 변경은 app.js가 처리한다) */
+    if (e.ctrlKey || e.metaKey) {
+      if (onImageScaleCb) onImageScaleCb(e.deltaY > 0 ? -0.05 : 0.05);
+      return;
+    }
     if (e.shiftKey) {
       const cfg   = Annotation.getConfig();
       const delta = e.deltaY > 0 ? -0.1 : 0.1;
@@ -613,6 +620,21 @@ const CanvasManager = (() => {
     }
   }
 
+  /* ── 넘버링 가능 영역 안내선 ──
+     클릭 판정(_onMouseDown)이 쓰는 drawOffX/Y/W/H 와 똑같은 사각형을 그린다.
+     화면 전용이다 — createPageExport 는 renderAnnotations 를 거치지 않으므로
+     PDF·미리보기 결과물에는 절대 나오지 않는다. */
+  function _drawBounds() {
+    if (!drawW || !drawH) return;
+    const dash = Math.max(6, Math.round(paperW / 130));
+    ctx.save();
+    ctx.setLineDash([dash, dash]);
+    ctx.lineWidth   = Math.max(1.5, paperW / 700);
+    ctx.strokeStyle = 'rgba(91, 91, 214, 0.55)';   // --accent 계열, 캔버스라 리터럴 불가피
+    ctx.strokeRect(drawOffX + 0.5, drawOffY + 0.5, drawW, drawH);
+    ctx.restore();
+  }
+
   /* ── 렌더링 ── */
   function renderAnnotations(items) {
     ctx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
@@ -630,6 +652,7 @@ const CanvasManager = (() => {
         if (imgEl.complete && imgEl.naturalWidth > 0) {
           ctx.drawImage(imgEl, 0, 0, paperW, paperH);
         }
+        if (showBounds) _drawBounds();
       }
     }
 
@@ -1382,6 +1405,14 @@ const CanvasManager = (() => {
     if (container) { container.style.width = '0px'; container.style.height = '0px'; }
   }
   function onSelect(cb) { onSelectItem = cb; }
+  function onImageScale(cb) { onImageScaleCb = cb; }
+
+  /* 안내선 표시 토글 — 결과물에는 영향이 없고 편집 화면에서만 보인다 */
+  function setShowBounds(on) {
+    showBounds = !!on;
+    renderAnnotations(typeof Annotation !== 'undefined' ? Annotation.getAll() : []);
+  }
+  function getShowBounds() { return showBounds; }
 
   /* ── PDF 내보내기용: 오프스크린 캔버스에 지시점만 렌더링 ──
      targetCanvas : page.imgSrc 이미지가 이미 그려진 캔버스
@@ -1427,5 +1458,6 @@ const CanvasManager = (() => {
     createPageExport, renderAnnotationsTo,
     getSelectedId, clearSelection, selectItem, clear, onSelect,
     onEditNote, onMergeSel, setMergeMode, isMergeMode, getMergeSel,
+    onImageScale, setShowBounds, getShowBounds,
   };
 })();

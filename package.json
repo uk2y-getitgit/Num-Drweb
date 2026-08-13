@@ -1,6 +1,6 @@
 {
   "name": "numdraw",
-  "version": "1.2.0",
+  "version": "1.2.3",
   "description": "시설물 안전점검 넘버링 툴",
   "author": "NumDraw",
   "main": "electron/main.js",

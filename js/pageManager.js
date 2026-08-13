@@ -93,6 +93,7 @@ const PageManager = (() => {
     pages      = [];
     nextPageId = 1;
     activeId   = null;
+    _scaledCache.clear();
     Annotation.clear();
   }
 
@@ -149,6 +150,7 @@ const PageManager = (() => {
       const d = JSON.parse(json);
       pages      = d.pages      || [];
       nextPageId = d.nextPageId || pages.length + 1;
+      _scaledCache.clear();   // 페이지 id가 재사용되므로 이전 합성본은 버린다
 
       const targetId = (pages.some(p => p.id === d.activeId) ? d.activeId : null) || (pages[0] && pages[0].id);
       if (targetId) _activate(targetId, true /* skipSave */);
@@ -160,7 +162,11 @@ const PageManager = (() => {
   function _createPage(name, imgSrc, imgW, imgH, imgLayout) {
     /* equipStart: 사용자가 이 페이지에서 시작번호를 직접 지정했을 때만 값이 들어간다.
        null이면 앞 페이지들의 마지막 번호 다음부터 자동 이어받기 */
-    return { id: nextPageId++, name, imgSrc, imgW, imgH, imgLayout: imgLayout || null, annJSON: null, drawingName: null, prefix: '', legendEquip: null, equipStart: null };
+    /* imgSrc·imgLayout 은 배율 1.0 기준 원본이다. 사용자가 도면 크기를 바꿔도
+       이 값은 건드리지 않고 imgScale 만 저장한 뒤 표시용을 매번 다시 합성한다.
+       (원본을 덮어쓰면 확대·축소를 반복할 때 화질이 계속 나빠진다) */
+    return { id: nextPageId++, name, imgSrc, imgW, imgH, imgLayout: imgLayout || null, imgScale: 1,
+             annJSON: null, drawingName: null, prefix: '', legendEquip: null, equipStart: null };
   }
 
   function _getById(id) { return pages.find(p => p.id === id); }
@@ -272,6 +278,91 @@ const PageManager = (() => {
     return { x, y, w, h };
   }
 
+  /* ═══════════ 도면 크기 조절 ═══════════
+     표시용 합성 결과는 페이지에 붙이지 않고 별도 캐시에 둔다 —
+     페이지 객체는 그대로 직렬화되므로 저장 용량이 늘지 않는다. */
+  const _scaledCache = new Map();   // pageId → { scale, src }
+
+  const MIN_SCALE = 0.3, MAX_SCALE = 2.5;
+
+  function clampScale(v) {
+    return Math.max(MIN_SCALE, Math.min(MAX_SCALE, Number(v) || 1));
+  }
+
+  /* 배율 적용 후의 이미지 배치 — 원본 배치의 중심을 유지한 채 확대·축소 */
+  function scaledLayout(page) {
+    const base = page.imgLayout;
+    if (!base) return null;
+    const s  = page.imgScale || 1;
+    const cx = base.offX + base.dW / 2;
+    const cy = base.offY + base.dH / 2;
+    const dW = base.dW * s, dH = base.dH * s;
+    return { offX: Math.round(cx - dW / 2), offY: Math.round(cy - dH / 2), dW: Math.round(dW), dH: Math.round(dH) };
+  }
+
+  /* 표시·저장에 쓸 이미지 소스 — 배율이 1이면 원본을 그대로 쓴다 */
+  async function getDisplaySrc(page) {
+    const s = page.imgScale || 1;
+    if (!page.imgLayout || Math.abs(s - 1) < 0.001) return page.imgSrc;
+
+    const hit = _scaledCache.get(page.id);
+    if (hit && Math.abs(hit.scale - s) < 0.001) return hit.src;
+
+    const src = await _recomposite(page);
+    _scaledCache.set(page.id, { scale: s, src });
+    return src;
+  }
+
+  /* 원본 합성본에서 도면 영역만 오려 새 배율로 다시 앉힌다 */
+  function _recomposite(page) {
+    return new Promise(resolve => {
+      const base = page.imgLayout;
+      const out  = scaledLayout(page);
+      const img  = new Image();
+      img.onload = () => {
+        const cv  = document.createElement('canvas');
+        cv.width  = page.imgW;
+        cv.height = page.imgH;
+        const ctx = cv.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, cv.width, cv.height);
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, base.offX, base.offY, base.dW, base.dH,
+                           out.offX,  out.offY,  out.dW,  out.dH);
+        resolve(cv.toDataURL('image/png'));
+      };
+      img.onerror = () => resolve(page.imgSrc);
+      img.src = page.imgSrc;
+    });
+  }
+
+  /* 배율 변경 — 넘버링 좌표도 같은 비율로 옮겨 도면 위 위치를 유지한다.
+     반환값의 ratio 는 이전 배율 대비 변화량이다. */
+  function setImageScale(id, scale) {
+    const page = _getById(id);
+    if (!page || !page.imgLayout) return null;
+    const prev = page.imgScale || 1;
+    const next = clampScale(scale);
+    if (Math.abs(next - prev) < 0.001) return null;
+
+    page.imgScale = next;
+    const base = page.imgLayout;
+    const cx = base.offX + base.dW / 2;
+    const cy = base.offY + base.dH / 2;
+    const r  = next / prev;
+
+    if (typeof Annotation !== 'undefined') {
+      Annotation.transformCoords((x, y) => ({ x: cx + (x - cx) * r, y: cy + (y - cy) * r }));
+    }
+    _saveCurrentAnnotations();
+    return { scale: next, ratio: r, layout: scaledLayout(page) };
+  }
+
+  function getImageScale(id) {
+    const p = _getById(id === undefined ? activeId : id);
+    return p ? (p.imgScale || 1) : 1;
+  }
+
   /* PDF 저장 전 현재 페이지 상태 수동 저장 */
   function saveCurrentPageState() { _saveCurrentAnnotations(); }
 
@@ -281,6 +372,7 @@ const PageManager = (() => {
     getPages, getActivePage, getActiveId, hasPages,
     toJSON, fromJSON,
     saveCurrentPageState,
+    setImageScale, getImageScale, getDisplaySrc, scaledLayout, clampScale,
     getMaxPages: _maxPages,
   };
 })();

@@ -145,7 +145,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   /* ── PageManager 초기화 ── */
   PageManager.init(
     /* onSwitch */ (page) => {
-      CanvasManager.loadImage(page.imgSrc, page.imgW, page.imgH, page.imgLayout || null);
+      _loadPageImage(page);
       dropzone.classList.add('has-file');
       document.getElementById('file-name').textContent = page.name;
       /* 페이지별 접두어 복원 */
@@ -159,6 +159,69 @@ document.addEventListener('DOMContentLoaded', async () => {
     },
     /* onListChange */ () => { _renderPageList(); }
   );
+
+  /* ── 도면 이미지 로드 (배율 반영) ──
+     imgScale이 1이 아니면 표시용 합성본을 만들어 넣는다. 합성은 비동기라
+     완료 전 페이지가 또 바뀔 수 있으므로 요청 시점의 페이지 id를 확인한다. */
+  async function _loadPageImage(page) {
+    const scale  = page.imgScale || 1;
+    const layout = PageManager.scaledLayout(page) || page.imgLayout || null;
+    _syncImageScaleUI(scale);
+
+    if (Math.abs(scale - 1) < 0.001) {
+      CanvasManager.loadImage(page.imgSrc, page.imgW, page.imgH, layout);
+      return;
+    }
+    const src = await PageManager.getDisplaySrc(page);
+    if (PageManager.getActiveId() !== page.id) return;   // 그 사이 페이지가 바뀌었다
+    CanvasManager.loadImage(src, page.imgW, page.imgH, layout);
+  }
+
+  function _syncImageScaleUI(scale) {
+    const slider = document.getElementById('image-scale');
+    const label  = document.getElementById('image-scale-val');
+    if (slider) slider.value = scale;
+    if (label)  label.textContent = Number(scale).toFixed(2).replace(/0$/, '');
+  }
+
+  /* ── 도면 크기 조절 (슬라이더 · Ctrl+휠 공용) ──
+     넘버링 좌표도 같은 비율로 옮겨져 도면 위 지시 위치가 유지된다.
+     좌표 변환은 즉시, 이미지 재합성은 무거우므로 조작이 멈춘 뒤에 한 번만 한다. */
+  let _imgScaleTimer = null;
+
+  function _applyImageScale(next) {
+    const page = PageManager.getActivePage();
+    if (!page || !page.imgLayout) { showMsg('먼저 도면을 불러오세요', 'warn'); return; }
+
+    const res = PageManager.setImageScale(page.id, next);
+    _syncImageScaleUI(page.imgScale || 1);
+    if (!res) return;
+
+    StorageManager.markDirty();
+    clearTimeout(_imgScaleTimer);
+    _imgScaleTimer = setTimeout(() => {
+      _loadPageImage(page);
+      /* 자동 맞춤이 이미 여백 안에서 최대이므로, 키우면 용지 밖으로 나갈 수 있다 */
+      const L = res.layout;
+      if (L.offX < 0 || L.offY < 0 || L.offX + L.dW > page.imgW || L.offY + L.dH > page.imgH) {
+        showMsg('도면이 용지 밖으로 나갑니다 — 벗어난 부분은 저장되지 않습니다', 'warn');
+      }
+    }, 120);
+  }
+
+  document.getElementById('image-scale').addEventListener('input', e => _applyImageScale(e.target.value));
+
+  /* Ctrl+휠 — 화면 확대(줌)가 아니라 도면 자체 크기를 바꾼다 */
+  CanvasManager.onImageScale(delta => {
+    _applyImageScale(PageManager.getImageScale() + delta);
+  });
+
+  /* 넘버링 가능 영역 안내선 토글 (화면 전용 — PDF에는 나오지 않는다) */
+  const boundsToggle = document.getElementById('bounds-toggle');
+  if (boundsToggle) {
+    boundsToggle.checked = CanvasManager.getShowBounds();
+    boundsToggle.addEventListener('change', e => CanvasManager.setShowBounds(e.target.checked));
+  }
 
   /* ── TitleBlock 초기화 ── */
   TitleBlock.init();
@@ -1162,10 +1225,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       const page = allPages[pageIdx];
 
       /* 페이지별 도곽 이름 적용 후 createPageExport 호출
-         — page.imgLayout을 전달하여 화면 표시와 동일한 고정 좌표로 렌더링 (지시점 위치 픽셀 일치) */
+         — 도면 배율이 반영된 소스·배치를 넘겨 화면 표시와 픽셀 단위로 일치시킨다 */
       TitleBlock.applySettings({ drawingName: page.drawingName || '' });
+      const src    = await PageManager.getDisplaySrc(page);
+      const layout = PageManager.scaledLayout(page) || page.imgLayout || null;
       const { canvas: off, w, h } = await CanvasManager.createPageExport(
-        page.imgSrc, page.imgW, page.imgH, page.annJSON, page.imgLayout || null, page.legendEquip
+        src, page.imgW, page.imgH, page.annJSON, layout, page.legendEquip
       );
 
       /* 체험판 워터마크 — 페이지 순회 구조는 건드리지 않고 이 페이지 캔버스에만 덧그린다.
@@ -1237,6 +1302,152 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     }
     c.restore();
+  }
+
+  /* ═══════════════ 사진첩 (Phase 3-e) ═══════════════ */
+
+  const pbBtnPreview = document.getElementById('btn-photobook-preview');
+  const pbBtnPdf     = document.getElementById('btn-photobook-pdf');
+  const pbInfo       = document.getElementById('summary-info');
+  const pbModal      = document.getElementById('modal-photobook');
+  const pbReport     = document.getElementById('modal-pb-report');
+
+  function _pbSyncButtons() {
+    const ok = PhotoBook.hasSummary();
+    pbBtnPreview.disabled = !ok;
+    pbBtnPdf.disabled     = !ok;
+  }
+
+  /* 집계표 불러오기 */
+  document.getElementById('btn-load-summary').addEventListener('click', () => {
+    document.getElementById('summary-input').click();
+  });
+
+  document.getElementById('summary-input').addEventListener('change', async e => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      const info = await PhotoBook.loadSummary(file);
+      pbInfo.textContent = `✓ ${info.count}건 · ${info.sheet} · 문구 ${info.captionCol}열`;
+      pbInfo.style.color = 'var(--success)';
+      showMsg(`집계표 ${info.count}건을 읽었습니다`, 'success');
+      if (info.composed) showMsg('P열이 비어 있어 조사위치·손상내용으로 문구를 조합했습니다', 'warn');
+      _pbSyncButtons();
+    } catch (err) {
+      pbInfo.textContent = '불러오기 실패: ' + err.message;
+      pbInfo.style.color = 'var(--danger)';
+      showMsg('집계표 불러오기 실패: ' + err.message, 'warn');
+    }
+  });
+
+  /* 미매칭 검사 → 문제 없으면 즉시 진행, 있으면 확인 팝업 */
+  function _pbCheck(next) {
+    if (!FileManager.getFolderName()) {
+      showMsg('먼저 사진 폴더를 선택하세요', 'warn');
+      return;
+    }
+    const { entries, report } = PhotoBook.collectEntries();
+    if (!entries.length) { showMsg('사진첩에 넣을 항목이 없습니다', 'warn'); return; }
+
+    const total = report.noPhoto.length + report.noNumbering.length + report.orphan.length;
+    if (!total) { next(entries); return; }
+
+    const line = (title, arr, color) => arr.length
+      ? `<div class="field-row"><label style="color:${color};font-weight:700;">${title} (${arr.length}건)</label>
+         <div style="font-size:11px;line-height:1.7;word-break:break-all;">${arr.join(', ')}</div></div>`
+      : '';
+
+    document.getElementById('pb-report-body').innerHTML =
+      line('사진 없음', report.noPhoto, 'var(--danger)') +
+      line('집계표에만 있음 (도면 미표기)', report.noNumbering, 'var(--warning)') +
+      line('도면에만 있음 (집계표 누락)', report.orphan, 'var(--warning)') +
+      `<div style="margin-top:8px;font-size:11px;color:var(--text-secondary);line-height:1.6;">
+         사진 없는 칸은 "사진 없음"으로 표기되고, 집계표에 없는 번호는 사진첩에서 빠집니다.</div>`;
+
+    pbReport.classList.remove('hidden');
+    pbReport._next = () => next(entries);
+  }
+
+  document.getElementById('modal-pbr-go').addEventListener('click', () => {
+    pbReport.classList.add('hidden');
+    if (pbReport._next) pbReport._next();
+  });
+  ['modal-pbr-close', 'modal-pbr-cancel'].forEach(id => {
+    document.getElementById(id).addEventListener('click', () => pbReport.classList.add('hidden'));
+  });
+
+  /* 미리보기 — 메모리 절약을 위해 0.5배로 렌더 */
+  pbBtnPreview.addEventListener('click', () => _pbCheck(async entries => {
+    const body  = document.getElementById('pb-preview-body');
+    const total = PhotoBook.pageCount(entries.length);
+    body.innerHTML = '';
+    document.getElementById('pb-page-info').textContent = `${entries.length}건 · ${total}장`;
+    pbModal.classList.remove('hidden');
+    showMsg('사진첩 미리보기 생성 중...', 'info');
+
+    const title = PhotoBook.getTitle();
+    for (let i = 0; i < total; i++) {
+      const cv = await PhotoBook.renderPage(entries, i, title, 0.5);
+      cv.style.cssText = 'width:100%;max-width:620px;margin:8px auto;display:block;box-shadow:0 2px 8px rgba(0,0,0,.18);';
+      body.appendChild(cv);
+    }
+    showMsg('미리보기 완료', 'success');
+  }));
+
+  ['modal-pb-close', 'modal-pb-close2'].forEach(id => {
+    document.getElementById(id).addEventListener('click', () => {
+      pbModal.classList.add('hidden');
+      document.getElementById('pb-preview-body').innerHTML = '';   // 캔버스 메모리 해제
+    });
+  });
+
+  document.getElementById('modal-pb-save').addEventListener('click', () => {
+    pbModal.classList.add('hidden');
+    document.getElementById('pb-preview-body').innerHTML = '';
+    _pbCheck(_pbExportPDF);
+  });
+
+  pbBtnPdf.addEventListener('click', () => _pbCheck(_pbExportPDF));
+
+  /* 사진첩 PDF 저장 — 도면 PDF와 같은 캔버스→JPEG→jsPDF 경로 */
+  async function _pbExportPDF(entries) {
+    if (!window.jspdf) { showMsg('jsPDF 로드 중입니다. 잠시 후 다시 시도해주세요', 'warn'); return; }
+
+    const { jsPDF } = window.jspdf;
+    const { w, h }  = PhotoBook.A4;
+    const title     = PhotoBook.getTitle();
+    let   total     = PhotoBook.pageCount(entries.length);
+
+    /* 체험판 게이트 — 도면 PDF와 동일 기준 (0 = 무제한) */
+    const maxOut  = PageManager.getMaxPages();
+    let   trimmed = 0;
+    if (maxOut > 0 && total > maxOut) { trimmed = total - maxOut; total = maxOut; }
+
+    let pdf = null;
+    for (let i = 0; i < total; i++) {
+      showMsg(`사진첩 생성 중... ${i + 1}/${total}`, 'info');
+      const cv = await PhotoBook.renderPage(entries, i, title, 1);
+      if (LicenseUI.hasWatermark()) _drawTrialWatermark(cv, w, h);
+
+      if (i === 0) pdf = new jsPDF({ orientation: 'portrait', unit: 'px', format: [w, h] });
+      else         pdf.addPage([w, h], 'portrait');
+      pdf.addImage(cv.toDataURL('image/jpeg', 0.9), 'JPEG', 0, 0, w, h);
+      cv.width = cv.height = 0;   // 캔버스 즉시 해제
+    }
+
+    if (!pdf) return;
+    const fname = ((title || 'numdraw') + '_사진첩.pdf').replace(/[\\/:*?"<>|]/g, '_');
+    pdf.save(fname);
+
+    if (trimmed > 0) {
+      showMsg(`체험판은 ${maxOut}장까지만 저장됩니다 — ${trimmed}장이 빠졌습니다`, 'warn');
+      LicenseUI.promptUpgrade(
+        `체험판은 사진첩을 ${maxOut}장까지만 저장할 수 있어 나머지 ${trimmed}장이 저장되지 않았습니다.`
+      );
+    } else {
+      showMsg('사진첩 PDF 저장 완료', 'success');
+    }
   }
 
   /* ── Undo ── */
@@ -1790,7 +2001,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (activePage) {
         dropzone.classList.add('has-file');
         document.getElementById('file-name').textContent = activePage.name;
-        CanvasManager.loadImage(activePage.imgSrc, activePage.imgW, activePage.imgH, activePage.imgLayout || null);
+        await _loadPageImage(activePage);   // 저장된 도면 배율까지 복원
       }
       _renderPageList();
       CanvasManager.renderAnnotations(Annotation.getAll());
