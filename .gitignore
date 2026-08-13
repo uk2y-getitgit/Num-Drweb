@@ -8,6 +8,7 @@ desktop.ini
 
 # 빌드 결과물 (Electron)
 dist/
+dist-admin/
 node_modules/
 out/
 

@@ -8,7 +8,9 @@
     "start": "electron .",
     "checkrelease": "node scripts/check-release-config.mjs",
     "prebuild": "node scripts/check-release-config.mjs",
-    "build": "electron-builder --win --x64"
+    "build": "electron-builder --win --x64",
+    "prebuild:admin": "node scripts/check-release-config.mjs",
+    "build:admin": "electron-builder --win --x64 --config.extraMetadata.version=0.0.0 --config.appId=com.numdraw.app.admin --config.productName=\"NumDraw Admin\" --config.nsis.shortcutName=\"NumDraw Admin\" --config.directories.output=dist-admin"
   },
   "devDependencies": {
     "electron": "^31.0.0",
