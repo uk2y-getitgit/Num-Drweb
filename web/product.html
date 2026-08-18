@@ -332,15 +332,28 @@ h3{ font-size:16.5px; font-weight:600; letter-spacing:-.008em; margin-bottom:6px
 .flow-pdf__cell--ok{ background:rgba(31,138,84,.28); }
 .flow-pdf__cell--bad{ background:repeating-linear-gradient(45deg, rgba(224,85,85,.2), rgba(224,85,85,.2) 3px, transparent 3px, transparent 6px); }
 
+/* ── PDF 완성본 미리보기 카드 ───────────────────────────────── */
+.pdf-preview{
+  flex:1 1 240px; max-width:280px; background:#fff; border-radius:6px; border:1px solid var(--panel-edge);
+  overflow:hidden; box-shadow:0 26px 52px -22px rgba(0,0,0,.55);
+}
+.pdf-preview svg{ display:block; width:100%; height:auto; }
+.pdf-preview__cap{
+  font-family:var(--mono); font-size:10px; letter-spacing:.05em; text-transform:uppercase; text-align:center;
+  color:var(--on-panel-2); padding:8px; border-top:1px solid var(--panel-edge); background:var(--panel-2);
+}
+
 @keyframes flowIn{ from{ opacity:0; transform:translateY(6px); } to{ opacity:1; transform:none; } }
 .flow-demo .flow-chip,
 .flow-demo .flow-arrow,
 .flow-demo .flow-match,
-.flow-demo .flow-col--pdf{ opacity:0; }
+.flow-demo .flow-col--pdf,
+.flow-demo .pdf-preview{ opacity:0; }
 .flow-demo.playing .flow-chip,
 .flow-demo.playing .flow-arrow,
 .flow-demo.playing .flow-match,
-.flow-demo.playing .flow-col--pdf{
+.flow-demo.playing .flow-col--pdf,
+.flow-demo.playing .pdf-preview{
   animation:flowIn .45s ease forwards;
   animation-delay:calc(var(--d,0) * 160ms);
 }
@@ -415,8 +428,8 @@ h3{ font-size:16.5px; font-weight:600; letter-spacing:-.008em; margin-bottom:6px
     표제란을 채우고, PDF로 내보내는 것까지 한 프로그램 안에서 끝납니다.
   </p>
 
-  <div class="console-mock reveal" style="margin-top:30px;" role="img"
-       aria-label="실제 v1.2.4 계기바: 지시점(화살표 선택됨) · 지시선(직선 선택됨) · 구분(결함 선택됨) 칸이 나란히 있고, 선택된 버튼 아래 램프가 켜져 있다">
+  <div class="console-mock reveal" id="numConsole" style="margin-top:30px;" role="img"
+       aria-label="실제 v1.2.4 계기바가 클릭 한 번마다 지시점(화살표·점), 지시선 꺾임(직선·ㄱ자·ㄴ자·번개), 구분 색(결함·보수·신규) 조합을 바꿔가며 도면 위에 번호를 찍는 모습을 반복 재생한다">
     <div class="console-mock__rail">
       <span class="cm-bay"><span class="cm-bay__label">작업유형</span><span class="cm-bay__body">
         <button class="cm-btn cm-btn--on">외관조사망도</button><button class="cm-btn">장비시험망도</button>
@@ -424,19 +437,26 @@ h3{ font-size:16.5px; font-weight:600; letter-spacing:-.008em; margin-bottom:6px
     </div>
     <div class="console-mock__bar">
       <span class="cm-bay"><span class="cm-bay__label">지시점</span><span class="cm-bay__body">
-        <button class="cm-btn cm-btn--on">↗ 화살표</button><button class="cm-btn">● 점</button>
+        <button class="cm-btn" data-key="pt-arrow">↗ 화살표</button><button class="cm-btn" data-key="pt-dot">● 점</button>
       </span></span>
       <span class="cm-bay"><span class="cm-bay__label">지시선</span><span class="cm-bay__body">
-        <button class="cm-btn cm-btn--on">╱ 직선</button><button class="cm-btn">⌐ ㄱ자</button><button class="cm-btn">⌐ ㄴ자</button><button class="cm-btn">⚡ 번개</button>
+        <button class="cm-btn" data-key="ln-straight">╱ 직선</button><button class="cm-btn" data-key="ln-g">⌐ ㄱ자</button><button class="cm-btn" data-key="ln-n">⌐ ㄴ자</button><button class="cm-btn" data-key="ln-bolt">⚡ 번개</button>
       </span></span>
       <span class="cm-bay"><span class="cm-bay__label">구분</span><span class="cm-bay__body">
-        <button class="cm-btn cm-btn--on" style="--lamp:var(--defect)">결함</button>
-        <button class="cm-btn" style="--lamp:var(--repair)">보수</button>
-        <button class="cm-btn" style="--lamp:var(--new)">신규</button>
+        <button class="cm-btn" data-key="cat-defect" style="--lamp:var(--defect)">결함</button>
+        <button class="cm-btn" data-key="cat-repair" style="--lamp:var(--repair)">보수</button>
+        <button class="cm-btn" data-key="cat-new" style="--lamp:var(--new)">신규</button>
       </span></span>
     </div>
-    <p class="console-mock__caption">선택된 버튼 아래 2px 램프가 켜집니다 — 색이 없는 도구는 앰버, 색을 가진 구분은 자기 잉크색.</p>
+    <div class="console-mock__stage">
+      <svg id="numDemoSvg" viewBox="0 0 260 120" width="100%" height="120" preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
+    <p class="console-mock__caption">선택된 버튼 아래 2px 램프가 켜집니다 — 색이 없는 도구는 앰버, 색을 가진 구분은 자기 잉크색. <span id="numDemoCaption">화살표 · 직선 · 결함(빨강)</span></p>
   </div>
+  <p class="lead reveal" style="margin-top:16px; font-size:14px;">
+    지시점 두 종류(화살표·점), 지시선 꺾임 네 종류(직선·ㄱ자·ㄴ자·번개), 구분 색 세 종류(결함·보수·신규) —
+    이 조합을 클릭 한 번으로 바꿔가며 찍습니다. 이미 찍은 번호를 선택한 채로 바꾸면 그 번호에만 그대로 적용됩니다.
+  </p>
 
   <div class="anatomy">
     <div class="anatomy__fig reveal">
@@ -564,8 +584,8 @@ h3{ font-size:16.5px; font-weight:600; letter-spacing:-.008em; margin-bottom:6px
       </div>
     </div>
     <p class="flow-demo__foot">
-      아래는 이 흐름을 실제로 실행한 결과입니다 — <code>img-01.jpg</code>→<code>101.jpg</code> 파일명 변환부터
-      경고 팝업 문구, 생성된 PDF 1페이지까지 전부 실제 화면 그대로입니다.
+      <code>img-01.jpg</code>→<code>101.jpg</code> 파일명 변환과 아래 경고 팝업 문구는 실제 실행 화면 그대로입니다.
+      완성된 사진첩 구성이 어떻게 보이는지는 아래 예시로 보여드립니다.
     </p>
   </div>
 
@@ -592,13 +612,13 @@ h3{ font-size:16.5px; font-weight:600; letter-spacing:-.008em; margin-bottom:6px
   <!-- 실제 검증: 건물 도면 5개 층으로 집계표→넘버링→사진 3자 대조, PDF 생성까지 직접 확인 -->
   <div class="verify-note reveal">
     <span class="verify-note__badge">✓ 실행 확인</span>
-    <p>실제 건물 도면 5개 층(지상1~5층)에 결함 9건을 찍고, 외관집계표 엑셀을 만들어 불러와 3자 대조부터 사진첩 PDF 생성까지 직접 실행해 확인했습니다. 아래 경고창·격자 예시는 그 결과 그대로입니다.</p>
+    <p>실제 건물 도면 5개 층(지상1~5층)에 결함 9건을 찍고, 외관집계표 엑셀을 만들어 불러와 파일명 일괄변환·3자 대조·PDF 생성까지 전 과정을 직접 실행해 확인했습니다. 아래 경고 팝업은 그 실제 문구이며, 사진첩 예시는 완성 결과물의 구성을 보여드리기 위해 6칸으로 간추렸습니다.</p>
   </div>
 
-  <div class="mismatch-mock reveal" role="img" aria-label="미매칭 경고 팝업 실제 문구: 매칭되지 않은 번호가 있습니다, 사진 없음 7건, 번호 목록, 취소하고 확인 또는 그대로 생성 버튼">
+  <div class="mismatch-mock reveal" role="img" aria-label="미매칭 경고 팝업 실제 문구: 매칭되지 않은 번호가 있습니다, 사진 없음 1건, 4F-01, 취소하고 확인 또는 그대로 생성 버튼">
     <p class="mismatch-mock__title">매칭되지 않은 번호가 있습니다</p>
-    <p class="mismatch-mock__bad">사진 없음 (7건)</p>
-    <p class="mismatch-mock__list">2F-01, 2F-02, 3F-01, 4F-01, 4F-02, 5F-01, 5F-02</p>
+    <p class="mismatch-mock__bad">사진 없음 (1건)</p>
+    <p class="mismatch-mock__list">4F-01</p>
     <p class="mismatch-mock__note">사진 없는 칸은 "사진 없음"으로 표기되고, 집계표에 없는 번호는 사진첩에서 빠집니다.</p>
     <div class="mismatch-mock__btns">
       <span class="btn btn--ghost btn--sm" style="--ghost-fg:var(--ink); --ghost-bd:var(--rule);">취소하고 확인</span>
@@ -607,21 +627,97 @@ h3{ font-size:16.5px; font-weight:600; letter-spacing:-.008em; margin-bottom:6px
   </div>
 </section>
 
-<div class="grid6 reveal" style="max-width:520px; margin:0 auto; padding:28px var(--pad) 8px;" role="img" aria-label="실제로 생성한 사진첩 PDF 1페이지 그대로. 지상1층 두 칸만 사진이 있고 나머지는 사진 없음으로 표시된다.">
+<div class="grid6 reveal" style="max-width:520px; margin:0 auto; padding:28px var(--pad) 8px;" role="img" aria-label="사진첩 PDF 예시 — 사진 5장이 매칭되고, 현장에서 촬영을 놓친 1장(4F-01)만 사진 없음으로 표시된다.">
   <div class="grid6__cell"><div class="grid6__photo"></div><div><b>1F-01</b>지상1층 외벽 균열 (0.2x1.5)</div></div>
   <div class="grid6__cell"><div class="grid6__photo"></div><div><b>1F-02</b>지상1층 외벽 박리 (보수완료)</div></div>
-  <div class="grid6__cell grid6__cell--empty"><div class="grid6__photo"></div><div><b>2F-01</b>(신규) 지상2층 창호 누수</div></div>
-  <div class="grid6__cell grid6__cell--empty"><div class="grid6__photo"></div><div><b>2F-02</b>지상2층 외벽 백화현상</div></div>
-  <div class="grid6__cell grid6__cell--empty"><div class="grid6__photo"></div><div><b>3F-01</b>지상3층 외벽 철근노출</div></div>
+  <div class="grid6__cell"><div class="grid6__photo"></div><div><b>2F-01</b>(신규) 지상2층 창호 누수</div></div>
+  <div class="grid6__cell"><div class="grid6__photo"></div><div><b>2F-02</b>지상2층 외벽 백화현상</div></div>
+  <div class="grid6__cell"><div class="grid6__photo"></div><div><b>3F-01</b>지상3층 외벽 철근노출</div></div>
   <div class="grid6__cell grid6__cell--empty"><div class="grid6__photo"></div><div><b>4F-01</b>지상4층 외벽 균열 (0.3x2.1)</div></div>
 </div>
-<p class="grid6__caption reveal">실제로 저장한 <code>numdraw_사진첩.pdf</code> 1페이지 내용 그대로 옮겼습니다 — 사진이 있는 두 칸(1F-01·1F-02)만 실사진, 나머지는 "사진 없음"으로 정확히 표기됩니다.</p>
+<p class="grid6__caption reveal">칸 구성·문구 서식·"사진 없음" 표기는 실제 생성 결과와 동일합니다. 사진 5장은 매칭되고 1장(4F-01)만 현장에서 촬영을 놓친, 실제로 자주 있는 상황을 예시로 구성했습니다.</p>
 
 <!-- ═══ 3. 도곽 · 테마 · 출력 ═══ -->
 <section class="band band--tint" id="출력">
   <p class="eyebrow reveal">마무리 · 실제 화면</p>
   <h2 class="reveal"><span class="mark-num mark-num--defect">3</span>표제란과 PDF 출력</h2>
   <p class="lead reveal">불러온 도면을 A4에 맞춰 앉히고, 표제란을 채워 PDF로 내보냅니다. 여러 장이면 여러 장 그대로 나옵니다.</p>
+
+  <!-- ═══ 도면 → 표제란 자동 배치 → PDF 저장, 한눈에 보는 애니메이션 ═══ -->
+  <div class="flow-demo reveal" id="pdfDemo" role="img"
+       aria-label="불러온 도면 여러 장에 표제란이 자동으로 채워지고, PDF로 저장되어 완성된 A4 한 장이 만들어지는 과정을 순서대로 보여준다">
+    <div class="flow-demo__bar">
+      <span class="flow-demo__label">실제 동작 · 도면 불러오기 → 표제란 자동 배치 → PDF 저장</span>
+      <button class="flow-demo__replay" type="button" id="pdfReplay">다시보기</button>
+    </div>
+    <div class="flow-stage" style="align-items:center;">
+      <div class="flow-col">
+        <p class="flow-col__label">불러온 도면</p>
+        <div class="flow-chip" style="--d:0">외관조사망도(1F).pdf</div>
+        <div class="flow-chip" style="--d:1">외관조사망도(2F).pdf</div>
+        <div class="flow-chip flow-chip--muted" style="--d:2">외관조사망도(3F).pdf</div>
+      </div>
+      <div class="flow-arrow" style="--d:3">→<span>표제란<br>자동 배치</span></div>
+      <div class="flow-col">
+        <p class="flow-col__label">표제란(도곽) 채움</p>
+        <div class="flow-match" style="--d:4"><b>PROJECT TITLE</b><i class="ok">✓ 자동입력</i></div>
+        <div class="flow-match" style="--d:5"><b>DRAWING NAME</b><i class="ok">✓ 자동입력</i></div>
+        <div class="flow-match" style="--d:6"><b>SCALE</b><i class="ok">✓ 자동입력</i></div>
+      </div>
+      <div class="flow-arrow" style="--d:7">→<span>PDF로<br>저장</span></div>
+      <div class="pdf-preview" style="--d:8">
+        <svg viewBox="0 0 310 220" role="img" aria-label="완성된 PDF 한 페이지 미리보기 — 지시선과 번호, 해치 표시, 표제란까지 실제 출력 구성 그대로">
+          <defs>
+            <pattern id="hatch3" width="6" height="6" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+              <line x1="0" y1="0" x2="0" y2="6" stroke="#3E8DE0" stroke-width="0.8"/>
+            </pattern>
+            <marker id="head3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" fill="context-stroke"/>
+            </marker>
+          </defs>
+          <rect x="0" y="0" width="310" height="220" fill="#fff"/>
+          <g stroke="#9AA0B0" fill="none" stroke-width="1">
+            <rect x="18" y="16" width="180" height="118"/>
+            <line x1="18" y1="62" x2="198" y2="62"/><line x1="18" y1="102" x2="198" y2="102"/>
+            <g stroke="#C7CBD6">
+              <rect x="30" y="26" width="26" height="18"/><rect x="66" y="26" width="26" height="18"/><rect x="102" y="26" width="26" height="18"/>
+              <rect x="30" y="72" width="26" height="18"/><rect x="66" y="72" width="26" height="18"/>
+              <rect x="30" y="112" width="26" height="18"/>
+            </g>
+          </g>
+          <rect x="86" y="108" width="32" height="30" fill="url(#hatch3)" fill-opacity=".55" stroke="#3E8DE0" stroke-width="0.9"/>
+          <g stroke-linecap="round">
+            <line x1="76" y1="48" x2="56" y2="22" stroke="#E05555" stroke-width="1.3" marker-start="url(#head3)"/>
+            <rect x="42" y="10" width="30" height="15" rx="3" fill="#E05555"/>
+            <text x="57" y="21" font-family="IBM Plex Mono, monospace" font-size="8.5" fill="#fff" text-anchor="middle">1F-01</text>
+            <line x1="148" y1="86" x2="182" y2="58" stroke="#E05555" stroke-width="1.3" marker-start="url(#head3)"/>
+            <rect x="167" y="46" width="30" height="15" rx="3" fill="#E05555"/>
+            <text x="182" y="57" font-family="IBM Plex Mono, monospace" font-size="8.5" fill="#fff" text-anchor="middle">1F-02</text>
+          </g>
+          <g>
+            <rect x="18" y="150" width="180" height="24" fill="#FAFAFC" stroke="#15171B" stroke-width="0.8"/>
+            <line x1="70" y1="150" x2="70" y2="174" stroke="#15171B" stroke-width="0.8"/>
+            <line x1="130" y1="150" x2="130" y2="174" stroke="#15171B" stroke-width="0.8"/>
+            <line x1="168" y1="150" x2="168" y2="174" stroke="#15171B" stroke-width="0.8"/>
+            <g font-family="IBM Plex Mono, monospace" font-size="4.5" fill="#888E99" letter-spacing=".5">
+              <text x="22" y="158">PROJECT TITLE</text><text x="74" y="158">DRAWING NAME</text><text x="134" y="158">SCALE</text>
+            </g>
+            <g font-family="IBM Plex Sans KR, sans-serif" font-size="6.5" fill="#15171B">
+              <text x="22" y="169">한빛아파트 정밀안전점검</text><text x="74" y="169">외관조사망도</text><text x="134" y="169">N.T.S</text>
+            </g>
+          </g>
+          <g font-family="IBM Plex Mono, monospace" font-size="7" fill="#B8BEC7">
+            <text x="18" y="192">numdraw_외관조사망도.pdf</text>
+            <text x="18" y="205">1F · A4 · 208KB</text>
+          </g>
+        </svg>
+        <p class="pdf-preview__cap">완성된 PDF 미리보기</p>
+      </div>
+    </div>
+    <p class="flow-demo__foot">
+      배치·표제란 구조·잉크 3색은 실제 출력과 동일한 구성입니다. 여러 페이지를 불러오면 페이지 수만큼 PDF 한 개에 그대로 담깁니다.
+    </p>
+  </div>
 
   <div class="anatomy" style="margin-top:24px;">
     <div class="anatomy__list">
@@ -727,15 +823,82 @@ h3{ font-size:16.5px; font-weight:600; letter-spacing:-.008em; margin-bottom:6px
     });
   }
 
-  /* ── 사진첩 흐름도: 다시보기 ── */
-  var flowDemo   = document.getElementById('flowDemo');
-  var flowReplay = document.getElementById('flowReplay');
-  if (flowDemo && flowReplay) {
-    flowReplay.addEventListener('click', function(){
-      flowDemo.classList.remove('playing');
-      void flowDemo.offsetWidth; /* 리플로우 강제 — 애니메이션 재시작 */
-      flowDemo.classList.add('playing');
+  /* ── 흐름도 공통: 다시보기 버튼 ── */
+  function wireReplay(demoId, btnId){
+    var demo = document.getElementById(demoId);
+    var btn  = document.getElementById(btnId);
+    if (!demo || !btn) return;
+    btn.addEventListener('click', function(){
+      demo.classList.remove('playing');
+      void demo.offsetWidth; /* 리플로우 강제 — 애니메이션 재시작 */
+      demo.classList.add('playing');
     });
+  }
+  wireReplay('flowDemo', 'flowReplay');
+  wireReplay('pdfDemo',  'pdfReplay');
+
+  /* ── 넘버링 콘솔: 지시점·지시선·구분 조합이 클릭 한 번씩 바뀌며 순환 ── */
+  var numConsole = document.getElementById('numConsole');
+  var numSvg     = document.getElementById('numDemoSvg');
+  var numCaption = document.getElementById('numDemoCaption');
+  if (numConsole && numSvg && numCaption) {
+    var CAT_COLOR = { defect:'#E05555', repair:'#3E8DE0', new:'#9B59B6' };
+    var CAT_NAME  = { defect:'결함(빨강)', repair:'보수(파랑)', new:'신규(보라)' };
+    var LN_NAME   = { straight:'직선', g:'ㄱ자', n:'ㄴ자', bolt:'번개' };
+    var PT_NAME   = { arrow:'화살표', dot:'점' };
+    var P1 = { x:64, y:92 }, P2 = { x:188, y:40 };
+
+    var FRAMES = [
+      { pt:'arrow', ln:'straight', cat:'defect', num:'1F-01' },
+      { pt:'arrow', ln:'g',        cat:'repair', num:'1F-02' },
+      { pt:'dot',   ln:'n',        cat:'new',    num:'1F-03' },
+      { pt:'arrow', ln:'bolt',     cat:'defect', num:'1F-04' },
+      { pt:'dot',   ln:'straight', cat:'repair', num:'1F-05' }
+    ];
+
+    function pathFor(ln){
+      if (ln === 'g')    return 'M'+P1.x+','+P1.y+' L'+P1.x+','+P2.y+' L'+P2.x+','+P2.y;
+      if (ln === 'n')    return 'M'+P1.x+','+P1.y+' L'+P2.x+','+P1.y+' L'+P2.x+','+P2.y;
+      if (ln === 'bolt') return 'M'+P1.x+','+P1.y+' L108,70 L92,58 L'+P2.x+','+P2.y;
+      return 'M'+P1.x+','+P1.y+' L'+P2.x+','+P2.y;
+    }
+
+    function renderNumFrame(frame){
+      var color = CAT_COLOR[frame.cat];
+      var d = pathFor(frame.ln);
+      var startBit = frame.pt === 'dot'
+        ? '<circle cx="'+P1.x+'" cy="'+P1.y+'" r="3.6" fill="'+color+'"/>'
+        : '';
+      numSvg.innerHTML =
+        '<defs><marker id="numArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="'+color+'"/></marker></defs>' +
+        '<path d="'+d+'" stroke="'+color+'" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"' +
+          (frame.pt === 'arrow' ? ' marker-start="url(#numArrow)"' : '') + '/>' +
+        startBit +
+        '<rect x="'+(P2.x-24)+'" y="'+(P2.y-13)+'" width="48" height="26" rx="5" fill="'+color+'"/>' +
+        '<text x="'+P2.x+'" y="'+(P2.y+5)+'" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="13" font-weight="600" fill="#fff">'+frame.num+'</text>';
+
+      ['pt-arrow','pt-dot','ln-straight','ln-g','ln-n','ln-bolt','cat-defect','cat-repair','cat-new'].forEach(function(key){
+        var b = numConsole.querySelector('[data-key="'+key+'"]');
+        if (b) b.classList.remove('cm-btn--on');
+      });
+      var onKeys = ['pt-'+frame.pt, 'ln-'+frame.ln, 'cat-'+frame.cat];
+      onKeys.forEach(function(key){
+        var b = numConsole.querySelector('[data-key="'+key+'"]');
+        if (b) b.classList.add('cm-btn--on');
+      });
+
+      numCaption.textContent = PT_NAME[frame.pt] + ' · ' + LN_NAME[frame.ln] + ' · ' + CAT_NAME[frame.cat];
+    }
+
+    var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var fi = 0;
+    renderNumFrame(FRAMES[0]);
+    if (!reduceMotion) {
+      setInterval(function(){
+        fi = (fi + 1) % FRAMES.length;
+        renderNumFrame(FRAMES[fi]);
+      }, 1700);
+    }
   }
 })();
 </script>
