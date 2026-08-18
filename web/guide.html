@@ -319,8 +319,8 @@ kbd{ font-family:var(--mono); font-size:11.5px; background:var(--paper); border:
 
   /* ── 핫스팟 좌표(뷰포트 1536×639 기준 %) · scope: all=공통, numbering/photo/adjust=해당 탭에서만 ── */
   var HOTSPOTS = [
-    { x:12.28,y:1.35,w:5.7,h:3.44, scope:'all', t:'작업유형: 외관조사망도', b:'건물 외벽 손상 조사 모드. 결함·보수·신규 3색 구분과 해치 도형을 씁니다.' },
-    { x:18.11,y:1.35,w:5.7,h:3.44, scope:'all', t:'작업유형: 장비시험망도', b:'설비·장비 점검용 모드로 전환합니다.' },
+    { x:12.28,y:1.35,w:5.7,h:3.44, scope:'all', t:'작업유형: 외관조사망도', b:'도면에 결함번호를 매기고 사진첩 생성에 활용하는 기본 모드입니다. 결함·보수·신규 3색 구분과 해치 도형을 씁니다.' },
+    { x:18.11,y:1.35,w:5.7,h:3.44, scope:'all', t:'작업유형: 장비시험망도', b:'강도·기울기 등 장비시험 결과를 기록하는 망도 작성에 활용합니다.' },
     { x:28.31,y:1.03,w:3.78,h:4.07, scope:'all', t:'도면 열기', b:'PDF(다중 페이지)·JPG·PNG 등을 불러옵니다. 드래그앤드롭으로도 됩니다.' },
     { x:44.2,y:1.03,w:3.78,h:4.07, scope:'all', t:'프로젝트 저장', b:'지금까지 작업(넘버링·설정)을 즉시 저장합니다. 평소엔 자동저장되지만 수동으로도 가능합니다.' },
     { x:48.18,y:1.03,w:3.95,h:4.07, scope:'all', t:'프로젝트 불러오기', b:'.numdraw 프로젝트 파일을 열어 이전 작업을 복원합니다.' },
@@ -357,7 +357,7 @@ kbd{ font-family:var(--mono); font-size:11.5px; background:var(--paper); border:
     { x:9.52,y:15.02,w:1.17,h:2.82, scope:'all', t:'현재 페이지 삭제', b:'선택된 페이지를 지웁니다 — 되돌릴 수 없으니 주의하세요.' },
     { x:0.5,y:14,w:9.8,h:80, scope:'all', t:'페이지 목록', b:'페이지마다 도면·넘버링·머릿말이 독립적으로 저장됩니다. 클릭해서 전환합니다.' },
 
-    { x:12,y:13,w:65,h:82, scope:'all', t:'도면 캔버스', b:'여기서 2클릭으로 지시선+번호를 찍습니다. 첫 클릭 = 점검 위치, 두 번째 클릭 = 번호 자리.' },
+    { x:12,y:13,w:65,h:82, scope:'all', t:'도면 캔버스', b:'여기서 2클릭으로 지시선+번호를 찍습니다. 첫 클릭 = 점검 위치, 두 번째 클릭 = 번호 자리. (마우스를 움직이며 캔버스 어디든 확인해보세요)' },
     { x:78.65,y:79,w:2.99,h:4.38, scope:'all', t:'확대', b:'화면을 단계적으로 확대합니다.' },
     { x:78.65,y:88.45,w:2.99,h:4.38, scope:'all', t:'축소', b:'화면을 단계적으로 축소합니다.' },
     { x:78.65,y:93.46,w:2.99,h:4.38, scope:'all', t:'화면 맞추기 (F5)', b:'도면 전체가 보이도록 확대·축소·위치를 한 번에 맞춥니다.' },
@@ -367,9 +367,9 @@ kbd{ font-family:var(--mono); font-size:11.5px; background:var(--paper); border:
     { x:94.2,y:14.15,w:5.8,h:5.32, scope:'all', t:'탭: 조절', b:'선 두께·넘버링/범례/도면 배율, 작업범위 안내선 표시를 조절합니다.' },
 
     /* 넘버링 탭 전용 */
-    { x:93.37,y:30.74,w:3.52,h:2.88, scope:'numbering', t:'사진 매칭 번호', b:'자동 매칭이 안 맞을 때 번호를 직접 입력해 사진을 짝지을 수 있습니다.' },
+    { x:93.37,y:30.74,w:3.52,h:2.88, scope:'numbering', t:'사진 매칭 번호', b:'실제 현장에서 촬영해온 사진 파일의 번호를 입력해 이 결함번호와 매칭합니다. 매칭된 사진은 사진첩 자동생성에 그대로 활용됩니다.' },
     { x:97.41,y:30.61,w:1.3,h:3.13, scope:'numbering', t:'번호 삭제', b:'이 번호를 지웁니다. 뒷번호는 자동으로 당겨 재정렬되고, 좌표 등 나머지 정보는 유지됩니다.' },
-    { x:93.37,y:39,w:3.52,h:2.88, scope:'numbering', t:'사진 매칭 번호', b:'자동 매칭이 안 맞을 때 번호를 직접 입력해 사진을 짝지을 수 있습니다.' },
+    { x:93.37,y:39,w:3.52,h:2.88, scope:'numbering', t:'사진 매칭 번호', b:'실제 현장에서 촬영해온 사진 파일의 번호를 입력해 이 결함번호와 매칭합니다. 매칭된 사진은 사진첩 자동생성에 그대로 활용됩니다.' },
     { x:97.41,y:38.87,w:1.3,h:3.13, scope:'numbering', t:'번호 삭제', b:'이 번호를 지웁니다. 뒷번호는 자동으로 당겨 재정렬됩니다.' },
     { x:83.26,y:94.4,w:5.1,h:4.07, scope:'numbering', t:'번호 박스 겹침 풀기', b:'번호 박스끼리 겹치면 자동으로 밀어냅니다(최대 100회 반복, 캔버스 안에서만 이동).' },
     { x:88.75,y:94.4,w:5.1,h:4.07, scope:'numbering', t:'넘버링 합치기', b:'여러 번호를 하나로 합칩니다. 대상을 클릭하고 Enter로 확정합니다.' },
@@ -413,8 +413,9 @@ kbd{ font-family:var(--mono); font-size:11.5px; background:var(--paper); border:
       el.style.left = h.x + '%'; el.style.top = h.y + '%';
       el.style.width = h.w + '%'; el.style.height = h.h + '%';
       el.setAttribute('aria-label', h.t + ' — ' + h.b);
-      el.addEventListener('mouseenter', function(){ showTip(el, h); });
-      el.addEventListener('focus', function(){ showTip(el, h); });
+      el.addEventListener('mouseenter', function(e){ showTipAtPoint(e.clientX, e.clientY, h); });
+      el.addEventListener('mousemove', function(e){ showTipAtPoint(e.clientX, e.clientY, h); });
+      el.addEventListener('focus', function(){ showTipAtElement(el, h); });
       el.addEventListener('mouseleave', hideTip);
       el.addEventListener('blur', hideTip);
       hotspots.appendChild(el);
@@ -422,20 +423,33 @@ kbd{ font-family:var(--mono); font-size:11.5px; background:var(--paper); border:
     countEl.textContent = visible.length + '개 버튼 확인 가능';
   }
 
-  function showTip(el, h){
+  /* 스테이지 기준 절대좌표(ax,ay) 근처에 툴팁을 놓는다 — 4면 모두 스테이지 안쪽으로 클램프 */
+  function placeTip(h, ax, ay){
     tipbox.innerHTML = '<b>' + h.t + '</b>' + h.b;
     var stage = document.getElementById('viewerStage');
     var sRect = stage.getBoundingClientRect();
-    var eRect = el.getBoundingClientRect();
     tipbox.style.display = 'block';
     var tW = tipbox.offsetWidth, tH = tipbox.offsetHeight;
-    var left = (eRect.left - sRect.left) + (eRect.width/2) - (tW/2);
+    var left = ax - tW/2;
     left = Math.max(6, Math.min(left, sRect.width - tW - 6));
-    var top = (eRect.top - sRect.top) - tH - 10;
-    if (top < 6) top = (eRect.bottom - sRect.top) + 10;
+    var top = ay - tH - 16;
+    if (top < 6) top = ay + 16;
+    top = Math.max(6, Math.min(top, sRect.height - tH - 6));
     tipbox.style.left = left + 'px';
     tipbox.style.top = top + 'px';
     requestAnimationFrame(function(){ tipbox.classList.add('show'); });
+  }
+  /* 마우스: 커서 위치를 기준으로 삼는다 — 큰 핫스팟(도면 캔버스 등)에서도 항상 스테이지 안에 뜬다 */
+  function showTipAtPoint(clientX, clientY, h){
+    var sRect = document.getElementById('viewerStage').getBoundingClientRect();
+    placeTip(h, clientX - sRect.left, clientY - sRect.top);
+  }
+  /* 키보드 포커스: 마우스 좌표가 없으니 요소 중심을 기준으로 삼는다 */
+  function showTipAtElement(el, h){
+    var stage = document.getElementById('viewerStage');
+    var sRect = stage.getBoundingClientRect();
+    var eRect = el.getBoundingClientRect();
+    placeTip(h, (eRect.left - sRect.left) + eRect.width/2, (eRect.top - sRect.top) + eRect.height/2);
   }
   function hideTip(){ tipbox.classList.remove('show'); }
 
