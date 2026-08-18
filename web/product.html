@@ -282,6 +282,75 @@ h3{ font-size:16.5px; font-weight:600; letter-spacing:-.008em; margin-bottom:6px
 .mismatch-mock__btns{ display:flex; gap:8px; justify-content:flex-end; }
 .mismatch-mock .btn{ pointer-events:none; }
 
+/* ── 사진번호 변환 → 매칭 → 사진첩 생성, 애니메이션 흐름도 ───── */
+.flow-demo{
+  border:1px solid var(--panel-edge); border-radius:8px; background:var(--panel-2);
+  padding:20px 22px 24px; margin-top:32px;
+}
+.flow-demo__bar{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:22px; }
+.flow-demo__label{ font-family:var(--mono); font-size:10.5px; letter-spacing:.07em; text-transform:uppercase; color:var(--on-panel-2); }
+.flow-demo__replay{
+  flex:none; font-family:var(--mono); font-size:11px; color:var(--on-panel-1); background:none;
+  border:1px solid var(--panel-edge); border-radius:5px; padding:5px 12px; cursor:pointer;
+}
+.flow-demo__replay:hover{ border-color:var(--sig); color:var(--on-panel-0); }
+.flow-demo__foot{ margin-top:20px; padding-top:16px; border-top:1px solid var(--panel-edge); font-size:12.5px; color:var(--on-panel-2); }
+.flow-demo__foot code{ font-family:var(--mono); background:var(--panel-3); padding:1px 5px; border-radius:3px; color:var(--on-panel-1); }
+
+.flow-stage{ display:flex; align-items:stretch; gap:12px; flex-wrap:wrap; }
+.flow-col{ display:flex; flex-direction:column; gap:7px; min-width:128px; flex:1 1 128px; }
+.flow-col__label{ font-family:var(--mono); font-size:9px; letter-spacing:.07em; text-transform:uppercase; color:var(--on-panel-2); margin-bottom:1px; }
+
+.flow-chip{
+  font-family:var(--mono); font-size:12px; padding:7px 10px; border-radius:5px;
+  background:var(--panel-3); border:1px solid var(--panel-edge); color:var(--on-panel-1);
+}
+.flow-chip--ok{ border-color:rgba(31,138,84,.5); color:#8FE6B8; background:rgba(31,138,84,.14); }
+.flow-chip--muted{ opacity:.45; }
+
+.flow-arrow{
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px;
+  font-size:17px; color:var(--sig); min-width:60px; flex:none; padding:4px 0;
+}
+.flow-arrow span{
+  font-family:var(--mono); font-size:9px; color:var(--on-panel-2); text-align:center;
+  letter-spacing:.01em; line-height:1.4; white-space:nowrap;
+}
+
+.flow-match{
+  display:flex; align-items:center; justify-content:space-between; gap:10px; padding:7px 10px;
+  border-radius:5px; background:var(--panel-3); border:1px solid var(--panel-edge); font-size:12px;
+}
+.flow-match b{ font-family:var(--mono); color:var(--on-panel-0); font-weight:600; }
+.flow-match i{ font-style:normal; font-family:var(--mono); font-size:10px; white-space:nowrap; }
+.flow-match i.ok{ color:#5FD696; }
+.flow-match i.bad{ color:#F2897D; }
+
+.flow-col--pdf{ flex:0 0 auto; min-width:0; align-items:center; }
+.flow-pdf{ display:grid; grid-template-columns:1fr 1fr; gap:5px; width:72px; }
+.flow-pdf__cell{ aspect-ratio:1.15; border-radius:3px; border:1px solid var(--panel-edge); }
+.flow-pdf__cell--ok{ background:rgba(31,138,84,.28); }
+.flow-pdf__cell--bad{ background:repeating-linear-gradient(45deg, rgba(224,85,85,.2), rgba(224,85,85,.2) 3px, transparent 3px, transparent 6px); }
+
+@keyframes flowIn{ from{ opacity:0; transform:translateY(6px); } to{ opacity:1; transform:none; } }
+.flow-demo .flow-chip,
+.flow-demo .flow-arrow,
+.flow-demo .flow-match,
+.flow-demo .flow-col--pdf{ opacity:0; }
+.flow-demo.playing .flow-chip,
+.flow-demo.playing .flow-arrow,
+.flow-demo.playing .flow-match,
+.flow-demo.playing .flow-col--pdf{
+  animation:flowIn .45s ease forwards;
+  animation-delay:calc(var(--d,0) * 160ms);
+}
+@media(max-width:680px){
+  .flow-stage{ flex-direction:column; align-items:stretch; }
+  .flow-arrow{ flex-direction:row; min-width:0; }
+  .flow-arrow span{ text-align:left; white-space:normal; }
+  .flow-col--pdf{ align-items:flex-start; }
+}
+
 .cta{ display:flex; flex-wrap:wrap; gap:12px; margin-top:26px; }
 
 .titleblock{ border-top:2px solid var(--ink); background:#fff; }
@@ -455,6 +524,51 @@ h3{ font-size:16.5px; font-weight:600; letter-spacing:-.008em; margin-bottom:6px
     A4 6칸 사진첩 PDF로 한 번에 만듭니다.
   </p>
 
+  <!-- ═══ 사진번호 일괄변환 → 매칭 → 사진첩 생성, 한눈에 보는 애니메이션 ═══ -->
+  <div class="flow-demo reveal" id="flowDemo" role="img"
+       aria-label="현장 사진 파일명이 층·번호 코드로 일괄 변환되고, 도면 넘버링과 자동 매칭된 뒤, 사진첩 PDF 6칸 격자로 모이는 과정을 순서대로 보여준다">
+    <div class="flow-demo__bar">
+      <span class="flow-demo__label">실제 동작 · 사진번호 변환 → 매칭 → 사진첩 생성</span>
+      <button class="flow-demo__replay" type="button" id="flowReplay">다시보기</button>
+    </div>
+    <div class="flow-stage">
+      <div class="flow-col">
+        <p class="flow-col__label">현장 사진 (원본 파일명)</p>
+        <div class="flow-chip" style="--d:0">img-01.jpg</div>
+        <div class="flow-chip" style="--d:1">img-02.jpg</div>
+        <div class="flow-chip flow-chip--muted" style="--d:2">img-03.jpg</div>
+      </div>
+      <div class="flow-arrow" style="--d:3">→<span>파일명<br>일괄변환</span></div>
+      <div class="flow-col">
+        <p class="flow-col__label">층 + 번호 코드로</p>
+        <div class="flow-chip flow-chip--ok" style="--d:4">101.jpg</div>
+        <div class="flow-chip flow-chip--ok" style="--d:5">102.jpg</div>
+        <div class="flow-chip flow-chip--muted" style="--d:6">img-03.jpg</div>
+      </div>
+      <div class="flow-arrow" style="--d:7">→<span>넘버링과<br>자동 매칭</span></div>
+      <div class="flow-col">
+        <p class="flow-col__label">결함번호 매칭 결과</p>
+        <div class="flow-match" style="--d:8"><b>1F-01</b><i class="ok">✓ 매칭됨</i></div>
+        <div class="flow-match" style="--d:9"><b>1F-02</b><i class="ok">✓ 매칭됨</i></div>
+        <div class="flow-match" style="--d:10"><b>2F-01</b><i class="bad">사진 없음</i></div>
+      </div>
+      <div class="flow-arrow" style="--d:11">→<span>사진첩<br>PDF 생성</span></div>
+      <div class="flow-col flow-col--pdf" style="--d:12">
+        <p class="flow-col__label">A4 6칸 격자</p>
+        <div class="flow-pdf">
+          <span class="flow-pdf__cell flow-pdf__cell--ok"></span>
+          <span class="flow-pdf__cell flow-pdf__cell--ok"></span>
+          <span class="flow-pdf__cell flow-pdf__cell--bad"></span>
+          <span class="flow-pdf__cell flow-pdf__cell--bad"></span>
+        </div>
+      </div>
+    </div>
+    <p class="flow-demo__foot">
+      아래는 이 흐름을 실제로 실행한 결과입니다 — <code>img-01.jpg</code>→<code>101.jpg</code> 파일명 변환부터
+      경고 팝업 문구, 생성된 PDF 1페이지까지 전부 실제 화면 그대로입니다.
+    </p>
+  </div>
+
   <div class="steps">
     <div class="step reveal"><span class="step__n">STEP 01</span><h3>외관집계표 불러오기</h3><p>기존에 쓰던 엑셀 외관집계표(.xlsx)를 그대로 불러옵니다. 층·위치·결함내용 문구를 다시 입력할 필요가 없습니다.</p></div>
     <div class="step reveal"><span class="step__n">STEP 02</span><h3>3자 대조</h3><p>집계표 행, 도면 넘버링, 사진 폴더 세 가지를 자동으로 맞춰봅니다. 어긋난 항목은 바로 분류됩니다.</p></div>
@@ -595,7 +709,11 @@ h3{ font-size:16.5px; font-weight:600; letter-spacing:-.008em; margin-bottom:6px
   if ('IntersectionObserver' in window && reveals.length) {
     var io = new IntersectionObserver(function(entries){
       entries.forEach(function(en){
-        if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); }
+        if (en.isIntersecting) {
+          en.target.classList.add('in');
+          if (en.target.classList.contains('flow-demo')) en.target.classList.add('playing');
+          io.unobserve(en.target);
+        }
       });
     }, { threshold:.12, rootMargin:'0px 0px -40px 0px' });
     reveals.forEach(function(elm, i){
@@ -603,7 +721,21 @@ h3{ font-size:16.5px; font-weight:600; letter-spacing:-.008em; margin-bottom:6px
       io.observe(elm);
     });
   } else {
-    reveals.forEach(function(elm){ elm.classList.add('in'); });
+    reveals.forEach(function(elm){
+      elm.classList.add('in');
+      if (elm.classList.contains('flow-demo')) elm.classList.add('playing');
+    });
+  }
+
+  /* ── 사진첩 흐름도: 다시보기 ── */
+  var flowDemo   = document.getElementById('flowDemo');
+  var flowReplay = document.getElementById('flowReplay');
+  if (flowDemo && flowReplay) {
+    flowReplay.addEventListener('click', function(){
+      flowDemo.classList.remove('playing');
+      void flowDemo.offsetWidth; /* 리플로우 강제 — 애니메이션 재시작 */
+      flowDemo.classList.add('playing');
+    });
   }
 })();
 </script>
