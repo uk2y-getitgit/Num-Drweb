@@ -121,9 +121,13 @@ a{ color:inherit; }
   background:var(--ink); color:#fff; font-family:var(--mono); font-size:13px; font-weight:600; line-height:1;
   vertical-align:.16em; margin-right:11px;
 }
+.band--dark .mark-num{ background:var(--panel-3); border:1px solid var(--panel-edge); color:var(--on-panel-0); }
 .mark-num--defect{ background:var(--defect); }
 .mark-num--repair{ background:var(--repair); }
 .mark-num--new{ background:var(--new-fg); }
+.band--dark .mark-num--defect,
+.band--dark .mark-num--repair,
+.band--dark .mark-num--new{ border-color:transparent; }
 
 .badge-new{
   display:inline-flex; align-items:center; font-family:var(--mono); font-size:10.5px;
@@ -137,7 +141,18 @@ h2{ font-size:clamp(24px,3.3vw,32px); font-weight:700; letter-spacing:-.02em; li
 h3{ font-size:16.5px; font-weight:600; letter-spacing:-.008em; margin-bottom:6px; }
 .lead{ font-size:clamp(15.5px,1.6vw,17px); color:var(--ink-2); max-width:64ch; }
 .band--dark .lead{ color:var(--on-panel-1); }
-.phero{ padding:clamp(36px,6vw,60px) var(--pad) 4px; max-width:76ch; }
+.phero{
+  padding:clamp(36px,6vw,60px) var(--pad) 4px;
+  background:var(--panel); color:var(--on-panel-0);
+  background-image:
+    linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px);
+  background-size:26px 26px;
+}
+.phero__inner{ max-width:76ch; }
+.phero .eyebrow{ color:var(--on-panel-2); }
+.phero .eyebrow::after{ background:var(--panel-edge); }
+.phero .lead{ color:var(--on-panel-1); }
 
 /* ── 실제 화면 재현(콘솔 목업) — 실제 v1.2.4 실행 화면을 그대로 옮김 ── */
 .console-mock{ border:1px solid var(--panel-edge); border-radius:8px; overflow:hidden; background:var(--panel); }
@@ -174,11 +189,17 @@ h3{ font-size:16.5px; font-weight:600; letter-spacing:-.008em; margin-bottom:6px
 .anatomy-lg svg{ display:block; width:100%; height:auto; }
 .anatomy-lg__cap{ max-width:660px; margin:0 auto; padding:14px var(--pad) 0; font-size:12.5px; color:var(--ink-3); text-align:center; }
 .anatomy-lg__cap b{ color:var(--ink-2); }
+.band--dark .anatomy-lg__cap{ color:var(--on-panel-2); }
+.band--dark .anatomy-lg__cap b{ color:var(--on-panel-1); }
 .feat{ display:grid; grid-template-columns:auto 1fr; gap:14px; padding:14px 0; border-bottom:1px solid var(--rule); }
 .feat:last-child{ border-bottom:none; }
 .feat__key{ font-family:var(--mono); font-size:11px; color:var(--ink-3); padding-top:4px; letter-spacing:.05em; }
 .feat p{ font-size:13.5px; color:var(--ink-2); }
 .feat code{ font-family:var(--mono); font-size:12.5px; background:var(--paper); padding:1px 5px; border-radius:3px; }
+.band--dark .feat{ border-bottom-color:var(--panel-edge); }
+.band--dark .feat__key{ color:var(--on-panel-2); }
+.band--dark .feat p{ color:var(--on-panel-1); }
+.band--dark .feat code{ background:var(--panel-3); color:var(--on-panel-0); }
 
 /* ── 테마 스왑 미리보기 ─────────────────────────────────────── */
 .theme-swap{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:26px; }
@@ -417,16 +438,18 @@ h3{ font-size:16.5px; font-weight:600; letter-spacing:-.008em; margin-bottom:6px
 
 <!-- ═══ 소개 히어로 ═══ -->
 <section class="phero">
+  <div class="phero__inner">
   <p class="eyebrow">제품 소개 · v1.2.4</p>
   <h1>도면 한 장을, 끝까지 이 프로그램 안에서</h1>
   <p class="lead">
     넘버링 → 손상범위 표시 → 사진 정리 → 사진첩 출력까지, 정밀안전점검 결과보고서를
     만들 때 반복되는 작업을 한 프로그램 안에서 끝냅니다. 아래 화면은 실제 v1.2.4를 그대로 옮긴 것입니다.
   </p>
+  </div>
 </section>
 
 <!-- ═══ 1. 넘버링과 표기 ═══ -->
-<section class="band" id="넘버링">
+<section class="band band--dark" id="넘버링">
   <p class="eyebrow reveal">실제 화면 · 도면 한 장에 들어가는 것</p>
   <h2 class="reveal"><span class="mark-num">1</span>넘버링과 표기</h2>
   <p class="lead reveal">
@@ -623,7 +646,7 @@ h3{ font-size:16.5px; font-weight:600; letter-spacing:-.008em; margin-bottom:6px
 <p class="grid6__caption reveal">칸 구성·문구 서식·"사진 없음" 표기는 실제 생성 결과와 동일합니다. 사진 5장은 매칭되고 1장(4F-01)만 현장에서 촬영을 놓친, 실제로 자주 있는 상황을 예시로 구성했습니다.</p>
 
 <!-- ═══ 3. 도곽 · 테마 · 출력 ═══ -->
-<section class="band band--tint" id="출력">
+<section class="band band--dark" id="출력">
   <p class="eyebrow reveal">마무리 · 실제 화면</p>
   <h2 class="reveal"><span class="mark-num mark-num--defect">3</span>표제란과 PDF 출력</h2>
   <p class="lead reveal">불러온 도면을 A4에 맞춰 앉히고, 표제란을 채워 PDF로 내보냅니다. 여러 장이면 여러 장 그대로 나옵니다.</p>
@@ -754,7 +777,7 @@ h3{ font-size:16.5px; font-weight:600; letter-spacing:-.008em; margin-bottom:6px
 </section>
 
 <!-- ═══ CTA ═══ -->
-<section class="band" style="text-align:center;">
+<section class="band band--dark" style="text-align:center;">
   <h2>먼저 써 보고 정하세요</h2>
   <p class="lead" style="margin:0 auto 4px;">체험판은 기간 제한이 없습니다. 사진첩 생성까지 모두 체험판에서 시도해볼 수 있습니다.</p>
   <div class="cta" style="justify-content:center;">
