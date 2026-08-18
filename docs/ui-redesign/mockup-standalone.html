@@ -1,0 +1,1169 @@
+<title>NumDraw 제도 콘솔</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<style>
+/* ============================================================================
+   NumDraw — UI 개선안 "제도 콘솔 (Drafting Console)"
+   토큰 + 공통 컴포넌트 레이어
+
+   이 파일은 mockup.html 이 그대로 불러다 쓰는 실제 스타일시트다.
+   즉 목업에서 보이는 화면 = 이 파일의 결과물이므로,
+   구현할 때는 이 파일을 css/ 로 옮기고 style.css 의 해당 블록을 걷어내면 된다.
+   이식 순서는 같은 폴더의 README.md 참고.
+
+   블록 [A] 토큰 / [B] 기본 / [C] 칸(bay) / [D] 버튼 / [E] 상단 레일
+        [F] 계기바 / [G] 페이지 패널 / [H] 캔버스 / [I] 사이드바
+        [J] 도곽 서랍 / [K] 접근성·반응형
+   ============================================================================ */
+
+/* ── [A] TOKENS ─────────────────────────────────────────────────────────────
+   크롬(기기 몸체)은 흑연, 도면만 흰 종이. 색은 "의미"에만 쓴다.
+   ------------------------------------------------------------------------- */
+:root{
+  /* 크롬 — 계기판 몸체 (숫자가 클수록 어둡다) */
+  --c-900:#15181C;   /* 상단 레일 */
+  --c-850:#1A1E23;   /* 계기바 · 좌우 패널 바닥 */
+  --c-800:#21262C;   /* 칸(bay) 본체 · 카드 */
+  --c-750:#272D34;   /* 칸 라벨셀 · 입력칸 */
+  --c-700:#333A42;   /* 기본 보더 */
+  --c-600:#414A54;   /* 호버 보더 · 비활성 아이콘 */
+  --edge:#0E1114;    /* 패널 사이 경계 (검은 실선) */
+
+  /* 글자 */
+  --t-0:#EEF1F4;     /* 본문 */
+  --t-1:#A8B1BB;     /* 보조 */
+  --t-2:#828B95;     /* 라벨 · 흐림 (10px 로 쓰이므로 4.5:1 이상 유지) */
+  --t-lab:#8E97A1;   /* 칸 라벨 전용 — 더 어두우면 10px 에서 읽히지 않는다 */
+
+  /* 도면 판 */
+  --apron:#464D55;   /* 도면 뒤 바닥 */
+  --sheet:#FFFFFF;
+
+  /* 신호색 — 계기 램프. "지금 선택된 것" 에만 쓴다 */
+  --sig:#F0B429;
+  --sig-soft:rgba(240,180,41,.15);
+  --sig-text:#F7C85E;
+
+  /* 상태색 */
+  --ok:#3DB88B;      --ok-soft:rgba(61,184,139,.14);
+  --dgr:#F2705F;     --dgr-soft:rgba(242,112,95,.14);
+
+  /* 표기 잉크 — 도면에 실제로 찍히는 색. 캔버스 출력값과 반드시 동일하게 유지.
+     테마가 바뀌어도 이 세 색은 그대로다. 화면 색과 PDF 색이 달라지면 안 된다. */
+  --mk-defect:#E05555;
+  --mk-repair:#4A9EFF;
+  --mk-new:#9B59B6;
+
+  /* 테마마다 뒤집히는 값 — 하드코딩하지 말고 반드시 이 토큰을 쓴다 */
+  --fg-strong:#FFFFFF;              /* 잉크 틴트 위에 얹는 글자 */
+  --key-bg:#E9EDF1;                 /* 주요 버튼 = 크롬의 반대색 */
+  --key-fg:#181C21;
+  --key-bg-hover:#FFFFFF;
+  --key-shadow:0 2px 10px rgba(0,0,0,.35);
+  --float-bg:rgba(21,24,28,.85);    /* 도면 위에 뜨는 것들 */
+  --float-bg-solid:rgba(21,24,28,.94);
+  --grid-line:rgba(255,255,255,.045);
+  --scrim:rgba(10,12,15,.62);        /* 모달 뒷배경 */
+  --dgr-hover-text:#FF8B7C;
+  --sheet-shadow:0 20px 55px rgba(0,0,0,.45), 0 0 0 1px rgba(0,0,0,.35);
+  --drawer-shadow:-18px 0 40px rgba(0,0,0,.45);
+
+  /* ── 테마와 무관한 공통값 ── */
+  --r-1:3px; --r-2:5px; --r-3:8px;
+  --rail-h:40px;
+  --bar-h:41px;
+  --page-panel-w:172px;
+  --sidebar-w:268px;
+
+  --f-ui:'IBM Plex Sans KR','IBM Plex Sans',-apple-system,'Malgun Gothic',sans-serif;
+  --f-mono:'IBM Plex Mono','Consolas',monospace;
+}
+
+/* ── [A-2] 라이트 테마 ──────────────────────────────────────────────────────
+   단순 반전이 아니다. 흑연 계기판이 백색 도면대(drafting table)로 바뀌는 것이고,
+   신호색은 흰 바탕에서 읽히도록 채도를 낮추고 어둡게 내린다.
+   전환: <html data-theme="light">  (index.html 의 우측 상단 버튼 · localStorage 보존)
+   ------------------------------------------------------------------------- */
+:root[data-theme="light"]{
+  --c-900:#E4E6EA;   /* 상단 레일 — 패널보다 한 톤 진하게 (기기 몸체) */
+  --c-850:#F1F2F5;   /* 계기바 · 좌우 패널 */
+  --c-800:#FFFFFF;   /* 칸 본체 · 카드 */
+  --c-750:#F7F8FA;   /* 칸 라벨셀 · 입력칸 */
+  --c-700:#D6DAE0;   /* 기본 보더 */
+  --c-600:#B9BFC7;   /* 호버 보더 */
+  --edge:#C6CBD2;    /* 패널 사이 경계 */
+
+  --t-0:#1A1E23;
+  --t-1:#4B535C;
+  --t-2:#6C757F;
+  --t-lab:#5D6874;
+
+  --apron:#AFB5BD;   /* 도면 뒤 바닥 — 흰 도면이 떠 보이도록 중간 회색 유지 */
+  --sheet:#FFFFFF;
+
+  --sig:#D99B10;
+  --sig-soft:rgba(217,155,16,.18);
+  --sig-text:#8A6008;
+
+  --ok:#1E8A5F;      --ok-soft:rgba(30,138,95,.14);
+  --dgr:#C43B2C;     --dgr-soft:rgba(196,59,44,.12);
+
+  --fg-strong:#1A1E23;
+  --key-bg:#22272E;  /* 밝은 크롬 위에서는 먹색 키가 주요 버튼이 된다 */
+  --key-fg:#F4F6F8;
+  --key-bg-hover:#14181D;
+  --key-shadow:0 2px 10px rgba(0,0,0,.18);
+  --float-bg:rgba(255,255,255,.9);
+  --float-bg-solid:rgba(255,255,255,.96);
+  --grid-line:rgba(0,0,0,.055);
+  --scrim:rgba(40,45,52,.35);
+  --dgr-hover-text:#9E2A1D;
+  --sheet-shadow:0 14px 38px rgba(0,0,0,.22), 0 0 0 1px rgba(0,0,0,.14);
+  --drawer-shadow:-18px 0 40px rgba(0,0,0,.16);
+  --shadow-xs:0 1px 2px rgba(0,0,0,.06);
+  --shadow-sm:0 2px 6px rgba(0,0,0,.09);
+  --shadow-md:0 4px 16px rgba(0,0,0,.12);
+  --shadow-lg:0 10px 34px rgba(0,0,0,.18);
+}
+
+/* ── [B] BASE ───────────────────────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box; margin:0; padding:0}
+body{
+  font-family:var(--f-ui); font-size:13px;
+  background:var(--c-900); color:var(--t-0);
+  height:100vh; overflow:hidden; display:flex; flex-direction:column;
+  -webkit-font-smoothing:antialiased;
+}
+button,input{font-family:inherit}
+:focus-visible{outline:2px solid var(--sig); outline-offset:2px; border-radius:2px}
+.kbd{
+  font:600 9.5px/1 var(--f-mono); color:var(--t-2);
+  background:var(--c-750); border:1px solid var(--c-700);
+  border-radius:3px; padding:2px 4px;
+}
+
+/* ── [C] BAY — 칸 시스템 (도곽 셀 문법: 라벨 | 값) ──────────────────────────
+   버튼은 낱개로 두지 않고 항상 칸에 담는다. 칸 하나 = 작업 갈래 하나.
+   ------------------------------------------------------------------------- */
+.bay{
+  display:flex; align-items:stretch; flex-shrink:0;
+  background:var(--c-800);
+  border:1px solid var(--c-700);
+  border-radius:var(--r-2);
+  overflow:hidden;
+}
+.bay-label{
+  display:flex; align-items:center; gap:5px;
+  padding:0 9px;
+  background:var(--c-750);
+  border-right:1px solid var(--c-700);
+  font:600 10px/1 var(--f-mono);
+  letter-spacing:.08em; color:var(--t-lab);
+  white-space:nowrap;
+}
+.bay-body{display:flex; align-items:center; gap:3px; padding:4px 6px}
+/* 색을 가진 칸(구분·도형)은 라벨셀 왼쪽에 잉크 띠를 둔다 */
+.bay[data-ink] > .bay-label{
+  padding-left:11px;
+  box-shadow:inset 3px 0 0 var(--bay-ink);
+  color:var(--t-1);
+}
+
+/* ── [D] BUTTONS — 램프 규칙 ────────────────────────────────────────────────
+   선택된 버튼은 아래 2px 램프가 켜진다. 램프색 = 그 도구의 색
+   (색이 없는 도구는 신호색 amber, 색을 가진 도구는 자기 잉크색).
+   ------------------------------------------------------------------------- */
+.tbtn{
+  display:inline-flex; align-items:center; gap:5px;
+  height:26px; padding:0 9px;
+  border:1px solid transparent; border-radius:var(--r-1);
+  background:transparent; color:var(--t-1);
+  font:500 11.5px/1 var(--f-ui); white-space:nowrap; cursor:pointer;
+  transition:background .12s, color .12s, border-color .12s;
+}
+.tbtn:hover{background:var(--c-700); color:var(--t-0)}
+.tbtn.active{
+  background:var(--sig-soft); border-color:rgba(240,180,41,.42);
+  color:var(--sig-text); font-weight:600;
+  box-shadow:inset 0 -2px 0 var(--sig);
+}
+.tbtn.sq{width:26px; padding:0; justify-content:center}
+.tbtn svg{flex-shrink:0}
+.tbtn:disabled{opacity:.38; cursor:default}
+.tbtn:disabled:hover{background:transparent; color:var(--t-1)}
+
+/* 주요 동작 = 종이색 키. 강조색을 쓰지 않는다 — amber 는 선택 상태 전용 */
+.key{
+  display:inline-flex; align-items:center; gap:6px;
+  height:26px; padding:0 11px;
+  border:1px solid var(--key-bg); border-radius:var(--r-1);
+  background:var(--key-bg); color:var(--key-fg);
+  font:600 11.5px/1 var(--f-ui); white-space:nowrap; cursor:pointer;
+  transition:background .12s, box-shadow .12s;
+}
+.key:hover{background:var(--key-bg-hover); box-shadow:var(--key-shadow)}
+.key:disabled{opacity:.35; cursor:default; box-shadow:none}
+.tbtn.danger{color:var(--dgr)}
+.tbtn.danger:hover{background:var(--dgr-soft); color:var(--dgr-hover-text)}
+
+/* 구분(카테고리) 버튼 — 자기 잉크색으로 켜진다 */
+.cat{
+  position:relative;
+  display:inline-flex; align-items:center; gap:6px;
+  height:26px; padding:0 9px;
+  border:1px solid transparent; border-radius:var(--r-1);
+  background:transparent; color:var(--t-1);
+  font:500 11.5px/1 var(--f-ui); cursor:pointer;
+  transition:background .12s, color .12s, border-color .12s;
+}
+.cat .dot{width:9px; height:9px; border-radius:2px; background:var(--cat-c); flex-shrink:0}
+.cat:hover{background:var(--c-700); color:var(--t-0)}
+.cat.active{
+  background:color-mix(in srgb, var(--cat-c) 20%, transparent);
+  border-color:color-mix(in srgb, var(--cat-c) 60%, transparent);
+  color:var(--fg-strong); font-weight:600;
+  box-shadow:inset 0 -2px 0 var(--cat-c);
+}
+.cat .pick{
+  width:12px; height:12px; padding:0; border:1px solid var(--c-600);
+  border-radius:2px; background:var(--cat-c); cursor:pointer;
+  opacity:0; transition:opacity .12s;
+}
+.cat:hover .pick, .cat.active .pick{opacity:.85}
+
+/* 스위치 (직교 · 반전) */
+.sw{
+  display:inline-flex; align-items:center; gap:6px; height:26px; padding:0 8px;
+  border-radius:var(--r-1); color:var(--t-1); font:500 11.5px var(--f-ui);
+  cursor:pointer; user-select:none;
+}
+.sw:hover{background:var(--c-700)}
+.sw input{position:absolute; opacity:0; width:0; height:0}
+.sw .track{
+  position:relative; width:26px; height:14px; border-radius:8px;
+  background:var(--c-700); transition:background .15s; flex-shrink:0;
+}
+.sw .track::after{
+  content:''; position:absolute; top:2px; left:2px;
+  width:10px; height:10px; border-radius:50%; background:var(--t-2);
+  transition:transform .15s, background .15s;
+}
+.sw input:checked + .track{background:var(--sig)}
+.sw input:checked + .track::after{transform:translateX(12px); background:#1A1E23}
+.sw input:focus-visible + .track{outline:2px solid var(--sig); outline-offset:2px}
+
+/* 입력칸 */
+.fld{
+  height:26px; padding:0 7px;
+  background:var(--c-750); border:1px solid var(--c-700); border-radius:var(--r-1);
+  color:var(--t-0); font:500 11.5px var(--f-mono); text-align:center;
+}
+.fld:focus{outline:none; border-color:var(--sig)}
+.fld::placeholder{color:var(--t-2); font-family:var(--f-ui)}
+.fld.w-pre{width:58px; text-align:left}
+.fld.w-num{width:44px}
+.swatch{
+  width:26px; height:26px; padding:0; border:1px solid var(--c-700);
+  border-radius:var(--r-1); background:#fff; cursor:pointer;
+}
+.swatch:hover{border-color:var(--sig)}
+
+/* 판독값 (계기 눈금) */
+.readout{
+  display:inline-flex; align-items:center; gap:7px;
+  height:26px; padding:0 10px;
+  border:1px solid var(--c-700); border-radius:var(--r-1);
+  background:var(--c-800);
+  font:500 10.5px/1 var(--f-mono); letter-spacing:.02em; color:var(--t-2);
+  white-space:nowrap;
+}
+.readout b{font:700 12px/1 var(--f-mono); color:var(--t-0)}
+.readout .sep{color:var(--c-600)}
+
+/* ── [E] TOP RAIL — 문서 단위 조작 ──────────────────────────────────────── */
+#rail{
+  height:var(--rail-h); flex-shrink:0;
+  display:flex; align-items:center; gap:7px; padding:0 10px;
+  background:var(--c-900); border-bottom:1px solid var(--edge);
+}
+.brand{
+  display:flex; align-items:center; gap:8px;
+  padding-right:11px; margin-right:1px; border-right:1px solid var(--c-700);
+}
+.brand-mark{
+  width:21px; height:21px; display:grid; place-items:center; color:var(--sig);
+  border:1.5px solid var(--sig); border-radius:var(--r-1);
+}
+.brand-name{font:700 12.5px/1 var(--f-mono); letter-spacing:.01em; color:var(--t-0)}
+.seg{
+  display:flex; gap:2px; padding:2px;
+  background:var(--c-750); border:1px solid var(--c-700); border-radius:var(--r-1);
+}
+.seg-btn{
+  height:22px; padding:0 13px; border:0; border-radius:2px; background:transparent;
+  color:var(--t-2); font:600 11.5px/1 var(--f-ui); cursor:pointer;
+  transition:background .12s, color .12s;
+}
+.seg-btn:hover{color:var(--t-0)}
+.seg-btn.active{background:var(--c-600); color:var(--fg-strong); box-shadow:inset 0 -2px 0 var(--sig)}
+.file-name{
+  font:500 11px var(--f-mono); color:var(--t-2); max-width:150px;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.rail-right{margin-left:auto; display:flex; align-items:center; gap:7px}
+
+/* 저장 상태 · 라이선스 배지 */
+.chip{
+  display:inline-flex; align-items:center; gap:6px; height:26px; padding:0 10px;
+  border:1px solid var(--c-700); border-radius:999px; background:var(--c-800);
+  font:600 11px var(--f-ui); color:var(--t-1); cursor:pointer; white-space:nowrap;
+}
+.chip .led{width:7px; height:7px; border-radius:50%; background:var(--t-2); flex-shrink:0}
+.chip.saved{color:var(--ok)}
+.chip.saved .led{background:var(--ok)}
+.chip.unsaved .led{background:var(--sig)}
+.chip.trial{border-color:rgba(240,180,41,.45); color:var(--sig-text); background:var(--sig-soft)}
+.chip.full{border-color:rgba(61,184,139,.45); color:var(--ok); background:var(--ok-soft)}
+
+/* ── [F] INSTRUMENT BAR — 도면에 직접 찍는 도구 ──────────────────────────── */
+#bar{
+  display:flex; flex-wrap:wrap; align-items:center; gap:6px;
+  padding:7px 10px; flex-shrink:0;
+  background:var(--c-850); border-bottom:1px solid var(--edge);
+}
+#bar .push{margin-left:auto}
+
+/* ── [G] MAIN + PAGE PANEL ──────────────────────────────────────────────── */
+#main{flex:1; display:flex; overflow:hidden}
+#page-panel{
+  width:var(--page-panel-w); flex-shrink:0; display:flex; flex-direction:column;
+  background:var(--c-850); border-right:1px solid var(--edge);
+}
+.panel-head{
+  height:30px; flex-shrink:0; display:flex; align-items:center; justify-content:space-between;
+  padding:0 7px 0 10px; border-bottom:1px solid var(--c-700);
+  font:600 10px/1 var(--f-mono); letter-spacing:.08em; color:var(--t-2);
+}
+.panel-head-btns{display:flex; align-items:center; gap:4px}
+.mini{
+  width:18px; height:18px; display:grid; place-items:center; padding:0;
+  border:1px solid var(--c-700); border-radius:var(--r-1);
+  background:var(--c-800); color:var(--t-1); font:600 13px/1 var(--f-ui); cursor:pointer;
+}
+.mini:hover{border-color:var(--sig); color:var(--sig)}
+.mini.danger:hover{border-color:var(--dgr); color:var(--dgr)}
+#page-list{flex:1; overflow-y:auto; padding:7px 6px; display:flex; flex-direction:column; gap:6px}
+.page-card{
+  border:1px solid var(--c-700); border-radius:var(--r-2); background:var(--c-800);
+  overflow:hidden; cursor:pointer; flex-shrink:0;
+  transition:border-color .12s, box-shadow .12s;
+}
+.page-card:hover{border-color:var(--c-600)}
+.page-card.active{border-color:var(--sig); box-shadow:0 0 0 1px rgba(240,180,41,.3)}
+.page-thumb{height:92px; background:#fff; display:grid; place-items:center; overflow:hidden}
+.page-thumb svg{width:100%; height:100%}
+.page-meta{display:flex; align-items:center; gap:5px; padding:5px 7px; border-top:1px solid var(--c-700)}
+.page-meta .n{font:700 9.5px/1 var(--f-mono); color:var(--t-2); flex-shrink:0}
+.page-card.active .page-meta .n{color:var(--sig)}
+.page-meta .nm{
+  flex:1; min-width:0; font-size:11px; color:var(--t-1);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.page-card.active .page-meta .nm{color:var(--t-0); font-weight:600}
+.page-meta .ct{
+  font:600 9.5px/1 var(--f-mono); color:var(--t-2);
+  background:var(--c-750); border-radius:2px; padding:2px 4px;
+}
+
+/* ── [H] CANVAS — 유일하게 밝은 면 ──────────────────────────────────────── */
+#canvas-wrap{flex:1; display:flex; flex-direction:column; overflow:hidden}
+#canvas-area{
+  flex:1; position:relative; overflow:hidden; display:grid; place-items:center;
+  background:var(--apron);
+  background-image:linear-gradient(var(--grid-line) 1px, transparent 1px),
+                   linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size:28px 28px;
+  cursor:crosshair;
+}
+#sheet{
+  height:calc(100% - 64px); aspect-ratio:297/210; background:var(--sheet);
+  box-shadow:var(--sheet-shadow);
+}
+#sheet svg{display:block; width:100%; height:100%}
+#canvas-status{
+  position:absolute; left:14px; bottom:14px;
+  display:flex; align-items:center; gap:10px;
+  padding:6px 12px; border-radius:var(--r-2);
+  background:var(--float-bg); border:1px solid var(--c-700);
+  backdrop-filter:blur(8px);
+  font:500 11px var(--f-ui); color:var(--t-1);
+}
+#canvas-status .hint{color:var(--t-0); font-weight:600}
+#canvas-status .div{width:1px; height:14px; background:var(--c-700)}
+#zoom-controls{position:absolute; right:14px; bottom:14px; display:flex; flex-direction:column; gap:4px}
+.zbtn{
+  width:46px; height:28px; display:grid; place-items:center; padding:0;
+  border:1px solid var(--c-700); border-radius:var(--r-1);
+  background:var(--float-bg); backdrop-filter:blur(8px);
+  color:var(--t-1); font:500 14px/1 var(--f-ui); cursor:pointer;
+}
+.zbtn:hover{border-color:var(--sig); color:var(--sig)}
+.zval{
+  width:46px; padding:5px 2px; text-align:center;
+  border:1px solid var(--c-700); border-radius:var(--r-1);
+  background:var(--float-bg); backdrop-filter:blur(8px);
+  font:600 10px var(--f-mono); color:var(--t-1);
+}
+
+/* ── [I] SIDEBAR ─────────────────────────────────────────────────────────── */
+#sidebar{
+  width:var(--sidebar-w); flex-shrink:0; display:flex; flex-direction:column;
+  background:var(--c-850); border-left:1px solid var(--edge);
+}
+.tab-bar{display:flex; flex-shrink:0; border-bottom:1px solid var(--c-700); background:var(--c-900)}
+.tab-btn{
+  flex:1; height:34px; border:0; background:transparent; cursor:pointer;
+  font:600 11px/1 var(--f-ui); color:var(--t-2);
+  border-bottom:2px solid transparent; transition:color .12s, background .12s;
+}
+.tab-btn:hover{color:var(--t-1); background:var(--c-850)}
+.tab-btn.active{color:var(--t-0); background:var(--c-850); border-bottom-color:var(--sig)}
+.tab-btn .cnt{font:700 9.5px var(--f-mono); color:var(--t-2); margin-left:4px}
+.tab-panel{display:none; flex:1; overflow:hidden; flex-direction:column}
+.tab-panel.active{display:flex}
+.list{flex:1; overflow-y:auto; padding:7px 8px; display:flex; flex-direction:column; gap:2px}
+
+/* 페이지 구분 헤더 — 전체 페이지 통합 목록 (Phase 3-c-1) */
+.list-group{
+  display:flex; align-items:center; gap:7px;
+  padding:9px 4px 5px; margin-top:4px;
+  font:600 9.5px/1 var(--f-mono); letter-spacing:.08em; color:var(--t-2);
+}
+.list-group::after{content:''; flex:1; height:1px; background:var(--c-700)}
+.list-group:first-child{margin-top:0; padding-top:2px}
+
+.num-item{
+  display:flex; align-items:center; gap:8px; padding:6px 7px;
+  border:1px solid transparent; border-radius:var(--r-2); cursor:pointer;
+  transition:background .12s, border-color .12s;
+}
+.num-item:hover{background:var(--c-800)}
+.num-item.selected{background:var(--c-800); border-color:var(--sig)}
+.num-badge{
+  min-width:38px; height:22px; padding:0 7px; flex-shrink:0;
+  display:grid; place-items:center; border-radius:var(--r-1);
+  background:var(--nb); color:#fff;
+  font:700 11px/1 var(--f-mono); letter-spacing:-.02em;
+}
+.num-info{flex:1; min-width:0; display:flex; flex-direction:column; gap:2px}
+.num-title{font-size:11.5px; color:var(--t-0); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.num-sub{
+  font:500 10px var(--f-mono); color:var(--t-2);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.num-sub.matched{color:var(--ok)}
+.num-photo{
+  width:54px; height:22px; flex-shrink:0;
+  background:var(--c-750); border:1px solid var(--c-700); border-radius:var(--r-1);
+  color:var(--t-0); font:500 11px var(--f-mono); text-align:center;
+}
+.num-photo:focus{outline:none; border-color:var(--sig)}
+.num-photo::-webkit-outer-spin-button,
+.num-photo::-webkit-inner-spin-button{-webkit-appearance:none; margin:0}
+.num-del{
+  width:20px; height:20px; flex-shrink:0; padding:0; border:0; border-radius:var(--r-1);
+  background:transparent; color:var(--dgr); font-size:12px; cursor:pointer; opacity:0;
+}
+.num-item:hover .num-del{opacity:1}
+.num-del:hover{background:var(--dgr-soft)}
+
+/* 사이드바 섹션 (사진 · 조절 탭) */
+.sec{
+  padding:10px; border-bottom:1px solid var(--c-700); flex-shrink:0;
+  display:flex; flex-direction:column; gap:7px;
+}
+.sec-title{font:600 10px/1 var(--f-mono); letter-spacing:.08em; color:var(--t-2)}
+.sec .key, .sec .tbtn{width:100%; justify-content:center}
+.sec .tbtn{border-color:var(--c-700); background:var(--c-800)}
+/* 목록 아래에 붙는 섹션 (넘버링 탭의 정리 동작) */
+.sec.foot{border-bottom:0; border-top:1px solid var(--c-700)}
+/* 버튼 여러 개를 한 줄로 — 위의 `.sec .tbtn{width:100%}` 를 덮어야 하므로 반드시 뒤에 온다 */
+.sec-row{display:flex; gap:6px}
+.sec-row .tbtn{flex:1; width:auto; padding:0 6px}
+.path{
+  padding:6px 9px; border:1px solid var(--c-700); border-radius:var(--r-1);
+  background:var(--c-800); font:500 10.5px var(--f-mono); color:var(--t-2);
+  word-break:break-all;
+}
+.path.on{color:var(--ok); border-color:rgba(61,184,139,.4)}
+
+/* 슬라이더 행 (조절 탭) */
+.slide-row{display:flex; align-items:center; gap:9px}
+.slide-row .lab{width:52px; flex-shrink:0; font-size:11.5px; color:var(--t-1)}
+.slide-row .val{
+  width:42px; flex-shrink:0; text-align:right;
+  font:600 11px var(--f-mono); color:var(--sig-text);
+}
+input[type=range]{
+  -webkit-appearance:none; appearance:none; flex:1; height:3px; border-radius:2px;
+  background:var(--c-700); outline:none;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none; width:13px; height:13px; border-radius:50%;
+  background:var(--sig); border:2px solid var(--c-850); cursor:pointer;
+}
+.check-row{display:flex; align-items:center; gap:7px; font-size:11.5px; color:var(--t-1); cursor:pointer}
+.check-row input{accent-color:var(--sig); margin:0}
+
+/* ── [J] 도곽 설정 — 오버레이 없는 우측 도킹 서랍 (Phase 3-c-3) ──────────── */
+#drawer{
+  position:fixed; top:calc(var(--rail-h) + var(--bar-h)); right:var(--sidebar-w); bottom:0;
+  width:296px; z-index:200;
+  display:flex; flex-direction:column;
+  background:var(--c-850); border-left:1px solid var(--edge);
+  box-shadow:var(--drawer-shadow);
+  /* 닫힐 때 사이드바 폭까지 함께 밀어야 화면 밖으로 완전히 나간다 */
+  transform:translateX(calc(100% + var(--sidebar-w) + 24px));
+  transition:transform .18s ease;
+}
+#drawer.open{transform:none}
+.drawer-head{
+  height:34px; flex-shrink:0; display:flex; align-items:center; justify-content:space-between;
+  padding:0 8px 0 12px; border-bottom:1px solid var(--c-700);
+  font:600 10px/1 var(--f-mono); letter-spacing:.08em; color:var(--t-1);
+}
+.drawer-body{flex:1; overflow-y:auto; padding:12px; display:flex; flex-direction:column; gap:12px}
+.drawer-foot{
+  padding:10px 12px; border-top:1px solid var(--c-700);
+  display:flex; gap:7px; justify-content:flex-end;
+}
+.f-row{display:flex; flex-direction:column; gap:5px}
+.f-row > label{font-size:10.5px; color:var(--t-2)}
+.f-row .fld{width:100%; height:28px; text-align:left; font-family:var(--f-ui); font-size:12px}
+.x{
+  width:22px; height:22px; padding:0; border:0; border-radius:var(--r-1);
+  background:transparent; color:var(--t-2); cursor:pointer; font-size:12px;
+}
+.x:hover{background:var(--c-700); color:var(--t-0)}
+
+/* ── [K] 접근성 · 반응형 ────────────────────────────────────────────────── */
+::-webkit-scrollbar{width:8px; height:8px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--c-700); border-radius:4px; border:2px solid var(--c-850)}
+::-webkit-scrollbar-thumb:hover{background:var(--c-600)}
+@media (prefers-reduced-motion:reduce){
+  *{transition:none !important; animation:none !important}
+}
+/* 폭이 좁아지면 칸 단위로 줄바꿈된다 — 버튼이 낱개로 흩어지지 않는 게 칸의 이점.
+   상단 레일은 줄바꿈이 불가능하므로 라벨셀을 먼저 접는다. */
+@media (max-width:1400px){
+  #rail .bay-label{display:none}
+  .file-name{max-width:96px}
+}
+@media (max-width:1180px){
+  :root{--sidebar-w:236px; --page-panel-w:150px}
+}
+
+/* ── [L] 단일 파일 배포용 오버라이드 ───────────────────────────────────────
+   실제 앱은 창 전체를 쓰지만, 이 예시는 좁은 화면에서도 열린다.
+   가로 스크롤은 페이지가 아니라 이 틀 안에서 일어나게 한다. */
+body{display:block; height:100dvh; overflow-x:auto; overflow-y:hidden;
+     background:var(--c-900); color:var(--t-0)}
+#viewport{display:flex; flex-direction:column; height:100%; min-width:1180px}
+</style>
+<div id="viewport">
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     상단 레일 — 문서 단위 조작 (한 세션에 몇 번 누르지 않는 것들)
+     id/이름은 현재 index.html 과 동일하게 유지해 JS 수정 없이 옮겨붙일 수 있게 했다.
+     ══════════════════════════════════════════════════════════════════════ -->
+<div id="rail">
+
+  <div class="brand">
+    <span class="brand-mark">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">
+        <circle cx="12" cy="12" r="2.6"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/>
+      </svg>
+    </span>
+    <span class="brand-name">NumDraw</span>
+  </div>
+
+  <div class="bay">
+    <span class="bay-label">작업유형</span>
+    <div class="bay-body">
+      <div class="seg" id="mode-seg">
+        <button class="seg-btn active" data-mode="exterior">외관조사망도</button>
+        <button class="seg-btn" data-mode="equip">장비시험망도</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="bay">
+    <span class="bay-label">도면</span>
+    <div class="bay-body">
+      <button class="key" id="btn-open">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        열기
+      </button>
+      <span class="file-name" id="file-name">한빛아파트_101동.pdf</span>
+    </div>
+  </div>
+
+  <div class="bay">
+    <span class="bay-label">프로젝트</span>
+    <div class="bay-body">
+      <button class="tbtn" id="btn-save-project">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        저장
+      </button>
+      <button class="tbtn" id="btn-load-project">불러오기</button>
+    </div>
+  </div>
+
+  <div class="bay">
+    <span class="bay-label">시트</span>
+    <div class="bay-body">
+      <button class="tbtn" id="btn-titleblock">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="1"/><line x1="3" y1="17" x2="21" y2="17"/><line x1="11" y1="17" x2="11" y2="21"/></svg>
+        도곽
+      </button>
+      <label class="sw" title="범례 표시">
+        <span>범례</span>
+        <input type="checkbox" id="legend-toggle" checked>
+        <span class="track"></span>
+      </label>
+    </div>
+  </div>
+
+  <div class="bay">
+    <span class="bay-label">출력</span>
+    <div class="bay-body">
+      <button class="tbtn" id="btn-export-pdf">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        PDF 저장
+      </button>
+    </div>
+  </div>
+
+  <div class="rail-right">
+    <div class="readout">
+      넘버링 <b>12</b><span class="sep">/</span>다음 <b>1F-13</b>
+    </div>
+    <button class="chip saved" id="save-indicator"><span class="led"></span>14:22 저장됨</button>
+    <button class="chip trial" id="btn-license">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      체험판
+    </button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     계기바 — 도면에 직접 찍는 도구만. 한 줄 유지가 원칙.
+     슬라이더·배율류는 사이드바 [조절] 탭으로 내렸다.
+     ══════════════════════════════════════════════════════════════════════ -->
+<div id="bar">
+
+  <div class="bay">
+    <span class="bay-label">지시점</span>
+    <div class="bay-body" data-group="tool">
+      <button class="tbtn active" data-tool="arrow">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="19" x2="19" y2="5"/><polyline points="12 5 19 5 19 12"/></svg>
+        화살표
+      </button>
+      <button class="tbtn" data-tool="dot">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="5"/></svg>
+        점
+      </button>
+      <button class="tbtn" data-tool="none">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="7" width="18" height="10" rx="2"/></svg>
+        없음
+      </button>
+    </div>
+  </div>
+
+  <div class="bay">
+    <span class="bay-label">지시선</span>
+    <div class="bay-body" data-group="line">
+      <button class="tbtn sq active" data-line="straight" title="직선 (1)">
+        <svg width="16" height="13" viewBox="0 0 22 18"><line x1="2" y1="16" x2="20" y2="2" stroke="currentColor" stroke-width="2"/></svg>
+      </button>
+      <button class="tbtn sq" data-line="elbow-h" title="ㄱ자 (2)">
+        <svg width="16" height="13" viewBox="0 0 22 18"><polyline points="2,16 2,2 20,2" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+      </button>
+      <button class="tbtn sq" data-line="elbow-v" title="ㄴ자 (3)">
+        <svg width="16" height="13" viewBox="0 0 22 18"><polyline points="2,16 20,16 20,2" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+      </button>
+      <button class="tbtn sq" data-line="zigzag" title="번개 (4)">
+        <svg width="16" height="13" viewBox="0 0 22 18"><polyline points="2,16 11,16 11,2 20,2" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+      </button>
+      <label class="sw" title="지시선을 수평·수직으로만 고정">
+        <span>직교모드</span>
+        <input type="checkbox" id="ortho-toggle-side">
+        <span class="track"></span>
+        <span class="kbd">Q</span>
+      </label>
+      <label class="sw" title="화살표 방향을 반대로">
+        <span>화살표 반전</span>
+        <input type="checkbox" id="arrow-flip-toggle">
+        <span class="track"></span>
+        <span class="kbd">R</span>
+      </label>
+    </div>
+  </div>
+
+  <div class="bay" data-ink style="--bay-ink:var(--mk-defect)">
+    <span class="bay-label">구분</span>
+    <div class="bay-body" data-group="cat">
+      <button class="cat active" data-cat="defect" style="--cat-c:var(--mk-defect)">
+        <span class="dot"></span>결함<input type="color" class="pick" value="#e05555" title="색상 변경">
+      </button>
+      <button class="cat" data-cat="repair" style="--cat-c:var(--mk-repair)">
+        <span class="dot"></span>보수<input type="color" class="pick" value="#4a9eff" title="색상 변경">
+      </button>
+      <button class="cat" data-cat="other" style="--cat-c:var(--mk-new)">
+        <span class="dot"></span>신규<input type="color" class="pick" value="#9b59b6" title="색상 변경">
+      </button>
+    </div>
+  </div>
+
+  <div class="bay" data-ink style="--bay-ink:var(--mk-defect)">
+    <span class="bay-label">도형</span>
+    <div class="bay-body" data-group="hatch">
+      <button class="tbtn sq" data-hatch="rect" title="사각 해치">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="5" width="18" height="14"/><path d="M3 15 13 5M3 19 17 5M7 19 21 5M11 19 21 9M15 19 21 13"/></svg>
+      </button>
+      <button class="tbtn sq" data-hatch="ellipse" title="원형 해치">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><ellipse cx="12" cy="12" rx="9" ry="7"/><path d="M5 17 12 5M8 18.5 18 5.5M12 19 20 8M16 18 21.5 12"/></svg>
+      </button>
+      <input type="color" class="swatch" value="#e05555" title="도형 색상 — 새로 그리는 도형에만 적용">
+    </div>
+  </div>
+
+  <!-- 번호 관련 값은 칸을 나눠 각각 이름을 붙인다 — 어느 칸이 무엇인지 묻지 않게 -->
+  <div class="bay">
+    <span class="bay-label">머릿말</span>
+    <div class="bay-body">
+      <input type="text" class="fld w-pre" id="prefix-num" value="1F-" placeholder="예: 1F-">
+    </div>
+  </div>
+
+  <div class="bay">
+    <span class="bay-label">시작번호</span>
+    <div class="bay-body">
+      <input type="number" class="fld w-num" id="start-num" value="1" min="1">
+    </div>
+  </div>
+
+  <div class="bay">
+    <span class="bay-label">글씨색</span>
+    <div class="bay-body">
+      <input type="color" class="swatch" id="color-text" value="#ffffff" title="번호 글씨 색상">
+    </div>
+  </div>
+
+</div>
+
+<div id="main">
+
+  <!-- ── 페이지 패널 ─────────────────────────────────────────────────────── -->
+  <div id="page-panel">
+    <div class="panel-head">
+      <span>페이지</span>
+      <div class="panel-head-btns">
+        <button class="mini" id="btn-page-add" title="페이지 추가">+</button>
+        <button class="mini danger" id="btn-page-del" title="현재 페이지 삭제">−</button>
+      </div>
+    </div>
+    <div id="page-list">
+
+      <div class="page-card active">
+        <div class="page-thumb">
+          <svg viewBox="0 0 200 140"><g fill="none" stroke="#8A939E" stroke-width="2.4">
+            <rect x="34" y="26" width="132" height="80"/><path d="M78 26v80M122 26v80M34 66h44"/></g>
+            <rect x="8" y="6" width="184" height="128" fill="none" stroke="#B9C0C8" stroke-width="1.6"/><line x1="8" y1="118" x2="192" y2="118" stroke="#B9C0C8" stroke-width="1.6"/>
+            <circle cx="70" cy="48" r="6" fill="#E05555"/><circle cx="140" cy="86" r="6" fill="#4A9EFF"/>
+          </svg>
+        </div>
+        <div class="page-meta"><span class="n">P1</span><span class="nm">지상 1층</span><span class="ct">12</span></div>
+      </div>
+
+      <div class="page-card">
+        <div class="page-thumb">
+          <svg viewBox="0 0 200 140"><g fill="none" stroke="#8A939E" stroke-width="2.4">
+            <rect x="34" y="26" width="132" height="80"/><path d="M100 26v80M34 76h66"/></g>
+            <rect x="8" y="6" width="184" height="128" fill="none" stroke="#B9C0C8" stroke-width="1.6"/><line x1="8" y1="118" x2="192" y2="118" stroke="#B9C0C8" stroke-width="1.6"/>
+            <circle cx="120" cy="52" r="6" fill="#9B59B6"/>
+          </svg>
+        </div>
+        <div class="page-meta"><span class="n">P2</span><span class="nm">지상 2층</span><span class="ct">8</span></div>
+      </div>
+
+      <div class="page-card">
+        <div class="page-thumb">
+          <svg viewBox="0 0 200 140"><g fill="none" stroke="#8A939E" stroke-width="2.4">
+            <rect x="44" y="30" width="112" height="72"/><path d="M44 66h112"/></g>
+            <rect x="8" y="6" width="184" height="128" fill="none" stroke="#B9C0C8" stroke-width="1.6"/><line x1="8" y1="118" x2="192" y2="118" stroke="#B9C0C8" stroke-width="1.6"/>
+          </svg>
+        </div>
+        <div class="page-meta"><span class="n">P3</span><span class="nm">옥상</span><span class="ct">0</span></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── 캔버스 ──────────────────────────────────────────────────────────── -->
+  <div id="canvas-wrap">
+    <div id="canvas-area">
+
+      <div id="sheet">
+        <svg viewBox="0 0 1754 1240" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <pattern id="hatch45" width="14" height="14" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+              <line x1="0" y1="0" x2="0" y2="14" stroke="#E05555" stroke-width="2.2"/>
+            </pattern>
+            <marker id="ah-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" fill="#E05555"/>
+            </marker>
+            <marker id="ah-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" fill="#4A9EFF"/>
+            </marker>
+            <marker id="ah-violet" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" fill="#9B59B6"/>
+            </marker>
+          </defs>
+
+          <!-- 도곽 ① 외곽 테두리 — 도면 전체를 감싼다 (titleBlock.js: strokeRect(M,M,W-2M,H-2M)) -->
+          <rect x="20" y="20" width="1714" height="1200" fill="none" stroke="#000" stroke-width="2.5"/>
+
+          <!-- 작업범위 안내선 (화면 전용 · PDF 미출력) — 도곽 안쪽, 표제란 위까지 -->
+          <rect x="52" y="52" width="1650" height="1078" fill="none"
+                stroke="#B9C0C8" stroke-width="2" stroke-dasharray="16 12"/>
+
+          <!-- 도면 (예시 평면) -->
+          <g fill="none" stroke="#6B7480" stroke-width="5">
+            <rect x="430" y="210" width="900" height="620"/>
+            <path d="M730 210v620M1030 210v620M430 540h300"/>
+          </g>
+          <g fill="none" stroke="#98A0AA" stroke-width="3">
+            <path d="M1030 540h300M470 250h220v250h-220zM770 250h220M770 590h220v200h-220z"/>
+          </g>
+          <g fill="#6B7480" font-family="IBM Plex Mono, monospace" font-size="22">
+            <text x="470" y="880">A</text><text x="770" y="880">B</text><text x="1070" y="880">C</text>
+          </g>
+
+          <!-- 해치 도형 -->
+          <rect x="1070" y="590" width="230" height="180" fill="url(#hatch45)" fill-opacity=".55"
+                stroke="#E05555" stroke-width="3"/>
+
+          <!-- 넘버링 1 — 결함 -->
+          <line x1="612" y1="392" x2="330" y2="300" stroke="#E05555" stroke-width="3" marker-start="url(#ah-red)"/>
+          <g><rect x="196" y="264" width="132" height="52" rx="6" fill="#E05555"/>
+             <text x="262" y="299" text-anchor="middle" fill="#fff" font-family="IBM Plex Mono, monospace" font-weight="700" font-size="28">1F-01</text></g>
+
+          <!-- 넘버링 2 — 보수 -->
+          <polyline points="880,690 880,940 640,940" fill="none" stroke="#4A9EFF" stroke-width="3" marker-start="url(#ah-blue)"/>
+          <g><rect x="500" y="914" width="140" height="52" rx="6" fill="#4A9EFF"/>
+             <text x="570" y="949" text-anchor="middle" fill="#fff" font-family="IBM Plex Mono, monospace" font-weight="700" font-size="28">1F-02</text></g>
+
+          <!-- 넘버링 3 — 신규 -->
+          <line x1="1180" y1="390" x2="1450" y2="330" stroke="#9B59B6" stroke-width="3" marker-start="url(#ah-violet)"/>
+          <g><rect x="1450" y="298" width="140" height="52" rx="6" fill="#9B59B6"/>
+             <text x="1520" y="333" text-anchor="middle" fill="#fff" font-family="IBM Plex Mono, monospace" font-weight="700" font-size="28">1F-03</text></g>
+
+          <!-- 범례 — 우측 상단 고정, 한 줄에 하나씩 세로 정렬.
+               legend.js 의 실제 렌더와 같은 구조: [색상 선 | 설명] 2열 괘선표, 표제행 없음 -->
+          <g transform="translate(1538,60)">
+            <rect x="0" y="0" width="156" height="123" fill="#fff" fill-opacity=".95"/>
+            <g stroke="#E05555" stroke-width="3.4"><line x1="17" y1="20.5" x2="65" y2="20.5"/></g>
+            <text x="99" y="27" font-family="IBM Plex Sans KR, sans-serif" font-size="20" font-weight="600" fill="#E05555">결함</text>
+            <g stroke="#4A9EFF" stroke-width="3.4"><line x1="17" y1="61.5" x2="65" y2="61.5"/></g>
+            <text x="99" y="68" font-family="IBM Plex Sans KR, sans-serif" font-size="20" font-weight="600" fill="#4A9EFF">보수</text>
+            <g stroke="#9B59B6" stroke-width="3.4"><line x1="17" y1="102.5" x2="65" y2="102.5"/></g>
+            <text x="99" y="109" font-family="IBM Plex Sans KR, sans-serif" font-size="20" font-weight="600" fill="#9B59B6">신규</text>
+            <g stroke="rgba(0,0,0,.65)" stroke-width="1.7" fill="none">
+              <rect x="0" y="0" width="156" height="123"/>
+              <line x1="0" y1="41" x2="156" y2="41"/>
+              <line x1="0" y1="82" x2="156" y2="82"/>
+              <line x1="82" y1="0" x2="82" y2="123"/>
+            </g>
+          </g>
+
+          <!-- 도곽 ② 표제란 — 외곽 테두리 안쪽 하단. 라벨은 좌상단, 값은 그 아래 (기존 스타일) -->
+          <g stroke="#000" stroke-width="2.5" fill="none">
+            <line x1="20" y1="1120" x2="1734" y2="1120"/>
+            <line x1="740" y1="1120" x2="740" y2="1220"/>
+            <line x1="1528" y1="1120" x2="1528" y2="1220"/>
+          </g>
+          <g font-family="IBM Plex Mono, monospace" font-size="18" fill="#666" letter-spacing="1">
+            <text x="34" y="1146">PROJECT TITLE</text>
+            <text x="754" y="1146">DRAWING NAME</text>
+            <text x="1542" y="1146">SCALE</text>
+          </g>
+          <g font-family="IBM Plex Sans KR, sans-serif" font-size="28" fill="#111" font-weight="700">
+            <text x="34" y="1194">한빛아파트 101동 정기안전점검</text>
+            <text x="754" y="1194">외관조사망도(지상1층)</text>
+            <text x="1542" y="1194">NONE</text>
+          </g>
+        </svg>
+      </div>
+
+      <div id="canvas-status">
+        <span class="hint">2클릭: 번호 위치 지정</span>
+        <span class="div"></span>
+        <span class="kbd">ESC</span> 취소
+        <span class="kbd">Q</span> 직교
+        <span class="kbd">R</span> 반전
+        <span class="kbd">Ctrl+Z</span> 되돌리기
+        <span class="div"></span>
+        <span style="color:var(--t-2)">Ctrl+휠 도면 · Shift+휠 넘버링</span>
+      </div>
+
+      <!-- 줌은 계기바에 중복해 두지 않는다 — 도면 위 이 자리 하나로 통일 -->
+      <div id="zoom-controls">
+        <button class="zbtn" id="btn-zoom-in" title="확대">+</button>
+        <div class="zval">100%</div>
+        <button class="zbtn" id="btn-zoom-out" title="축소">−</button>
+        <button class="zbtn" id="btn-fit" title="화면 맞추기 (F5)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── 사이드바 ────────────────────────────────────────────────────────── -->
+  <div id="sidebar">
+    <div class="tab-bar" id="tab-bar">
+      <button class="tab-btn active" data-tab="nums">넘버링<span class="cnt">20</span></button>
+      <button class="tab-btn" data-tab="photos">사진</button>
+      <button class="tab-btn" data-tab="adjust">조절</button>
+    </div>
+
+    <!-- 넘버링 — 전체 페이지 통합 목록 -->
+    <div class="tab-panel active" id="tab-nums">
+      <div class="list">
+        <div class="list-group">P1 · 지상 1층</div>
+
+        <div class="num-item selected">
+          <span class="num-badge" style="--nb:var(--mk-defect)">1F-01</span>
+          <span class="num-info">
+            <span class="num-title">균열 (0.3x1.2)</span>
+            <span class="num-sub matched">DSC_0142.JPG</span>
+          </span>
+          <input class="num-photo" type="number" value="142" title="사진 번호">
+          <button class="num-del" title="삭제">✕</button>
+        </div>
+
+        <div class="num-item">
+          <span class="num-badge" style="--nb:var(--mk-repair)">1F-02</span>
+          <span class="num-info">
+            <span class="num-title">박리·박락 보수</span>
+            <span class="num-sub matched">DSC_0143.JPG</span>
+          </span>
+          <input class="num-photo" type="number" value="143">
+          <button class="num-del" title="삭제">✕</button>
+        </div>
+
+        <div class="num-item">
+          <span class="num-badge" style="--nb:var(--mk-new)">1F-03</span>
+          <span class="num-info">
+            <span class="num-title">신규 백태</span>
+            <span class="num-sub">사진 없음</span>
+          </span>
+          <input class="num-photo" type="number" placeholder="—">
+          <button class="num-del" title="삭제">✕</button>
+        </div>
+
+        <div class="num-item">
+          <span class="num-badge" style="--nb:var(--mk-defect)">1F-04</span>
+          <span class="num-info">
+            <span class="num-title">균열 (0.2x2.1)</span>
+            <span class="num-sub matched">DSC_0145.JPG</span>
+          </span>
+          <input class="num-photo" type="number" value="145">
+          <button class="num-del" title="삭제">✕</button>
+        </div>
+
+        <div class="list-group">P2 · 지상 2층</div>
+
+        <div class="num-item">
+          <span class="num-badge" style="--nb:var(--mk-defect)">2F-01</span>
+          <span class="num-info">
+            <span class="num-title">균열 (0.2x0.8)</span>
+            <span class="num-sub matched">DSC_0151.JPG</span>
+          </span>
+          <input class="num-photo" type="number" value="151">
+          <button class="num-del" title="삭제">✕</button>
+        </div>
+
+        <div class="num-item">
+          <span class="num-badge" style="--nb:var(--mk-repair)">2F-02</span>
+          <span class="num-info">
+            <span class="num-title">누수 흔적 보수완료</span>
+            <span class="num-sub">사진 없음</span>
+          </span>
+          <input class="num-photo" type="number" placeholder="—">
+          <button class="num-del" title="삭제">✕</button>
+        </div>
+      </div>
+
+      <!-- 정리 동작은 대상(넘버링 목록) 바로 옆에 둔다 -->
+      <div class="sec foot">
+        <span class="sec-title">정리</span>
+        <div class="sec-row">
+          <button class="tbtn" id="btn-auto-layout" title="번호 박스 겹침 풀기">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+            자동정렬
+          </button>
+          <button class="tbtn" id="btn-merge" title="선택한 넘버링 합치기">합치기</button>
+          <button class="tbtn danger" id="btn-clear" title="이 페이지 넘버링 전체 삭제">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+            전체삭제
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 사진 -->
+    <div class="tab-panel" id="tab-photos">
+      <div class="sec">
+        <span class="sec-title">사진 폴더</span>
+        <button class="key" id="btn-select-folder">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          폴더 선택
+        </button>
+        <div class="path on">D:\현장\한빛아파트\사진 · 이미지 48장</div>
+        <button class="tbtn" id="btn-preview-refresh">파일명 변환 미리보기</button>
+        <button class="key" id="btn-rename-all">파일명 일괄 변경</button>
+      </div>
+      <div class="sec">
+        <span class="sec-title">사진첩</span>
+        <button class="tbtn" id="btn-load-summary">외관집계표 불러오기</button>
+        <div class="path on">외관집계표.xlsx · 20행 인식</div>
+        <button class="tbtn" id="btn-photobook-preview">사진첩 미리보기</button>
+        <button class="key" id="btn-photobook-pdf">사진첩 PDF 저장</button>
+      </div>
+    </div>
+
+    <!-- 조절 — 계기바에서 내려온 슬라이더류 -->
+    <div class="tab-panel" id="tab-adjust">
+      <div class="sec">
+        <span class="sec-title">크기</span>
+        <div class="slide-row"><span class="lab">선 두께</span><input type="range" min="0.5" max="4" step="0.5" value="1.5"><span class="val">1.5px</span></div>
+        <div class="slide-row"><span class="lab">넘버링</span><input type="range" min="0.5" max="3" step="0.1" value="1"><span class="val">1.0×</span></div>
+        <div class="slide-row"><span class="lab">범례</span><input type="range" min="0.5" max="3" step="0.1" value="1"><span class="val">1.0×</span></div>
+        <div class="slide-row"><span class="lab">도면</span><input type="range" min="0.3" max="2.5" step="0.05" value="1"><span class="val">1.0×</span></div>
+        <span style="font:500 10px var(--f-mono);color:var(--t-2)">Shift+휠 넘버링 · Ctrl+휠 도면</span>
+      </div>
+      <div class="sec">
+        <span class="sec-title">화면 표시</span>
+        <label class="check-row"><input type="checkbox" checked>작업범위 안내선</label>
+        <label class="check-row"><input type="checkbox" checked>격자 배경</label>
+        <span style="font:500 10px var(--f-mono);color:var(--t-2)">화면 전용 — PDF에는 나오지 않습니다</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ 도곽 설정 — 오버레이 없는 우측 도킹 서랍. 열어둔 채 캔버스 조작 가능 ══ -->
+<div id="drawer">
+  <div class="drawer-head">
+    <span>도곽 설정</span>
+    <button class="x" id="drawer-close">✕</button>
+  </div>
+  <div class="drawer-body">
+    <div class="f-row">
+      <label>PROJECT TITLE — 전체 페이지 공통</label>
+      <input class="fld" type="text" value="한빛아파트 101동 정기안전점검">
+    </div>
+    <div class="f-row">
+      <label>DRAWING NAME — 이 페이지만</label>
+      <input class="fld" type="text" value="외관조사망도(지상1층)">
+    </div>
+    <div class="f-row">
+      <label>SCALE</label>
+      <input class="fld" type="text" value="NONE">
+    </div>
+    <div class="slide-row"><span class="lab">전체 배율</span><input type="range" min="0.5" max="3" step="0.1" value="1"><span class="val">1.0×</span></div>
+    <div class="slide-row"><span class="lab">표제란</span><input type="range" min="40" max="120" step="4" value="68"><span class="val">68px</span></div>
+    <div class="slide-row"><span class="lab">라벨</span><input type="range" min="6" max="20" step="1" value="10"><span class="val">10px</span></div>
+    <div class="slide-row"><span class="lab">내용</span><input type="range" min="8" max="24" step="1" value="14"><span class="val">14px</span></div>
+  </div>
+  <div class="drawer-foot">
+    <button class="tbtn" id="drawer-cancel">닫기</button>
+    <button class="key">적용</button>
+  </div>
+</div>
+
+<script>
+/* 목업 상호작용 — 실제 앱 로직이 아니라 상태 전환을 눈으로 확인하기 위한 최소 코드 */
+
+/* 한 칸 안에서 하나만 켜지는 버튼 그룹 (지시점 · 지시선 · 구분) */
+document.querySelectorAll('[data-group]').forEach(g => {
+  g.addEventListener('click', e => {
+    const btn = e.target.closest('button');
+    if (!btn || e.target.type === 'color') return;
+    if (g.dataset.group === 'hatch') { btn.classList.toggle('active'); return; }
+    g.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+});
+
+/* 구분 색상을 바꾸면 칸의 잉크 띠와 도형 칸까지 같이 따라간다 */
+document.querySelectorAll('.cat .pick').forEach(p => {
+  p.addEventListener('input', e => {
+    e.target.closest('.cat').style.setProperty('--cat-c', e.target.value);
+  });
+});
+
+/* 작업유형 세그먼트 — 외관 전용 칸(구분·도형) 숨김 */
+document.querySelectorAll('#mode-seg .seg-btn').forEach(b => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('#mode-seg .seg-btn').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    const exterior = b.dataset.mode === 'exterior';
+    document.querySelectorAll('[data-ink]').forEach(bay => bay.style.display = exterior ? '' : 'none');
+  });
+});
+
+/* 사이드바 탭 */
+document.querySelectorAll('#tab-bar .tab-btn').forEach(b => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('#tab-bar .tab-btn').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    b.classList.add('active');
+    document.getElementById('tab-' + b.dataset.tab).classList.add('active');
+  });
+});
+
+/* 넘버링 목록 선택 */
+document.querySelectorAll('.num-item').forEach(it => {
+  it.addEventListener('click', e => {
+    if (e.target.closest('.num-del') || e.target.closest('.num-photo')) return;
+    document.querySelectorAll('.num-item').forEach(x => x.classList.remove('selected'));
+    it.classList.add('selected');
+  });
+});
+
+/* 페이지 카드 */
+document.querySelectorAll('.page-card').forEach(c => {
+  c.addEventListener('click', () => {
+    document.querySelectorAll('.page-card').forEach(x => x.classList.remove('active'));
+    c.classList.add('active');
+  });
+});
+
+/* 도곽 서랍 */
+const drawer = document.getElementById('drawer');
+document.getElementById('btn-titleblock').addEventListener('click', () => drawer.classList.toggle('open'));
+document.getElementById('drawer-close').addEventListener('click', () => drawer.classList.remove('open'));
+document.getElementById('drawer-cancel').addEventListener('click', () => drawer.classList.remove('open'));
+
+/* 슬라이더 값 표시 */
+document.querySelectorAll('.slide-row input[type=range]').forEach(r => {
+  const out = r.nextElementSibling, unit = out.textContent.replace(/[\d.]/g, '');
+  r.addEventListener('input', () => {
+    out.textContent = (unit === 'px' ? r.value : Number(r.value).toFixed(1)) + unit;
+  });
+});
+</script>
+</div>

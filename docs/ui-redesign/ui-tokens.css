@@ -1,0 +1,561 @@
+/* ============================================================================
+   NumDraw — UI 개선안 "제도 콘솔 (Drafting Console)"
+   토큰 + 공통 컴포넌트 레이어
+
+   이 파일은 mockup.html 이 그대로 불러다 쓰는 실제 스타일시트다.
+   즉 목업에서 보이는 화면 = 이 파일의 결과물이므로,
+   구현할 때는 이 파일을 css/ 로 옮기고 style.css 의 해당 블록을 걷어내면 된다.
+   이식 순서는 같은 폴더의 README.md 참고.
+
+   블록 [A] 토큰 / [B] 기본 / [C] 칸(bay) / [D] 버튼 / [E] 상단 레일
+        [F] 계기바 / [G] 페이지 패널 / [H] 캔버스 / [I] 사이드바
+        [J] 도곽 서랍 / [K] 접근성·반응형
+   ============================================================================ */
+
+/* ── [A] TOKENS ─────────────────────────────────────────────────────────────
+   크롬(기기 몸체)은 흑연, 도면만 흰 종이. 색은 "의미"에만 쓴다.
+   ------------------------------------------------------------------------- */
+:root{
+  /* 크롬 — 계기판 몸체 (숫자가 클수록 어둡다) */
+  --c-900:#15181C;   /* 상단 레일 */
+  --c-850:#1A1E23;   /* 계기바 · 좌우 패널 바닥 */
+  --c-800:#21262C;   /* 칸(bay) 본체 · 카드 */
+  --c-750:#272D34;   /* 칸 라벨셀 · 입력칸 */
+  --c-700:#333A42;   /* 기본 보더 */
+  --c-600:#414A54;   /* 호버 보더 · 비활성 아이콘 */
+  --edge:#0E1114;    /* 패널 사이 경계 (검은 실선) */
+
+  /* 글자 */
+  --t-0:#EEF1F4;     /* 본문 */
+  --t-1:#A8B1BB;     /* 보조 */
+  --t-2:#828B95;     /* 라벨 · 흐림 (10px 로 쓰이므로 4.5:1 이상 유지) */
+  --t-lab:#8E97A1;   /* 칸 라벨 전용 — 더 어두우면 10px 에서 읽히지 않는다 */
+
+  /* 도면 판 */
+  --apron:#464D55;   /* 도면 뒤 바닥 */
+  --sheet:#FFFFFF;
+
+  /* 신호색 — 계기 램프. "지금 선택된 것" 에만 쓴다 */
+  --sig:#F0B429;
+  --sig-soft:rgba(240,180,41,.15);
+  --sig-text:#F7C85E;
+
+  /* 상태색 */
+  --ok:#3DB88B;      --ok-soft:rgba(61,184,139,.14);
+  --dgr:#F2705F;     --dgr-soft:rgba(242,112,95,.14);
+
+  /* 표기 잉크 — 도면에 실제로 찍히는 색. 캔버스 출력값과 반드시 동일하게 유지.
+     테마가 바뀌어도 이 세 색은 그대로다. 화면 색과 PDF 색이 달라지면 안 된다. */
+  --mk-defect:#E05555;
+  --mk-repair:#4A9EFF;
+  --mk-new:#9B59B6;
+
+  /* 테마마다 뒤집히는 값 — 하드코딩하지 말고 반드시 이 토큰을 쓴다 */
+  --fg-strong:#FFFFFF;              /* 잉크 틴트 위에 얹는 글자 */
+  --key-bg:#E9EDF1;                 /* 주요 버튼 = 크롬의 반대색 */
+  --key-fg:#181C21;
+  --key-bg-hover:#FFFFFF;
+  --key-shadow:0 2px 10px rgba(0,0,0,.35);
+  --float-bg:rgba(21,24,28,.85);    /* 도면 위에 뜨는 것들 */
+  --float-bg-solid:rgba(21,24,28,.94);
+  --grid-line:rgba(255,255,255,.045);
+  --scrim:rgba(10,12,15,.62);        /* 모달 뒷배경 */
+  --dgr-hover-text:#FF8B7C;
+  --sheet-shadow:0 20px 55px rgba(0,0,0,.45), 0 0 0 1px rgba(0,0,0,.35);
+  --drawer-shadow:-18px 0 40px rgba(0,0,0,.45);
+
+  /* ── 테마와 무관한 공통값 ── */
+  --r-1:3px; --r-2:5px; --r-3:8px;
+  --rail-h:40px;
+  --bar-h:41px;
+  --page-panel-w:172px;
+  --sidebar-w:268px;
+
+  --f-ui:'IBM Plex Sans KR','IBM Plex Sans',-apple-system,'Malgun Gothic',sans-serif;
+  --f-mono:'IBM Plex Mono','Consolas',monospace;
+}
+
+/* ── [A-2] 라이트 테마 ──────────────────────────────────────────────────────
+   단순 반전이 아니다. 흑연 계기판이 백색 도면대(drafting table)로 바뀌는 것이고,
+   신호색은 흰 바탕에서 읽히도록 채도를 낮추고 어둡게 내린다.
+   전환: <html data-theme="light">  (index.html 의 우측 상단 버튼 · localStorage 보존)
+   ------------------------------------------------------------------------- */
+:root[data-theme="light"]{
+  --c-900:#E4E6EA;   /* 상단 레일 — 패널보다 한 톤 진하게 (기기 몸체) */
+  --c-850:#F1F2F5;   /* 계기바 · 좌우 패널 */
+  --c-800:#FFFFFF;   /* 칸 본체 · 카드 */
+  --c-750:#F7F8FA;   /* 칸 라벨셀 · 입력칸 */
+  --c-700:#D6DAE0;   /* 기본 보더 */
+  --c-600:#B9BFC7;   /* 호버 보더 */
+  --edge:#C6CBD2;    /* 패널 사이 경계 */
+
+  --t-0:#1A1E23;
+  --t-1:#4B535C;
+  --t-2:#6C757F;
+  --t-lab:#5D6874;
+
+  --apron:#AFB5BD;   /* 도면 뒤 바닥 — 흰 도면이 떠 보이도록 중간 회색 유지 */
+  --sheet:#FFFFFF;
+
+  --sig:#D99B10;
+  --sig-soft:rgba(217,155,16,.18);
+  --sig-text:#8A6008;
+
+  --ok:#1E8A5F;      --ok-soft:rgba(30,138,95,.14);
+  --dgr:#C43B2C;     --dgr-soft:rgba(196,59,44,.12);
+
+  --fg-strong:#1A1E23;
+  --key-bg:#22272E;  /* 밝은 크롬 위에서는 먹색 키가 주요 버튼이 된다 */
+  --key-fg:#F4F6F8;
+  --key-bg-hover:#14181D;
+  --key-shadow:0 2px 10px rgba(0,0,0,.18);
+  --float-bg:rgba(255,255,255,.9);
+  --float-bg-solid:rgba(255,255,255,.96);
+  --grid-line:rgba(0,0,0,.055);
+  --scrim:rgba(40,45,52,.35);
+  --dgr-hover-text:#9E2A1D;
+  --sheet-shadow:0 14px 38px rgba(0,0,0,.22), 0 0 0 1px rgba(0,0,0,.14);
+  --drawer-shadow:-18px 0 40px rgba(0,0,0,.16);
+  --shadow-xs:0 1px 2px rgba(0,0,0,.06);
+  --shadow-sm:0 2px 6px rgba(0,0,0,.09);
+  --shadow-md:0 4px 16px rgba(0,0,0,.12);
+  --shadow-lg:0 10px 34px rgba(0,0,0,.18);
+}
+
+/* ── [B] BASE ───────────────────────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box; margin:0; padding:0}
+body{
+  font-family:var(--f-ui); font-size:13px;
+  background:var(--c-900); color:var(--t-0);
+  height:100vh; overflow:hidden; display:flex; flex-direction:column;
+  -webkit-font-smoothing:antialiased;
+}
+button,input{font-family:inherit}
+:focus-visible{outline:2px solid var(--sig); outline-offset:2px; border-radius:2px}
+.kbd{
+  font:600 9.5px/1 var(--f-mono); color:var(--t-2);
+  background:var(--c-750); border:1px solid var(--c-700);
+  border-radius:3px; padding:2px 4px;
+}
+
+/* ── [C] BAY — 칸 시스템 (도곽 셀 문법: 라벨 | 값) ──────────────────────────
+   버튼은 낱개로 두지 않고 항상 칸에 담는다. 칸 하나 = 작업 갈래 하나.
+   ------------------------------------------------------------------------- */
+.bay{
+  display:flex; align-items:stretch; flex-shrink:0;
+  background:var(--c-800);
+  border:1px solid var(--c-700);
+  border-radius:var(--r-2);
+  overflow:hidden;
+}
+.bay-label{
+  display:flex; align-items:center; gap:5px;
+  padding:0 9px;
+  background:var(--c-750);
+  border-right:1px solid var(--c-700);
+  font:600 10px/1 var(--f-mono);
+  letter-spacing:.08em; color:var(--t-lab);
+  white-space:nowrap;
+}
+.bay-body{display:flex; align-items:center; gap:3px; padding:4px 6px}
+/* 색을 가진 칸(구분·도형)은 라벨셀 왼쪽에 잉크 띠를 둔다 */
+.bay[data-ink] > .bay-label{
+  padding-left:11px;
+  box-shadow:inset 3px 0 0 var(--bay-ink);
+  color:var(--t-1);
+}
+
+/* ── [D] BUTTONS — 램프 규칙 ────────────────────────────────────────────────
+   선택된 버튼은 아래 2px 램프가 켜진다. 램프색 = 그 도구의 색
+   (색이 없는 도구는 신호색 amber, 색을 가진 도구는 자기 잉크색).
+   ------------------------------------------------------------------------- */
+.tbtn{
+  display:inline-flex; align-items:center; gap:5px;
+  height:26px; padding:0 9px;
+  border:1px solid transparent; border-radius:var(--r-1);
+  background:transparent; color:var(--t-1);
+  font:500 11.5px/1 var(--f-ui); white-space:nowrap; cursor:pointer;
+  transition:background .12s, color .12s, border-color .12s;
+}
+.tbtn:hover{background:var(--c-700); color:var(--t-0)}
+.tbtn.active{
+  background:var(--sig-soft); border-color:rgba(240,180,41,.42);
+  color:var(--sig-text); font-weight:600;
+  box-shadow:inset 0 -2px 0 var(--sig);
+}
+.tbtn.sq{width:26px; padding:0; justify-content:center}
+.tbtn svg{flex-shrink:0}
+.tbtn:disabled{opacity:.38; cursor:default}
+.tbtn:disabled:hover{background:transparent; color:var(--t-1)}
+
+/* 주요 동작 = 종이색 키. 강조색을 쓰지 않는다 — amber 는 선택 상태 전용 */
+.key{
+  display:inline-flex; align-items:center; gap:6px;
+  height:26px; padding:0 11px;
+  border:1px solid var(--key-bg); border-radius:var(--r-1);
+  background:var(--key-bg); color:var(--key-fg);
+  font:600 11.5px/1 var(--f-ui); white-space:nowrap; cursor:pointer;
+  transition:background .12s, box-shadow .12s;
+}
+.key:hover{background:var(--key-bg-hover); box-shadow:var(--key-shadow)}
+.key:disabled{opacity:.35; cursor:default; box-shadow:none}
+.tbtn.danger{color:var(--dgr)}
+.tbtn.danger:hover{background:var(--dgr-soft); color:var(--dgr-hover-text)}
+
+/* 구분(카테고리) 버튼 — 자기 잉크색으로 켜진다 */
+.cat{
+  position:relative;
+  display:inline-flex; align-items:center; gap:6px;
+  height:26px; padding:0 9px;
+  border:1px solid transparent; border-radius:var(--r-1);
+  background:transparent; color:var(--t-1);
+  font:500 11.5px/1 var(--f-ui); cursor:pointer;
+  transition:background .12s, color .12s, border-color .12s;
+}
+.cat .dot{width:9px; height:9px; border-radius:2px; background:var(--cat-c); flex-shrink:0}
+.cat:hover{background:var(--c-700); color:var(--t-0)}
+.cat.active{
+  background:color-mix(in srgb, var(--cat-c) 20%, transparent);
+  border-color:color-mix(in srgb, var(--cat-c) 60%, transparent);
+  color:var(--fg-strong); font-weight:600;
+  box-shadow:inset 0 -2px 0 var(--cat-c);
+}
+.cat .pick{
+  width:12px; height:12px; padding:0; border:1px solid var(--c-600);
+  border-radius:2px; background:var(--cat-c); cursor:pointer;
+  opacity:0; transition:opacity .12s;
+}
+.cat:hover .pick, .cat.active .pick{opacity:.85}
+
+/* 스위치 (직교 · 반전) */
+.sw{
+  display:inline-flex; align-items:center; gap:6px; height:26px; padding:0 8px;
+  border-radius:var(--r-1); color:var(--t-1); font:500 11.5px var(--f-ui);
+  cursor:pointer; user-select:none;
+}
+.sw:hover{background:var(--c-700)}
+.sw input{position:absolute; opacity:0; width:0; height:0}
+.sw .track{
+  position:relative; width:26px; height:14px; border-radius:8px;
+  background:var(--c-700); transition:background .15s; flex-shrink:0;
+}
+.sw .track::after{
+  content:''; position:absolute; top:2px; left:2px;
+  width:10px; height:10px; border-radius:50%; background:var(--t-2);
+  transition:transform .15s, background .15s;
+}
+.sw input:checked + .track{background:var(--sig)}
+.sw input:checked + .track::after{transform:translateX(12px); background:#1A1E23}
+.sw input:focus-visible + .track{outline:2px solid var(--sig); outline-offset:2px}
+
+/* 입력칸 */
+.fld{
+  height:26px; padding:0 7px;
+  background:var(--c-750); border:1px solid var(--c-700); border-radius:var(--r-1);
+  color:var(--t-0); font:500 11.5px var(--f-mono); text-align:center;
+}
+.fld:focus{outline:none; border-color:var(--sig)}
+.fld::placeholder{color:var(--t-2); font-family:var(--f-ui)}
+.fld.w-pre{width:58px; text-align:left}
+.fld.w-num{width:44px}
+.swatch{
+  width:26px; height:26px; padding:0; border:1px solid var(--c-700);
+  border-radius:var(--r-1); background:#fff; cursor:pointer;
+}
+.swatch:hover{border-color:var(--sig)}
+
+/* 판독값 (계기 눈금) */
+.readout{
+  display:inline-flex; align-items:center; gap:7px;
+  height:26px; padding:0 10px;
+  border:1px solid var(--c-700); border-radius:var(--r-1);
+  background:var(--c-800);
+  font:500 10.5px/1 var(--f-mono); letter-spacing:.02em; color:var(--t-2);
+  white-space:nowrap;
+}
+.readout b{font:700 12px/1 var(--f-mono); color:var(--t-0)}
+.readout .sep{color:var(--c-600)}
+
+/* ── [E] TOP RAIL — 문서 단위 조작 ──────────────────────────────────────── */
+#rail{
+  height:var(--rail-h); flex-shrink:0;
+  display:flex; align-items:center; gap:7px; padding:0 10px;
+  background:var(--c-900); border-bottom:1px solid var(--edge);
+}
+.brand{
+  display:flex; align-items:center; gap:8px;
+  padding-right:11px; margin-right:1px; border-right:1px solid var(--c-700);
+}
+.brand-mark{
+  width:21px; height:21px; display:grid; place-items:center; color:var(--sig);
+  border:1.5px solid var(--sig); border-radius:var(--r-1);
+}
+.brand-name{font:700 12.5px/1 var(--f-mono); letter-spacing:.01em; color:var(--t-0)}
+.seg{
+  display:flex; gap:2px; padding:2px;
+  background:var(--c-750); border:1px solid var(--c-700); border-radius:var(--r-1);
+}
+.seg-btn{
+  height:22px; padding:0 13px; border:0; border-radius:2px; background:transparent;
+  color:var(--t-2); font:600 11.5px/1 var(--f-ui); cursor:pointer;
+  transition:background .12s, color .12s;
+}
+.seg-btn:hover{color:var(--t-0)}
+.seg-btn.active{background:var(--c-600); color:var(--fg-strong); box-shadow:inset 0 -2px 0 var(--sig)}
+.file-name{
+  font:500 11px var(--f-mono); color:var(--t-2); max-width:150px;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.rail-right{margin-left:auto; display:flex; align-items:center; gap:7px}
+
+/* 저장 상태 · 라이선스 배지 */
+.chip{
+  display:inline-flex; align-items:center; gap:6px; height:26px; padding:0 10px;
+  border:1px solid var(--c-700); border-radius:999px; background:var(--c-800);
+  font:600 11px var(--f-ui); color:var(--t-1); cursor:pointer; white-space:nowrap;
+}
+.chip .led{width:7px; height:7px; border-radius:50%; background:var(--t-2); flex-shrink:0}
+.chip.saved{color:var(--ok)}
+.chip.saved .led{background:var(--ok)}
+.chip.unsaved .led{background:var(--sig)}
+.chip.trial{border-color:rgba(240,180,41,.45); color:var(--sig-text); background:var(--sig-soft)}
+.chip.full{border-color:rgba(61,184,139,.45); color:var(--ok); background:var(--ok-soft)}
+
+/* ── [F] INSTRUMENT BAR — 도면에 직접 찍는 도구 ──────────────────────────── */
+#bar{
+  display:flex; flex-wrap:wrap; align-items:center; gap:6px;
+  padding:7px 10px; flex-shrink:0;
+  background:var(--c-850); border-bottom:1px solid var(--edge);
+}
+#bar .push{margin-left:auto}
+
+/* ── [G] MAIN + PAGE PANEL ──────────────────────────────────────────────── */
+#main{flex:1; display:flex; overflow:hidden}
+#page-panel{
+  width:var(--page-panel-w); flex-shrink:0; display:flex; flex-direction:column;
+  background:var(--c-850); border-right:1px solid var(--edge);
+}
+.panel-head{
+  height:30px; flex-shrink:0; display:flex; align-items:center; justify-content:space-between;
+  padding:0 7px 0 10px; border-bottom:1px solid var(--c-700);
+  font:600 10px/1 var(--f-mono); letter-spacing:.08em; color:var(--t-2);
+}
+.panel-head-btns{display:flex; align-items:center; gap:4px}
+.mini{
+  width:18px; height:18px; display:grid; place-items:center; padding:0;
+  border:1px solid var(--c-700); border-radius:var(--r-1);
+  background:var(--c-800); color:var(--t-1); font:600 13px/1 var(--f-ui); cursor:pointer;
+}
+.mini:hover{border-color:var(--sig); color:var(--sig)}
+.mini.danger:hover{border-color:var(--dgr); color:var(--dgr)}
+#page-list{flex:1; overflow-y:auto; padding:7px 6px; display:flex; flex-direction:column; gap:6px}
+.page-card{
+  border:1px solid var(--c-700); border-radius:var(--r-2); background:var(--c-800);
+  overflow:hidden; cursor:pointer; flex-shrink:0;
+  transition:border-color .12s, box-shadow .12s;
+}
+.page-card:hover{border-color:var(--c-600)}
+.page-card.active{border-color:var(--sig); box-shadow:0 0 0 1px rgba(240,180,41,.3)}
+.page-thumb{height:92px; background:#fff; display:grid; place-items:center; overflow:hidden}
+.page-thumb svg{width:100%; height:100%}
+.page-meta{display:flex; align-items:center; gap:5px; padding:5px 7px; border-top:1px solid var(--c-700)}
+.page-meta .n{font:700 9.5px/1 var(--f-mono); color:var(--t-2); flex-shrink:0}
+.page-card.active .page-meta .n{color:var(--sig)}
+.page-meta .nm{
+  flex:1; min-width:0; font-size:11px; color:var(--t-1);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.page-card.active .page-meta .nm{color:var(--t-0); font-weight:600}
+.page-meta .ct{
+  font:600 9.5px/1 var(--f-mono); color:var(--t-2);
+  background:var(--c-750); border-radius:2px; padding:2px 4px;
+}
+
+/* ── [H] CANVAS — 유일하게 밝은 면 ──────────────────────────────────────── */
+#canvas-wrap{flex:1; display:flex; flex-direction:column; overflow:hidden}
+#canvas-area{
+  flex:1; position:relative; overflow:hidden; display:grid; place-items:center;
+  background:var(--apron);
+  background-image:linear-gradient(var(--grid-line) 1px, transparent 1px),
+                   linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size:28px 28px;
+  cursor:crosshair;
+}
+#sheet{
+  height:calc(100% - 64px); aspect-ratio:297/210; background:var(--sheet);
+  box-shadow:var(--sheet-shadow);
+}
+#sheet svg{display:block; width:100%; height:100%}
+#canvas-status{
+  position:absolute; left:14px; bottom:14px;
+  display:flex; align-items:center; gap:10px;
+  padding:6px 12px; border-radius:var(--r-2);
+  background:var(--float-bg); border:1px solid var(--c-700);
+  backdrop-filter:blur(8px);
+  font:500 11px var(--f-ui); color:var(--t-1);
+}
+#canvas-status .hint{color:var(--t-0); font-weight:600}
+#canvas-status .div{width:1px; height:14px; background:var(--c-700)}
+#zoom-controls{position:absolute; right:14px; bottom:14px; display:flex; flex-direction:column; gap:4px}
+.zbtn{
+  width:46px; height:28px; display:grid; place-items:center; padding:0;
+  border:1px solid var(--c-700); border-radius:var(--r-1);
+  background:var(--float-bg); backdrop-filter:blur(8px);
+  color:var(--t-1); font:500 14px/1 var(--f-ui); cursor:pointer;
+}
+.zbtn:hover{border-color:var(--sig); color:var(--sig)}
+.zval{
+  width:46px; padding:5px 2px; text-align:center;
+  border:1px solid var(--c-700); border-radius:var(--r-1);
+  background:var(--float-bg); backdrop-filter:blur(8px);
+  font:600 10px var(--f-mono); color:var(--t-1);
+}
+
+/* ── [I] SIDEBAR ─────────────────────────────────────────────────────────── */
+#sidebar{
+  width:var(--sidebar-w); flex-shrink:0; display:flex; flex-direction:column;
+  background:var(--c-850); border-left:1px solid var(--edge);
+}
+.tab-bar{display:flex; flex-shrink:0; border-bottom:1px solid var(--c-700); background:var(--c-900)}
+.tab-btn{
+  flex:1; height:34px; border:0; background:transparent; cursor:pointer;
+  font:600 11px/1 var(--f-ui); color:var(--t-2);
+  border-bottom:2px solid transparent; transition:color .12s, background .12s;
+}
+.tab-btn:hover{color:var(--t-1); background:var(--c-850)}
+.tab-btn.active{color:var(--t-0); background:var(--c-850); border-bottom-color:var(--sig)}
+.tab-btn .cnt{font:700 9.5px var(--f-mono); color:var(--t-2); margin-left:4px}
+.tab-panel{display:none; flex:1; overflow:hidden; flex-direction:column}
+.tab-panel.active{display:flex}
+.list{flex:1; overflow-y:auto; padding:7px 8px; display:flex; flex-direction:column; gap:2px}
+
+/* 페이지 구분 헤더 — 전체 페이지 통합 목록 (Phase 3-c-1) */
+.list-group{
+  display:flex; align-items:center; gap:7px;
+  padding:9px 4px 5px; margin-top:4px;
+  font:600 9.5px/1 var(--f-mono); letter-spacing:.08em; color:var(--t-2);
+}
+.list-group::after{content:''; flex:1; height:1px; background:var(--c-700)}
+.list-group:first-child{margin-top:0; padding-top:2px}
+
+.num-item{
+  display:flex; align-items:center; gap:8px; padding:6px 7px;
+  border:1px solid transparent; border-radius:var(--r-2); cursor:pointer;
+  transition:background .12s, border-color .12s;
+}
+.num-item:hover{background:var(--c-800)}
+.num-item.selected{background:var(--c-800); border-color:var(--sig)}
+.num-badge{
+  min-width:38px; height:22px; padding:0 7px; flex-shrink:0;
+  display:grid; place-items:center; border-radius:var(--r-1);
+  background:var(--nb); color:#fff;
+  font:700 11px/1 var(--f-mono); letter-spacing:-.02em;
+}
+.num-info{flex:1; min-width:0; display:flex; flex-direction:column; gap:2px}
+.num-title{font-size:11.5px; color:var(--t-0); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.num-sub{
+  font:500 10px var(--f-mono); color:var(--t-2);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.num-sub.matched{color:var(--ok)}
+.num-photo{
+  width:54px; height:22px; flex-shrink:0;
+  background:var(--c-750); border:1px solid var(--c-700); border-radius:var(--r-1);
+  color:var(--t-0); font:500 11px var(--f-mono); text-align:center;
+}
+.num-photo:focus{outline:none; border-color:var(--sig)}
+.num-photo::-webkit-outer-spin-button,
+.num-photo::-webkit-inner-spin-button{-webkit-appearance:none; margin:0}
+.num-del{
+  width:20px; height:20px; flex-shrink:0; padding:0; border:0; border-radius:var(--r-1);
+  background:transparent; color:var(--dgr); font-size:12px; cursor:pointer; opacity:0;
+}
+.num-item:hover .num-del{opacity:1}
+.num-del:hover{background:var(--dgr-soft)}
+
+/* 사이드바 섹션 (사진 · 조절 탭) */
+.sec{
+  padding:10px; border-bottom:1px solid var(--c-700); flex-shrink:0;
+  display:flex; flex-direction:column; gap:7px;
+}
+.sec-title{font:600 10px/1 var(--f-mono); letter-spacing:.08em; color:var(--t-2)}
+.sec .key, .sec .tbtn{width:100%; justify-content:center}
+.sec .tbtn{border-color:var(--c-700); background:var(--c-800)}
+/* 목록 아래에 붙는 섹션 (넘버링 탭의 정리 동작) */
+.sec.foot{border-bottom:0; border-top:1px solid var(--c-700)}
+/* 버튼 여러 개를 한 줄로 — 위의 `.sec .tbtn{width:100%}` 를 덮어야 하므로 반드시 뒤에 온다 */
+.sec-row{display:flex; gap:6px}
+.sec-row .tbtn{flex:1; width:auto; padding:0 6px}
+.path{
+  padding:6px 9px; border:1px solid var(--c-700); border-radius:var(--r-1);
+  background:var(--c-800); font:500 10.5px var(--f-mono); color:var(--t-2);
+  word-break:break-all;
+}
+.path.on{color:var(--ok); border-color:rgba(61,184,139,.4)}
+
+/* 슬라이더 행 (조절 탭) */
+.slide-row{display:flex; align-items:center; gap:9px}
+.slide-row .lab{width:52px; flex-shrink:0; font-size:11.5px; color:var(--t-1)}
+.slide-row .val{
+  width:42px; flex-shrink:0; text-align:right;
+  font:600 11px var(--f-mono); color:var(--sig-text);
+}
+input[type=range]{
+  -webkit-appearance:none; appearance:none; flex:1; height:3px; border-radius:2px;
+  background:var(--c-700); outline:none;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none; width:13px; height:13px; border-radius:50%;
+  background:var(--sig); border:2px solid var(--c-850); cursor:pointer;
+}
+.check-row{display:flex; align-items:center; gap:7px; font-size:11.5px; color:var(--t-1); cursor:pointer}
+.check-row input{accent-color:var(--sig); margin:0}
+
+/* ── [J] 도곽 설정 — 오버레이 없는 우측 도킹 서랍 (Phase 3-c-3) ──────────── */
+#drawer{
+  position:fixed; top:calc(var(--rail-h) + var(--bar-h)); right:var(--sidebar-w); bottom:0;
+  width:296px; z-index:200;
+  display:flex; flex-direction:column;
+  background:var(--c-850); border-left:1px solid var(--edge);
+  box-shadow:var(--drawer-shadow);
+  /* 닫힐 때 사이드바 폭까지 함께 밀어야 화면 밖으로 완전히 나간다 */
+  transform:translateX(calc(100% + var(--sidebar-w) + 24px));
+  transition:transform .18s ease;
+}
+#drawer.open{transform:none}
+.drawer-head{
+  height:34px; flex-shrink:0; display:flex; align-items:center; justify-content:space-between;
+  padding:0 8px 0 12px; border-bottom:1px solid var(--c-700);
+  font:600 10px/1 var(--f-mono); letter-spacing:.08em; color:var(--t-1);
+}
+.drawer-body{flex:1; overflow-y:auto; padding:12px; display:flex; flex-direction:column; gap:12px}
+.drawer-foot{
+  padding:10px 12px; border-top:1px solid var(--c-700);
+  display:flex; gap:7px; justify-content:flex-end;
+}
+.f-row{display:flex; flex-direction:column; gap:5px}
+.f-row > label{font-size:10.5px; color:var(--t-2)}
+.f-row .fld{width:100%; height:28px; text-align:left; font-family:var(--f-ui); font-size:12px}
+.x{
+  width:22px; height:22px; padding:0; border:0; border-radius:var(--r-1);
+  background:transparent; color:var(--t-2); cursor:pointer; font-size:12px;
+}
+.x:hover{background:var(--c-700); color:var(--t-0)}
+
+/* ── [K] 접근성 · 반응형 ────────────────────────────────────────────────── */
+::-webkit-scrollbar{width:8px; height:8px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--c-700); border-radius:4px; border:2px solid var(--c-850)}
+::-webkit-scrollbar-thumb:hover{background:var(--c-600)}
+@media (prefers-reduced-motion:reduce){
+  *{transition:none !important; animation:none !important}
+}
+/* 폭이 좁아지면 칸 단위로 줄바꿈된다 — 버튼이 낱개로 흩어지지 않는 게 칸의 이점.
+   상단 레일은 줄바꿈이 불가능하므로 라벨셀을 먼저 접는다. */
+@media (max-width:1400px){
+  #rail .bay-label{display:none}
+  .file-name{max-width:96px}
+}
+@media (max-width:1180px){
+  :root{--sidebar-w:236px; --page-panel-w:150px}
+}
