@@ -255,6 +255,32 @@ h3{ font-size:16.5px; font-weight:600; letter-spacing:-.008em; margin-bottom:6px
 .grid6__photo{ width:34px; height:26px; border-radius:4px; background:linear-gradient(135deg,#E3E5EB,#F4F5F7); }
 .grid6__cell--empty{ color:var(--defect); }
 .grid6__cell--empty .grid6__photo{ background:repeating-linear-gradient(45deg,#FBE5E5,#FBE5E5 4px,#fff 4px,#fff 8px); }
+.grid6__caption{ max-width:520px; margin:0 auto; padding:0 var(--pad) 28px; font-size:12.5px; color:var(--ink-3); text-align:center; }
+.grid6__caption code{ font-family:var(--mono); background:var(--paper); padding:1px 5px; border-radius:3px; }
+
+/* ── 실행 검증 배지 ─────────────────────────────────────────── */
+.verify-note{
+  display:flex; align-items:baseline; gap:12px; margin-top:28px; padding:14px 18px;
+  border:1px solid rgba(31,138,84,.35); border-radius:8px; background:rgba(31,138,84,.08);
+}
+.verify-note__badge{
+  flex:none; font-family:var(--mono); font-size:11px; font-weight:600; letter-spacing:.03em;
+  color:#5FD696; white-space:nowrap;
+}
+.verify-note p{ font-size:13px; color:var(--on-panel-1); }
+
+/* ── 미매칭 경고 팝업 재현 ──────────────────────────────────── */
+.mismatch-mock{
+  max-width:420px; margin:26px auto 0; padding:20px 22px; border-radius:8px;
+  background:#fff; box-shadow:0 20px 44px -20px rgba(0,0,0,.5);
+}
+.mismatch-mock__title{ display:flex; align-items:center; gap:8px; font-weight:700; font-size:14.5px; color:var(--ink); margin-bottom:14px; }
+.mismatch-mock__title::before{ content:'⚠'; color:#C7830A; }
+.mismatch-mock__bad{ color:var(--defect); font-weight:600; font-size:12.5px; margin-bottom:6px; }
+.mismatch-mock__list{ font-family:var(--mono); font-size:12px; color:var(--ink-2); margin-bottom:12px; line-height:1.6; }
+.mismatch-mock__note{ font-size:12px; color:var(--ink-3); margin-bottom:18px; }
+.mismatch-mock__btns{ display:flex; gap:8px; justify-content:flex-end; }
+.mismatch-mock .btn{ pointer-events:none; }
 
 .cta{ display:flex; flex-wrap:wrap; gap:12px; margin-top:26px; }
 
@@ -448,16 +474,34 @@ h3{ font-size:16.5px; font-weight:600; letter-spacing:-.008em; margin-bottom:6px
   <p style="margin-top:30px; font-size:13px; color:var(--on-panel-2);">
     기존 엑셀 매크로(부록. 사진첩 - 메뉴.xlsm) 방식을 대체합니다. 배치 순서·6칸 고정·PDF 단일 출력 규칙은 기존 양식과 동일하게 맞췄습니다.
   </p>
+
+  <!-- 실제 검증: 건물 도면 5개 층으로 집계표→넘버링→사진 3자 대조, PDF 생성까지 직접 확인 -->
+  <div class="verify-note reveal">
+    <span class="verify-note__badge">✓ 실행 확인</span>
+    <p>실제 건물 도면 5개 층(지상1~5층)에 결함 9건을 찍고, 외관집계표 엑셀을 만들어 불러와 3자 대조부터 사진첩 PDF 생성까지 직접 실행해 확인했습니다. 아래 경고창·격자 예시는 그 결과 그대로입니다.</p>
+  </div>
+
+  <div class="mismatch-mock reveal" role="img" aria-label="미매칭 경고 팝업 실제 문구: 매칭되지 않은 번호가 있습니다, 사진 없음 7건, 번호 목록, 취소하고 확인 또는 그대로 생성 버튼">
+    <p class="mismatch-mock__title">매칭되지 않은 번호가 있습니다</p>
+    <p class="mismatch-mock__bad">사진 없음 (7건)</p>
+    <p class="mismatch-mock__list">2F-01, 2F-02, 3F-01, 4F-01, 4F-02, 5F-01, 5F-02</p>
+    <p class="mismatch-mock__note">사진 없는 칸은 "사진 없음"으로 표기되고, 집계표에 없는 번호는 사진첩에서 빠집니다.</p>
+    <div class="mismatch-mock__btns">
+      <span class="btn btn--ghost btn--sm" style="--ghost-fg:var(--ink); --ghost-bd:var(--rule);">취소하고 확인</span>
+      <span class="btn btn--key btn--sm" style="--key-bg:var(--ink); --key-fg:#fff;">그대로 생성</span>
+    </div>
+  </div>
 </section>
 
-<div class="grid6 reveal" style="max-width:520px; margin:0 auto; padding:28px var(--pad);" role="img" aria-label="사진첩 6칸 격자 예시. 사진이 없는 칸은 사진 없음으로 표시됩니다.">
-  <div class="grid6__cell"><div class="grid6__photo"></div><div><b>1F-01</b>균열 (0.2x2.1)</div></div>
-  <div class="grid6__cell"><div class="grid6__photo"></div><div><b>1F-02</b>박리 (보수완료)</div></div>
-  <div class="grid6__cell"><div class="grid6__photo"></div><div><b>1F-03</b>누수 (신규)</div></div>
-  <div class="grid6__cell grid6__cell--empty"><div class="grid6__photo"></div><div><b>1F-04</b>사진 없음</div></div>
-  <div class="grid6__cell"><div class="grid6__photo"></div><div><b>1F-05</b>백화현상</div></div>
-  <div class="grid6__cell"><div class="grid6__photo"></div><div><b>1F-06</b>철근노출</div></div>
+<div class="grid6 reveal" style="max-width:520px; margin:0 auto; padding:28px var(--pad) 8px;" role="img" aria-label="실제로 생성한 사진첩 PDF 1페이지 그대로. 지상1층 두 칸만 사진이 있고 나머지는 사진 없음으로 표시된다.">
+  <div class="grid6__cell"><div class="grid6__photo"></div><div><b>1F-01</b>지상1층 외벽 균열 (0.2x1.5)</div></div>
+  <div class="grid6__cell"><div class="grid6__photo"></div><div><b>1F-02</b>지상1층 외벽 박리 (보수완료)</div></div>
+  <div class="grid6__cell grid6__cell--empty"><div class="grid6__photo"></div><div><b>2F-01</b>(신규) 지상2층 창호 누수</div></div>
+  <div class="grid6__cell grid6__cell--empty"><div class="grid6__photo"></div><div><b>2F-02</b>지상2층 외벽 백화현상</div></div>
+  <div class="grid6__cell grid6__cell--empty"><div class="grid6__photo"></div><div><b>3F-01</b>지상3층 외벽 철근노출</div></div>
+  <div class="grid6__cell grid6__cell--empty"><div class="grid6__photo"></div><div><b>4F-01</b>지상4층 외벽 균열 (0.3x2.1)</div></div>
 </div>
+<p class="grid6__caption reveal">실제로 저장한 <code>numdraw_사진첩.pdf</code> 1페이지 내용 그대로 옮겼습니다 — 사진이 있는 두 칸(1F-01·1F-02)만 실사진, 나머지는 "사진 없음"으로 정확히 표기됩니다.</p>
 
 <!-- ═══ 3. 도곽 · 테마 · 출력 ═══ -->
 <section class="band band--tint" id="출력">
