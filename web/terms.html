@@ -6,21 +6,26 @@
 <title>이용약관 · 개인정보처리방침 · 환불정책 — NumDraw</title>
 <meta name="description" content="NumDraw 이용약관, 개인정보처리방침, 환불정책 안내.">
 <meta name="robots" content="noindex">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%235B5BD6'/%3E%3Ctext x='16' y='23' font-family='monospace' font-size='19' font-weight='700' fill='white' text-anchor='middle'%3E7%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2315171B'/%3E%3Ctext x='16' y='23' font-family='monospace' font-size='19' font-weight='700' fill='%23F0B429' text-anchor='middle'%3E7%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{
-  --paper:      #F4F5F7;
+  --panel:      #15171B;
+  --panel-3:    #262A31;
+  --panel-edge: #33383F;
+  --on-panel-0: #EEF0F3;
+
+  --ink:        #15171B;
+  --ink-2:      #4B5058;
+  --ink-3:      #888E99;
+  --paper:      #F3F4F6;
   --paper-2:    #FFFFFF;
-  --grid:       #E3E5EB;
-  --ink:        #15171E;
-  --ink-2:      #4C5060;
-  --ink-3:      #8A8FA3;
-  --rule:       #D9DCE4;
-  --indigo:     #5B5BD6;
-  --indigo-dk:  #4747C2;
+  --grid:       #E4E6EA;
+  --rule:       #DCDEE3;
+  --sig:        #F0B429;
+  --sig-ink:    #6B4E05;
   --warn-bg:    #FFF7E6;
   --warn-bd:    #E8C36B;
 
@@ -33,75 +38,51 @@
 html{ scroll-behavior:smooth; }
 body{
   font-family:var(--sans); color:var(--ink); background:var(--paper);
-  background-image:
-    linear-gradient(var(--grid) 1px, transparent 1px),
-    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
-  background-size:28px 28px;
-  line-height:1.7; -webkit-font-smoothing:antialiased; word-break:keep-all;
+  line-height:1.7; -webkit-font-smoothing:antialiased; word-break:keep-all; font-variant-numeric:tabular-nums;
 }
-a{ color:var(--indigo); text-decoration:none; }
-a:hover{ text-decoration:underline; }
-:focus-visible{ outline:2px solid var(--indigo); outline-offset:3px; border-radius:4px; }
+a{ color:var(--sig-ink); text-decoration-color:var(--rule); text-underline-offset:3px; }
+a:hover{ text-decoration-color:var(--sig-ink); }
+:focus-visible{ outline:2px solid var(--sig); outline-offset:3px; border-radius:3px; }
 
-.sheet{
-  max-width:var(--sheet); margin:0 auto; background:var(--paper-2);
-  border-left:1px solid var(--rule); border-right:1px solid var(--rule);
-}
+.sheet{ max-width:var(--sheet); margin:0 auto; background:var(--paper-2); }
 .topbar{
-  position:sticky; top:0; z-index:50;
-  display:flex; align-items:center; gap:16px;
-  padding:14px var(--pad);
-  background:rgba(255,255,255,.92); backdrop-filter:blur(8px);
-  border-bottom:1px solid var(--rule);
+  position:sticky; top:0; z-index:50; display:flex; align-items:center; gap:16px;
+  padding:0 var(--pad); height:56px; background:rgba(21,23,27,.92); backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--panel-edge); color:var(--on-panel-0);
 }
-.mark{ display:flex; align-items:center; gap:10px; font-weight:700; letter-spacing:-.01em; color:var(--ink); }
-.mark__box{
-  width:26px; height:26px; border-radius:6px; background:var(--indigo);
-  color:#fff; font-family:var(--mono); font-size:14px; font-weight:600;
-  display:grid; place-items:center;
-}
+.mark{ display:flex; align-items:center; gap:10px; font-weight:700; letter-spacing:-.01em; color:var(--on-panel-0); text-decoration:none; }
+.mark__box{ width:23px; height:23px; border-radius:5px; background:var(--panel-3); border:1px solid var(--panel-edge); color:var(--sig); font-family:var(--mono); font-size:12.5px; font-weight:700; display:grid; place-items:center; }
 .topbar__spacer{ flex:1; }
-.topbar__link{ font-size:13.5px; color:var(--ink-2); }
-.btn{ display:inline-flex; align-items:center; font-family:var(--sans); font-size:13.5px; font-weight:600; padding:8px 14px; border-radius:8px; text-decoration:none; }
-.btn--primary{ background:var(--indigo); color:#fff; }
-.btn--primary:hover{ background:var(--indigo-dk); }
+.topbar__link{ font-size:13px; color:#A6ACB8; text-decoration:none; padding:0 8px; }
+.topbar__link:hover{ color:var(--on-panel-0); }
+.btn{ display:inline-flex; align-items:center; font-family:var(--sans); font-size:13px; font-weight:600; padding:8px 14px; border-radius:6px; text-decoration:none; }
+.btn--key{ background:var(--sig); color:#221802; }
+.btn--key:hover{ opacity:.88; }
 
-main{ padding:clamp(40px,6vw,72px) var(--pad) 80px; }
-.eyebrow{
-  font-family:var(--mono); font-size:11.5px; letter-spacing:.14em; text-transform:uppercase;
-  color:var(--ink-3); margin-bottom:14px;
-}
-h1{ font-size:clamp(26px,4vw,34px); font-weight:700; letter-spacing:-.02em; margin-bottom:8px; }
-.updated{ font-family:var(--mono); font-size:12px; color:var(--ink-3); margin-bottom:36px; }
+main{ padding:clamp(38px,6vw,68px) var(--pad) 80px; }
+.eyebrow{ font-family:var(--mono); font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--ink-3); margin-bottom:14px; }
+h1{ font-size:clamp(25px,3.8vw,32px); font-weight:700; letter-spacing:-.02em; margin-bottom:8px; text-wrap:balance; }
+.updated{ font-family:var(--mono); font-size:11.5px; color:var(--ink-3); margin-bottom:36px; }
 
-.notice{
-  background:var(--warn-bg); border:1px solid var(--warn-bd); border-radius:10px;
-  padding:16px 18px; font-size:14px; color:var(--ink-2); margin-bottom:40px;
-}
+.notice{ background:var(--warn-bg); border:1px solid var(--warn-bd); border-radius:8px; padding:16px 18px; font-size:13.5px; color:var(--ink-2); margin-bottom:40px; }
 .notice b{ color:var(--ink); }
 
-.doc{ margin-bottom:56px; }
-.doc h2{
-  font-size:20px; font-weight:700; letter-spacing:-.01em;
-  padding-bottom:10px; margin-bottom:18px; border-bottom:2px solid var(--ink);
-}
-.doc h3{ font-size:15px; font-weight:600; margin:22px 0 8px; }
-.doc p, .doc li{ font-size:14.5px; color:var(--ink-2); }
+.doc{ margin-bottom:52px; }
+.doc h2{ font-size:19px; font-weight:700; letter-spacing:-.01em; padding-bottom:10px; margin-bottom:18px; border-bottom:2px solid var(--ink); }
+.doc h3{ font-size:14.5px; font-weight:600; margin:22px 0 8px; }
+.doc p, .doc li{ font-size:14px; color:var(--ink-2); }
 .doc ol, .doc ul{ padding-left:1.3em; display:grid; gap:6px; margin-bottom:10px; }
-.doc table{ width:100%; border-collapse:collapse; margin:14px 0; font-size:13.5px; }
+.doc table{ width:100%; border-collapse:collapse; margin:14px 0; font-size:13px; }
 .doc th, .doc td{ border:1px solid var(--rule); padding:8px 10px; text-align:left; vertical-align:top; }
-.doc th{ background:#FAFAFC; font-family:var(--mono); font-size:11.5px; color:var(--ink-3); font-weight:500; }
-.ph{ color:var(--ink-3); font-family:var(--mono); background:#FAFAFC; padding:1px 5px; border-radius:4px; border:1px dashed var(--rule); }
+.doc th{ background:var(--paper); font-family:var(--mono); font-size:10.5px; color:var(--ink-3); font-weight:500; }
+.ph{ color:var(--ink-3); font-family:var(--mono); background:var(--paper); padding:1px 5px; border-radius:4px; border:1px dashed var(--rule); }
 
-.titleblock{ border-top:2px solid var(--ink); background:#fff; }
+.titleblock{ border-top:2px solid var(--ink); background:var(--paper-2); }
 .tb__row{ display:grid; border-bottom:1px solid var(--rule); }
 @media(min-width:760px){ .tb__row--main{ grid-template-columns:150px 1fr 150px 1fr 150px 1fr; } }
 .tb__label,.tb__value{ padding:12px 16px; }
-.tb__label{
-  font-family:var(--mono); font-size:10.5px; letter-spacing:.11em; text-transform:uppercase;
-  color:var(--ink-3); background:#FAFAFC; border-right:1px solid var(--rule);
-}
-.tb__value{ font-size:14px; border-right:1px solid var(--rule); }
+.tb__label{ font-family:var(--mono); font-size:10px; letter-spacing:.11em; text-transform:uppercase; color:var(--ink-3); background:var(--paper); border-right:1px solid var(--rule); }
+.tb__value{ font-size:13.5px; border-right:1px solid var(--rule); }
 .tb__value:last-child{ border-right:none; }
 </style>
 </head>
@@ -111,12 +92,12 @@ h1{ font-size:clamp(26px,4vw,34px); font-weight:700; letter-spacing:-.02em; marg
 
 <header class="topbar">
   <a class="mark" href="index.html"><span class="mark__box">7</span>NumDraw</a>
-  <nav style="display:flex; gap:16px;">
+  <nav style="display:flex; gap:6px;">
     <a class="topbar__link" href="product.html">제품 소개</a>
     <a class="topbar__link" href="purchase.html#가격">가격</a>
   </nav>
   <span class="topbar__spacer"></span>
-  <a class="btn btn--primary btn--sm" href="index.html">홈으로</a>
+  <a class="btn btn--key" href="index.html">홈으로</a>
 </header>
 
 <main>

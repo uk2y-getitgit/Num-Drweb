@@ -5,98 +5,91 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>사용 가이드 — NumDraw</title>
 <meta name="description" content="NumDraw 설치, 넘버링 작업, 단축키, 자주 묻는 질문을 정리한 사용 가이드입니다.">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%235B5BD6'/%3E%3Ctext x='16' y='23' font-family='monospace' font-size='19' font-weight='700' fill='white' text-anchor='middle'%3E7%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2315171B'/%3E%3Ctext x='16' y='23' font-family='monospace' font-size='19' font-weight='700' fill='%23F0B429' text-anchor='middle'%3E7%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{
-  --paper:      #F4F5F7;
+  --panel:      #15171B;
+  --panel-3:    #262A31;
+  --panel-edge: #33383F;
+  --on-panel-0: #EEF0F3;
+  --on-panel-1: #A6ACB8;
+
+  --ink:        #15171B;
+  --ink-2:      #4B5058;
+  --ink-3:      #888E99;
+  --paper:      #F3F4F6;
   --paper-2:    #FFFFFF;
-  --grid:       #E3E5EB;
-  --ink:        #15171E;
-  --ink-2:      #4C5060;
-  --ink-3:      #8A8FA3;
-  --rule:       #D9DCE4;
-  --indigo:     #5B5BD6;
+  --grid:       #E4E6EA;
+  --rule:       #DCDEE3;
+  --sig:        #F0B429;
+  --sig-ink:    #6B4E05;
 
   --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   --sans: 'IBM Plex Sans KR', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif;
-  --sheet: 980px;
+  --sheet: 1020px;
   --pad: clamp(20px, 5vw, 56px);
 }
 *,*::before,*::after{ box-sizing:border-box; margin:0; padding:0; }
 html{ scroll-behavior:smooth; }
 body{
   font-family:var(--sans); color:var(--ink); background:var(--paper);
-  background-image:
-    linear-gradient(var(--grid) 1px, transparent 1px),
-    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
-  background-size:28px 28px;
-  line-height:1.7; -webkit-font-smoothing:antialiased; word-break:keep-all;
+  line-height:1.7; -webkit-font-smoothing:antialiased; word-break:keep-all; font-variant-numeric:tabular-nums;
 }
-a{ color:var(--indigo); text-decoration:none; }
-a:hover{ text-decoration:underline; }
+a{ color:var(--sig-ink); text-decoration-color:var(--rule); text-underline-offset:3px; }
+a:hover{ text-decoration-color:var(--sig-ink); }
+:focus-visible{ outline:2px solid var(--sig); outline-offset:3px; border-radius:3px; }
 
 .sheet{
   max-width:var(--sheet); margin:0 auto; background:var(--paper-2);
-  border-left:1px solid var(--rule); border-right:1px solid var(--rule);
   display:grid; grid-template-columns:1fr;
 }
-@media(min-width:860px){ .sheet{ grid-template-columns:220px 1fr; } }
+@media(min-width:860px){ .sheet{ grid-template-columns:216px 1fr; } }
 
 .topbar{
-  grid-column:1/-1;
-  position:sticky; top:0; z-index:50;
-  display:flex; align-items:center; gap:16px;
-  padding:14px var(--pad);
-  background:rgba(255,255,255,.92); backdrop-filter:blur(8px);
-  border-bottom:1px solid var(--rule);
+  grid-column:1/-1; position:sticky; top:0; z-index:50; display:flex; align-items:center; gap:16px;
+  padding:0 var(--pad); height:56px; background:rgba(21,23,27,.92); backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--panel-edge); color:var(--on-panel-0);
 }
-.mark{ display:flex; align-items:center; gap:10px; font-weight:700; letter-spacing:-.01em; color:var(--ink); }
-.mark__box{
-  width:26px; height:26px; border-radius:6px; background:var(--indigo);
-  color:#fff; font-family:var(--mono); font-size:14px; font-weight:600;
-  display:grid; place-items:center;
-}
+.mark{ display:flex; align-items:center; gap:10px; font-weight:700; letter-spacing:-.01em; color:var(--on-panel-0); text-decoration:none; }
+.mark__box{ width:23px; height:23px; border-radius:5px; background:var(--panel-3); border:1px solid var(--panel-edge); color:var(--sig); font-family:var(--mono); font-size:12.5px; font-weight:700; display:grid; place-items:center; }
 .topbar__spacer{ flex:1; }
-.topbar__link{ font-size:13.5px; color:var(--ink-2); }
-.btn{ display:inline-flex; align-items:center; font-family:var(--sans); font-size:13.5px; font-weight:600; padding:8px 14px; border-radius:8px; text-decoration:none; }
-.btn--primary{ background:var(--indigo); color:#fff; }
-.btn--primary:hover{ background:#4747C2; }
+.topbar__link{ font-size:13px; color:#A6ACB8; text-decoration:none; padding:0 8px; }
+.topbar__link:hover{ color:var(--on-panel-0); }
+.btn{ display:inline-flex; align-items:center; font-family:var(--sans); font-size:13px; font-weight:600; padding:8px 14px; border-radius:6px; text-decoration:none; }
+.btn--key{ background:var(--sig); color:#221802; }
+.btn--key:hover{ opacity:.88; }
 
-nav.toc{ padding:28px var(--pad); border-right:1px solid var(--rule); }
-nav.toc p{ font-family:var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); margin-bottom:12px; }
-nav.toc a{ display:block; font-size:13.5px; color:var(--ink-2); padding:5px 0; }
-nav.toc a:hover{ color:var(--indigo); }
+nav.toc{ padding:26px var(--pad); border-right:1px solid var(--rule); align-self:start; position:sticky; top:56px; }
+nav.toc p{ font-family:var(--mono); font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3); margin-bottom:12px; }
+nav.toc a{ position:relative; display:block; font-size:13px; color:var(--ink-2); padding:6px 0 6px 12px; text-decoration:none; }
+nav.toc a::before{ content:''; position:absolute; left:0; top:9px; bottom:9px; width:2px; background:transparent; }
+nav.toc a:hover{ color:var(--ink); }
+nav.toc a:hover::before{ background:var(--sig); }
 
-main{ padding:clamp(36px,5vw,56px) var(--pad) 80px; }
-.eyebrow{ font-family:var(--mono); font-size:11.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-3); margin-bottom:14px; }
-h1{ font-size:clamp(26px,4vw,32px); font-weight:700; letter-spacing:-.02em; margin-bottom:8px; }
-.lead{ font-size:15px; color:var(--ink-2); max-width:60ch; margin-bottom:40px; }
+main{ padding:clamp(34px,5vw,54px) var(--pad) 80px; }
+.eyebrow{ font-family:var(--mono); font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--ink-3); margin-bottom:14px; }
+h1{ font-size:clamp(25px,3.8vw,31px); font-weight:700; letter-spacing:-.02em; margin-bottom:8px; text-wrap:balance; }
+.lead{ font-size:14.5px; color:var(--ink-2); max-width:60ch; margin-bottom:40px; }
 
-.sec{ margin-bottom:48px; scroll-margin-top:70px; }
-.sec h2{ font-size:19px; font-weight:700; padding-bottom:8px; margin-bottom:14px; border-bottom:2px solid var(--ink); }
-.sec p, .sec li{ font-size:14.5px; color:var(--ink-2); }
+.sec{ margin-bottom:46px; scroll-margin-top:78px; }
+.sec h2{ font-size:18.5px; font-weight:700; padding-bottom:8px; margin-bottom:14px; border-bottom:2px solid var(--ink); }
+.sec p, .sec li{ font-size:14px; color:var(--ink-2); }
 .sec ul, .sec ol{ padding-left:1.3em; display:grid; gap:6px; }
-.sec table{ width:100%; border-collapse:collapse; margin-top:12px; font-size:13.5px; }
+.sec table{ width:100%; border-collapse:collapse; margin-top:12px; font-size:13px; }
 .sec th, .sec td{ border:1px solid var(--rule); padding:7px 10px; text-align:left; }
-.sec th{ background:#FAFAFC; font-family:var(--mono); font-size:11px; color:var(--ink-3); font-weight:500; }
-kbd{
-  font-family:var(--mono); font-size:12px; background:#FAFAFC; border:1px solid var(--rule);
-  border-bottom-width:2px; border-radius:4px; padding:1px 6px;
-}
-.todo{
-  display:inline-block; margin-top:14px; font-family:var(--mono); font-size:11.5px;
-  color:#C7830A; background:#FFF7E6; border:1px solid #E8C36B; border-radius:6px; padding:6px 10px;
-}
+.sec th{ background:var(--paper); font-family:var(--mono); font-size:10.5px; color:var(--ink-3); font-weight:500; }
+kbd{ font-family:var(--mono); font-size:11.5px; background:var(--paper); border:1px solid var(--rule); border-bottom-width:2px; border-radius:4px; padding:1px 6px; }
+.todo{ display:inline-block; margin-top:14px; font-family:var(--mono); font-size:11px; color:#8A6A0A; background:#FFF7E6; border:1px solid #E8C36B; border-radius:6px; padding:6px 10px; }
 
-.titleblock{ grid-column:1/-1; border-top:2px solid var(--ink); background:#fff; }
+.titleblock{ grid-column:1/-1; border-top:2px solid var(--ink); background:var(--paper-2); }
 .tb__row{ display:grid; border-bottom:1px solid var(--rule); }
 @media(min-width:760px){ .tb__row--main{ grid-template-columns:150px 1fr 150px 1fr; } }
 .tb__label,.tb__value{ padding:12px 16px; }
-.tb__label{ font-family:var(--mono); font-size:10.5px; letter-spacing:.11em; text-transform:uppercase; color:var(--ink-3); background:#FAFAFC; border-right:1px solid var(--rule); }
-.tb__value{ font-size:14px; border-right:1px solid var(--rule); }
+.tb__label{ font-family:var(--mono); font-size:10px; letter-spacing:.11em; text-transform:uppercase; color:var(--ink-3); background:var(--paper); border-right:1px solid var(--rule); }
+.tb__value{ font-size:13.5px; border-right:1px solid var(--rule); }
 .tb__value:last-child{ border-right:none; }
 </style>
 </head>
@@ -106,13 +99,13 @@ kbd{
 
 <header class="topbar">
   <a class="mark" href="index.html"><span class="mark__box">7</span>NumDraw</a>
-  <nav style="display:flex; gap:16px;">
+  <nav style="display:flex; gap:6px;">
     <a class="topbar__link" href="product.html">제품 소개</a>
     <a class="topbar__link" href="purchase.html#가격">가격</a>
     <a class="topbar__link" href="purchase.html#구매">구매</a>
   </nav>
   <span class="topbar__spacer"></span>
-  <a class="btn btn--primary btn--sm" href="purchase.html#다운로드">체험판 받기</a>
+  <a class="btn btn--key" href="purchase.html#다운로드">체험판 받기</a>
 </header>
 
 <nav class="toc">
@@ -159,13 +152,13 @@ kbd{
 
   <section class="sec" id="파일규칙">
     <h2>파일 형식 · 사진 규칙</h2>
-    <h3>도면</h3>
+    <h3 style="font-size:14.5px; font-weight:600; margin-bottom:8px;">도면</h3>
     <table>
       <tr><th>지원 포맷</th><td>PDF(다중 페이지), JPG, PNG, GIF, BMP, WebP</td></tr>
       <tr><th>불러오기</th><td>파일 선택 버튼 또는 드래그앤드롭</td></tr>
       <tr><th>PDF 렌더링</th><td>고해상도로 자동 변환되어 표시됩니다</td></tr>
     </table>
-    <h3>사진 파일명 → 번호 매칭 규칙</h3>
+    <h3 style="font-size:14.5px; font-weight:600; margin:20px 0 8px;">사진 파일명 → 번호 매칭 규칙</h3>
     <p>사진 폴더를 연결하면 <b>파일명 뒤쪽 숫자</b>를 읽어 같은 번호의 넘버링과 자동으로 짝지어 줍니다.</p>
     <table>
       <tr><th>파일명 예시</th><th>매칭되는 번호</th></tr>
@@ -178,7 +171,7 @@ kbd{
 
   <section class="sec" id="단축키">
     <h2>단축키</h2>
-    <h3>공통</h3>
+    <h3 style="font-size:14.5px; font-weight:600; margin-bottom:8px;">공통</h3>
     <table>
       <tr><th>동작</th><th>단축키</th></tr>
       <tr><td>그리기 취소 / 선택 해제 / 합치기 모드 취소</td><td><kbd>Esc</kbd></td></tr>
@@ -188,7 +181,7 @@ kbd{
       <tr><td>합치기 확정 · 다각형(부동침하) 확정</td><td><kbd>Enter</kbd></td></tr>
     </table>
 
-    <h3>지시선 도구 (선택 항목 없을 때: 도구 전환 · 선택 항목 있을 때: 해당 항목에 적용)</h3>
+    <h3 style="font-size:14.5px; font-weight:600; margin:20px 0 8px;">지시선 도구 (선택 항목 없을 때: 도구 전환 · 선택 항목 있을 때: 해당 항목에 적용)</h3>
     <table>
       <tr><th>동작</th><th>단축키</th></tr>
       <tr><td>화살표 도구</td><td><kbd>A</kbd></td></tr>
@@ -200,7 +193,7 @@ kbd{
       <tr><td>선 스타일 순서대로 전환</td><td><kbd>W</kbd></td></tr>
     </table>
 
-    <h3>마우스 · 휠</h3>
+    <h3 style="font-size:14.5px; font-weight:600; margin:20px 0 8px;">마우스 · 휠</h3>
     <table>
       <tr><th>동작</th><th>조작</th></tr>
       <tr><td>화면 확대·축소 (커서 위치 기준)</td><td>휠</td></tr>
