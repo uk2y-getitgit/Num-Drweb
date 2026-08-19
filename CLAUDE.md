@@ -118,18 +118,34 @@
 Num-Drweb/
 ├── index.html            # 단일 진입점, 모든 UI 마크업
 ├── css/
+│   ├── fonts.css         # 로컬 IBM Plex @font-face (CDN 없음)
 │   ├── style.css         # 기존 전역 스타일 (건드리지 않음)
 │   ├── ui-tokens.css     # 제도 콘솔 토큰 + 신규 컴포넌트 (.bay 등)
 │   └── ui-skin.css       # 이행 레이어 — 기존 요소를 새 시스템에 맞춤
 ├── js/
 │   ├── annotation.js     # 넘버링 데이터 모델, 자동정렬 알고리즘
-│   ├── canvas.js         # 도면 렌더링, 줌/팬, 지시선 그리기
-│   ├── fileManager.js    # 로컬 폴더 접근, 사진 매칭 로직
+│   ├── appMode.js        # 외관조사망도 / 장비시험망도 모드 전환
+│   ├── canvas.js         # 도면 렌더링, 줌/팬, 지시선·해치도형 그리기
+│   ├── equipment.js      # 장비시험망도 표기
+│   ├── fileManager.js    # 로컬 폴더 접근, 사진 매칭·파일명 변경
+│   ├── legend.js         # 범례
+│   ├── license.js        # 체험판·활성화 UI (Electron 라이선스 모듈과 통신)
+│   ├── pageManager.js    # 페이지별 도면·넘버링 독립 관리, A4 변환
+│   ├── photoBook.js      # 사진첩 6칸 격자 렌더 + PDF 출력
 │   ├── sidebar.js        # 사이드바 UI 렌더링 (순수 DOM)
+│   ├── storageManager.js # 자동저장·.numdraw 파일 저장/복원
+│   ├── titleBlock.js     # 도곽(표제란) 렌더 + 설정
 │   └── app.js            # 메인 진입점, 모듈 간 이벤트 연결
-├── lib/                  # 오프라인용 외부 라이브러리 (선택)
-│   └── pdf.min.js
-└── docs/                 # 기존 에이전트/문서 폴더 (건드리지 않음)
+├── lib/                  # 오프라인용 외부 라이브러리 + 폰트
+│   ├── pdf.min.js · pdf.worker.min.js · jspdf.umd.min.js · xlsx.full.min.js
+│   └── fonts/            # IBM Plex woff2 (OFL 1.1)
+├── electron/             # Electron 메인 프로세스 + license/ (활성화·증서 검증)
+├── server/               # Cloudflare Workers 활성화 서버 (D1 · /admin/issue)
+├── web/                  # 판매 홈페이지 (Cloudflare Pages · numdraw.pages.dev)
+├── scripts/              # check-release-config.mjs (빌드 전 배포설정 가드)
+└── docs/
+    ├── ui-redesign/      # v1.2.4 UI 개편 근거·목업
+    └── archive/          # 완료된 계획서·구 홍보물 (docs/archive/README.md 참고)
 ```
 
 ---
@@ -335,7 +351,7 @@ Num-Drweb/
 - 현재 `.modal-overlay { backdrop-filter: blur(2px) }` 제거 대상
 
 ### Phase 3-e — 사진첩 생성 (v1.2.1 구현 완료)
-> 상세: `사진첩_기능_개발계획.md` — 기존 엑셀 매크로(`부록. 사진첩 - 메뉴.xlsm`) 대체
+> 상세: `docs/archive/사진첩_기능_개발계획.md` — 기존 엑셀 매크로(`부록. 사진첩 - 메뉴.xlsm`) 대체
 > 검증: `/photobook-test` 스킬 (테스트 데이터 생성 + Node 자동검증 + 수동 체크리스트)
 
 - [x] 3-e-1 외관집계표 가져오기 (SheetJS, P열 문구, 층키 역변환, 행 순서 보존)

@@ -218,7 +218,7 @@ server/
 
 ## 8. API 계약 (요약)
 
-전체 스펙은 저장소 루트의 `유료화_Phase1_구현계획.md` 3장·7장 참고. 요약:
+전체 스펙은 저장소의 `docs/archive/유료화_Phase1_구현계획.md` 3장·7장 참고. 요약:
 
 **POST /api/activate**
 ```

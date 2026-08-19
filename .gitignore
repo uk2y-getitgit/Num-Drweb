@@ -38,3 +38,6 @@ node_modules/
 배포정보/
 *.key
 *.pem
+
+# 가이드·테스트용 샘플 자료 (로컬 보관, 용량 큼)
+guide sample/

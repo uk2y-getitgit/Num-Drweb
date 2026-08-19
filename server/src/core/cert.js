@@ -5,7 +5,7 @@
 // 키 인코딩: 공개키 = raw 32바이트, 개인키 = pkcs8 DER — 둘 다 base64url 문자열로 다룬다.
 //   (server/scripts/genkeys.mjs 가 이 인코딩으로 키쌍을 생성한다)
 //
-// 유료화_Phase1_구현계획.md 3장 payload 스펙 그대로.
+// docs/archive/유료화_Phase1_구현계획.md 3장 payload 스펙 그대로.
 
 const ALG = { name: 'Ed25519' };
 

@@ -6,7 +6,7 @@
 //   - 문자 집합: Crockford Base32 (혼동되는 0/O, 1/I/L 등을 제외한 32자)
 //   - 체크섬은 오타를 서버에 묻지 않고도 즉시 감지하기 위한 것 — 암호학적 보장이 아니다
 //
-// 유료화_Phase1_구현계획.md 2장 참조.
+// docs/archive/유료화_Phase1_구현계획.md 2장 참조.
 
 export const CHARSET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 

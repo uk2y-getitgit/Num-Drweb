@@ -1,4 +1,4 @@
-// POST /api/activate — 유료화_Phase1_구현계획.md 7장 API 계약 그대로 구현.
+// POST /api/activate — docs/archive/유료화_Phase1_구현계획.md 7장 API 계약 그대로 구현.
 
 import { parseAndValidate, keyHash, isValidDeviceHash } from '../core/keygen.js';
 import { importPrivateKey, issueCertificate } from '../core/cert.js';
