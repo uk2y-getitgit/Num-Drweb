@@ -1,5 +1,6 @@
-# Claude Code 내부 파일
-.claude/
+# Claude Code — 하네스(에이전트·스킬)는 버전관리한다. 기기별 로컬 설정만 제외
+.claude/settings.local.json
+.claude/*.local.json
 
 # OS
 .DS_Store
