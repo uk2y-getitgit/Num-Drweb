@@ -3,7 +3,7 @@
    Inspired by Figma (light, functional) + Linear (compact, precise)
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+/* Inter CDN @import 제거 — 폰트는 css/fonts.css 의 로컬 번들을 쓴다 (오프라인 대응) */
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 

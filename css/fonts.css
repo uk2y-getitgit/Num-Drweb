@@ -1,0 +1,76 @@
+/* ============================================================================
+   NumDraw — 로컬 폰트 (오프라인 전용, CDN 의존 없음)
+
+   파일: lib/fonts/*.woff2  (@fontsource/ibm-plex-sans-kr, ibm-plex-mono v5)
+   라이선스: IBM Plex — SIL Open Font License 1.1 (재배포 가능)
+
+   한글 서브셋과 라틴 서브셋을 unicode-range 로 나눠 선언한다.
+   두 범위 밖의 기호(● ✕ ▶ ∠ ▭ 등)는 의도적으로 시스템 폰트(Malgun Gothic)로
+   떨어진다 — IBM Plex 에 없는 글자라 여기서 잡으면 두부(□)가 된다.
+   ============================================================================ */
+
+/* ── 라틴 범위 ── */
+@font-face{
+  font-family:'IBM Plex Sans KR'; font-style:normal; font-weight:400; font-display:swap;
+  src:url('../lib/fonts/ibm-plex-sans-kr-latin-400-normal.woff2') format('woff2');
+  unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,
+    U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face{
+  font-family:'IBM Plex Sans KR'; font-style:normal; font-weight:500; font-display:swap;
+  src:url('../lib/fonts/ibm-plex-sans-kr-latin-500-normal.woff2') format('woff2');
+  unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,
+    U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face{
+  font-family:'IBM Plex Sans KR'; font-style:normal; font-weight:600; font-display:swap;
+  src:url('../lib/fonts/ibm-plex-sans-kr-latin-600-normal.woff2') format('woff2');
+  unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,
+    U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face{
+  font-family:'IBM Plex Sans KR'; font-style:normal; font-weight:700; font-display:swap;
+  src:url('../lib/fonts/ibm-plex-sans-kr-latin-700-normal.woff2') format('woff2');
+  unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,
+    U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+
+/* ── 한글 범위 ── */
+@font-face{
+  font-family:'IBM Plex Sans KR'; font-style:normal; font-weight:400; font-display:swap;
+  src:url('../lib/fonts/ibm-plex-sans-kr-korean-400-normal.woff2') format('woff2');
+  unicode-range:U+1100-11FF,U+3001-303F,U+3130-318F,U+A960-A97F,U+AC00-D7A3,U+D7B0-D7FF,U+FF00-FFEF;
+}
+@font-face{
+  font-family:'IBM Plex Sans KR'; font-style:normal; font-weight:500; font-display:swap;
+  src:url('../lib/fonts/ibm-plex-sans-kr-korean-500-normal.woff2') format('woff2');
+  unicode-range:U+1100-11FF,U+3001-303F,U+3130-318F,U+A960-A97F,U+AC00-D7A3,U+D7B0-D7FF,U+FF00-FFEF;
+}
+@font-face{
+  font-family:'IBM Plex Sans KR'; font-style:normal; font-weight:600; font-display:swap;
+  src:url('../lib/fonts/ibm-plex-sans-kr-korean-600-normal.woff2') format('woff2');
+  unicode-range:U+1100-11FF,U+3001-303F,U+3130-318F,U+A960-A97F,U+AC00-D7A3,U+D7B0-D7FF,U+FF00-FFEF;
+}
+@font-face{
+  font-family:'IBM Plex Sans KR'; font-style:normal; font-weight:700; font-display:swap;
+  src:url('../lib/fonts/ibm-plex-sans-kr-korean-700-normal.woff2') format('woff2');
+  unicode-range:U+1100-11FF,U+3001-303F,U+3130-318F,U+A960-A97F,U+AC00-D7A3,U+D7B0-D7FF,U+FF00-FFEF;
+}
+
+/* ── 모노 (숫자·라벨·판독값) — 라틴만 있으면 된다 ── */
+@font-face{
+  font-family:'IBM Plex Mono'; font-style:normal; font-weight:400; font-display:swap;
+  src:url('../lib/fonts/ibm-plex-mono-latin-400-normal.woff2') format('woff2');
+}
+@font-face{
+  font-family:'IBM Plex Mono'; font-style:normal; font-weight:500; font-display:swap;
+  src:url('../lib/fonts/ibm-plex-mono-latin-500-normal.woff2') format('woff2');
+}
+@font-face{
+  font-family:'IBM Plex Mono'; font-style:normal; font-weight:600; font-display:swap;
+  src:url('../lib/fonts/ibm-plex-mono-latin-600-normal.woff2') format('woff2');
+}
+@font-face{
+  font-family:'IBM Plex Mono'; font-style:normal; font-weight:700; font-display:swap;
+  src:url('../lib/fonts/ibm-plex-mono-latin-700-normal.woff2') format('woff2');
+}

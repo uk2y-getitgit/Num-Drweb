@@ -4,135 +4,278 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NumDraw — 시설물 안전점검 넘버링 툴</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- 폰트는 lib/fonts 로컬 번들 — 인터넷 없이도 그대로 나온다 -->
+  <link rel="stylesheet" href="css/fonts.css">
   <link rel="stylesheet" href="css/style.css">
+  <!-- 제도 콘솔 스킨 — 이 두 줄을 빼면 예전 UI로 돌아간다 -->
+  <link rel="stylesheet" href="css/ui-tokens.css">
+  <link rel="stylesheet" href="css/ui-skin.css">
+  <script>
+    /* 테마는 첫 페인트 전에 적용해야 흰 화면이 번쩍이지 않는다 */
+    (function () {
+      try {
+        var t = localStorage.getItem('numdraw-theme');
+        document.documentElement.setAttribute('data-theme', t === 'light' ? 'light' : 'dark');
+      } catch (e) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+  </script>
 </head>
 <body>
 
-<!-- ===== 모드바 (작업페이지 구분) ===== -->
-<div id="mode-bar">
-  <span class="mode-bar-label">작업 유형</span>
-  <div class="mode-seg">
-    <button class="mode-seg-btn active" data-mode="exterior">외관조사망도</button>
-    <button class="mode-seg-btn" data-mode="equip">장비시험망도</button>
-  </div>
-  <span class="mode-bar-hint" id="mode-bar-hint"></span>
-</div>
-
-<!-- ===== 툴바 ===== -->
-<div id="toolbar">
-  <span class="toolbar-title">
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="3"/><path d="M3 12h3M18 12h3M12 3v3M12 18v3"/><path d="M7.05 7.05l2.12 2.12M14.83 14.83l2.12 2.12M7.05 16.95l2.12-2.12M14.83 9.17l2.12-2.12"/></svg>
-    NumDraw
+<!-- ===== 상단 레일 — 문서 단위 조작 ===== -->
+<div id="rail">
+  <span class="brand">
+    <span class="brand-mark">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="2.6"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/></svg>
+    </span>
+    <span class="brand-name">NumDraw</span>
   </span>
 
-  <!-- 파일 -->
-  <div class="toolbar-group">
-    <span class="toolbar-group-label">파일</span>
-    <button class="btn btn-accent" id="btn-open">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-      도면 열기
-    </button>
-    <input type="file" id="file-input" accept=".pdf,.jpg,.jpeg,.png,.gif,.bmp,.webp" style="display:none">
-    <span id="file-name" style="font-size:11px;color:var(--text-dim);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
-  </div>
-
-  <!-- 숨김 직교 토글 (툴바 동기화용) -->
-  <input type="checkbox" id="ortho-toggle" style="display:none">
-
-  <!-- 보기 -->
-  <div class="toolbar-group">
-    <span class="toolbar-group-label">보기</span>
-    <button class="btn" id="btn-zoom-in" title="확대">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
-    </button>
-    <button class="btn" id="btn-zoom-out" title="축소">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
-    </button>
-    <button class="btn" id="btn-fit" title="화면 맞추기 (F5)">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
-    </button>
-    <span id="zoom-level" style="font-size:11px;color:var(--text-secondary);padding:0 4px;min-width:36px;text-align:center;">100%</span>
-  </div>
-
-  <!-- 도곽 -->
-  <div class="toolbar-group">
-    <span class="toolbar-group-label">도곽</span>
-    <button class="btn" id="btn-titleblock">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="1"/><line x1="3" y1="17" x2="21" y2="17"/><line x1="11" y1="17" x2="11" y2="21"/></svg>
-      도곽 설정
-    </button>
-    <label class="toggle" title="도곽 표시 ON/OFF" style="margin-left:4px;">
-      <input type="checkbox" id="titleblock-toggle">
-      <span class="toggle-slider"></span>
-    </label>
-  </div>
-
-  <!-- 범례 -->
-  <div class="toolbar-group">
-    <span class="toolbar-group-label">범례</span>
-    <label class="toggle" title="범례 표시 ON/OFF" style="margin-left:4px;">
-      <input type="checkbox" id="legend-toggle" checked>
-      <span class="toggle-slider"></span>
-    </label>
-  </div>
-
-  <!-- 프로젝트 -->
-  <div class="toolbar-group">
-    <span class="toolbar-group-label">프로젝트</span>
-    <button class="btn btn-accent" id="btn-save-project">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-      저장
-    </button>
-    <button class="btn" id="btn-load-project">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><polyline points="9 14 12 17 15 14"/></svg>
-      불러오기
-    </button>
-    <input type="file" id="numdraw-file-input" accept=".numdraw" style="display:none">
-  </div>
-
-  <!-- 작업 -->
-  <div class="toolbar-group">
-    <span class="toolbar-group-label">작업</span>
-    <button class="btn" id="btn-auto-layout">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-      자동정렬
-    </button>
-    <button class="btn" id="btn-merge" title="넘버링 합치기 — 대상 클릭 후 Enter">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5h5l4 7 4-7h5"/><path d="M12 12v7"/><polyline points="9 16 12 19 15 16"/></svg>
-      합치기
-    </button>
-    <button class="btn" id="btn-export-pdf">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="12" y2="12"/><line x1="15" y1="15" x2="12" y2="12"/></svg>
-      PDF 저장
-    </button>
-    <button class="btn btn-danger" id="btn-clear">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
-      전체삭제
-    </button>
-  </div>
-
-  <!-- 정품 인증 배지 -->
-  <button class="license-badge trial" id="btn-license" title="체험판 — 클릭하여 정품 인증">
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-    <span class="license-badge-text">체험판 · 정품 인증</span>
-  </button>
-
-  <!-- 저장 상태 표시 -->
-  <div id="save-indicator">
-    <span class="save-dot">—</span>
-    <span class="save-text"></span>
-  </div>
-
-  <!-- 넘버 카운터 -->
-  <div style="margin-left:auto;display:flex;align-items:center;gap:10px;">
-    <div id="num-counter">
-      넘버링 <span class="count-val">0</span>개
-      <span style="color:var(--text-dim)">|</span>
-      다음: <span id="next-num-display" style="font-size:13px;font-weight:700;color:var(--accent);">1</span>
+  <div class="bay">
+    <span class="bay-label">작업유형</span>
+    <div class="bay-body">
+      <div class="mode-seg">
+        <button class="mode-seg-btn active" data-mode="exterior">외관조사망도</button>
+        <button class="mode-seg-btn" data-mode="equip">장비시험망도</button>
+      </div>
+      <span class="mode-bar-hint" id="mode-bar-hint"></span>
     </div>
   </div>
+
+  <div class="bay">
+    <span class="bay-label">도면</span>
+    <div class="bay-body">
+      <button class="btn btn-accent" id="btn-open">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        열기
+      </button>
+      <input type="file" id="file-input" accept=".pdf,.jpg,.jpeg,.png,.gif,.bmp,.webp" style="display:none">
+      <span class="file-name" id="file-name"></span>
+    </div>
+  </div>
+
+  <!-- 숨김 직교 토글 (계기바 동기화용) -->
+  <input type="checkbox" id="ortho-toggle" style="display:none">
+
+  <div class="bay">
+    <span class="bay-label">프로젝트</span>
+    <div class="bay-body">
+      <button class="btn" id="btn-save-project">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        저장
+      </button>
+      <button class="btn" id="btn-load-project">불러오기</button>
+      <input type="file" id="numdraw-file-input" accept=".numdraw" style="display:none">
+    </div>
+  </div>
+
+  <div class="bay">
+    <span class="bay-label">도곽</span>
+    <div class="bay-body">
+      <button class="btn" id="btn-titleblock">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="1"/><line x1="3" y1="17" x2="21" y2="17"/><line x1="11" y1="17" x2="11" y2="21"/></svg>
+        설정
+      </button>
+      <label class="toggle" title="도곽 표시 ON/OFF">
+        <input type="checkbox" id="titleblock-toggle">
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+  </div>
+
+  <div class="bay">
+    <span class="bay-label">범례</span>
+    <div class="bay-body">
+      <label class="toggle" title="범례 표시 ON/OFF">
+        <input type="checkbox" id="legend-toggle" checked>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+  </div>
+
+  <div class="bay">
+    <span class="bay-label">출력</span>
+    <div class="bay-body">
+      <button class="btn" id="btn-export-pdf">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        PDF 저장
+      </button>
+    </div>
+  </div>
+
+  <div class="rail-right">
+    <div id="num-counter">
+      넘버링 <span class="count-val">0</span>
+      <span class="sep">/</span>
+      다음 <span id="next-num-display">1</span>
+    </div>
+    <div id="save-indicator">
+      <span class="save-dot">—</span>
+      <span class="save-text"></span>
+    </div>
+    <button class="theme-btn" id="btn-theme" title="라이트 테마로 전환" aria-label="화면 테마 전환">
+      <svg class="ic-sun" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="4.2"/>
+        <path d="M12 2v2.6M12 19.4V22M2 12h2.6M19.4 12H22M4.9 4.9l1.9 1.9M17.2 17.2l1.9 1.9M4.9 19.1l1.9-1.9M17.2 6.8l1.9-1.9"/>
+      </svg>
+      <svg class="ic-moon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M20.5 14.3A8.5 8.5 0 1 1 9.7 3.5a6.8 6.8 0 0 0 10.8 10.8z"/>
+      </svg>
+    </button>
+    <button class="license-badge trial" id="btn-license" title="체험판 — 클릭하여 정품 인증">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      <span class="license-badge-text">체험판</span>
+    </button>
+  </div>
+</div>
+
+<!-- ===== 계기바 — 도면에 직접 찍는 도구 ===== -->
+<div id="canvas-control-bar">
+
+  <div class="bay">
+    <span class="bay-label">지시점</span>
+    <div class="bay-body">
+      <button class="tool-btn active" data-tool="arrow" title="화살표 (A)">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="19" x2="19" y2="5"/><polyline points="12 5 19 5 19 12"/></svg>
+        화살표
+      </button>
+      <button class="tool-btn" data-tool="dot" title="점 (D)">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="5"/></svg>
+        점
+      </button>
+      <button class="tool-btn" data-tool="none" title="지시선 없이 번호만 (S)">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="7" width="18" height="10" rx="2"/></svg>
+        없음
+      </button>
+    </div>
+  </div>
+
+  <div class="bay">
+    <span class="bay-label">지시선</span>
+    <div class="bay-body">
+      <button class="tool-btn line-btn active" data-line="straight" title="직선 (1)">
+        <svg width="16" height="13" viewBox="0 0 22 18"><line x1="2" y1="16" x2="20" y2="2" stroke="currentColor" stroke-width="2"/></svg>
+      </button>
+      <button class="tool-btn line-btn" data-line="elbow-h" title="ㄱ자 (2)">
+        <svg width="16" height="13" viewBox="0 0 22 18"><polyline points="2,16 2,2 20,2" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+      </button>
+      <button class="tool-btn line-btn" data-line="elbow-v" title="ㄴ자 (3)">
+        <svg width="16" height="13" viewBox="0 0 22 18"><polyline points="2,16 20,16 20,2" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+      </button>
+      <button class="tool-btn line-btn" data-line="zigzag" title="번개 (4)">
+        <svg width="16" height="13" viewBox="0 0 22 18"><polyline points="2,16 11,16 11,2 20,2" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+      </button>
+      <span class="ctrl-toggle-row">직교모드
+        <label class="toggle"><input type="checkbox" id="ortho-toggle-side"><span class="toggle-slider"></span></label>
+        <span class="kbd">Q</span>
+      </span>
+      <span class="ctrl-toggle-row">화살표 반전
+        <label class="toggle"><input type="checkbox" id="arrow-flip-toggle"><span class="toggle-slider"></span></label>
+        <span class="kbd">R</span>
+      </span>
+    </div>
+  </div>
+
+  <!-- 구분 (외관 모드) -->
+  <div class="bay mode-only-exterior" id="cat-ctrl-group" data-ink style="--bay-ink:#e05555">
+    <span class="bay-label">구분</span>
+    <div class="bay-body">
+      <button class="cat-btn active" data-cat="defect" style="--cat-c:#e05555">
+        <span class="cat-dot-lg" style="background:#e05555"></span>결함
+        <input type="color" id="cat-color-defect" value="#e05555" class="cat-color-picker" title="색상 변경">
+      </button>
+      <button class="cat-btn" data-cat="repair" style="--cat-c:#4a9eff">
+        <span class="cat-dot-lg" style="background:#4a9eff"></span>보수
+        <input type="color" id="cat-color-repair" value="#4a9eff" class="cat-color-picker" title="색상 변경">
+      </button>
+      <button class="cat-btn" data-cat="other" style="--cat-c:#9b59b6">
+        <span class="cat-dot-lg" style="background:#9b59b6"></span>신규
+        <input type="color" id="cat-color-other" value="#9b59b6" class="cat-color-picker" title="색상 변경">
+      </button>
+    </div>
+  </div>
+
+  <!-- 해치 도형 (외관 모드) -->
+  <div class="bay mode-only-exterior" id="hatch-ctrl-group" data-ink style="--bay-ink:#e05555">
+    <span class="bay-label">도형</span>
+    <div class="bay-body">
+      <button class="tool-btn hatch-btn" data-hatch="hatch-rect" title="사각 해치 — 1클릭: 첫 모서리 / 2클릭: 반대 모서리">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="5" width="18" height="14"/><path d="M3 15 13 5M3 19 17 5M7 19 21 5M11 19 21 9M15 19 21 13"/></svg>
+      </button>
+      <button class="tool-btn hatch-btn" data-hatch="hatch-ellipse" title="원형 해치 — 1클릭: 첫 모서리 / 2클릭: 반대 모서리">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><ellipse cx="12" cy="12" rx="9" ry="7"/><path d="M5 17 12 5M8 18.5 18 5.5M12 19 20 8M16 18 21.5 12"/></svg>
+      </button>
+      <button type="button" id="hatch-color-btn" class="color-swatch-btn"
+        title="도형 색상 — 새로 그리는 도형에만 적용 (기존 도형 색상 유지)"
+        style="background:#e05555;"></button>
+
+      <div id="hatch-color-pop" class="color-pop hidden">
+        <div class="color-pop-title">구분 색상</div>
+        <div id="hatch-color-presets"></div>
+        <div class="color-pop-title">직접 선택</div>
+        <label class="color-pop-custom">
+          <input type="color" id="hatch-color" value="#e05555" class="color-swatch">
+          <span id="hatch-color-hex">#E05555</span>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- 장비 구분 (장비 모드) — app.js가 동적 렌더 -->
+  <div class="bay mode-only-equip" id="equip-ctrl-group" style="display:none;">
+    <span class="bay-label">장비</span>
+    <div class="bay-body" style="flex-wrap:wrap;">
+      <div id="equip-btns" style="display:flex;gap:4px;flex-wrap:wrap;"></div>
+    </div>
+  </div>
+
+  <!-- 기울기 기준축 (기울기 장비 선택 시에만 노출) -->
+  <div class="bay" id="tilt-axis-group" style="display:none;">
+    <span class="bay-label">기준축</span>
+    <div class="bay-body">
+      <button class="tool-btn tilt-axis-btn active" data-axis="y" title="세로 기준선 — 아랫변이 변위(좌/우 화살표)">
+        <svg width="16" height="13" viewBox="0 0 22 18"><polyline points="16,2 16,15 3,15" fill="none" stroke="currentColor" stroke-width="2"/><line x1="16" y1="2" x2="3" y2="15" stroke="currentColor" stroke-width="1.2"/></svg>
+        y축
+      </button>
+      <button class="tool-btn tilt-axis-btn" data-axis="x" title="가로 기준선 — 오른변이 변위(상/하 화살표)">
+        <svg width="16" height="13" viewBox="0 0 22 18"><polyline points="3,15 19,15 19,3" fill="none" stroke="currentColor" stroke-width="2"/><line x1="3" y1="15" x2="19" y2="3" stroke="currentColor" stroke-width="1.2"/></svg>
+        x축
+      </button>
+    </div>
+  </div>
+
+  <!-- 범례 표시 장비 (장비 모드, 페이지별) — app.js가 동적 렌더 -->
+  <div class="bay mode-only-equip" id="legend-equip-group" style="display:none;">
+    <span class="bay-label">범례표기</span>
+    <div class="bay-body">
+      <div id="legend-equip-checks" style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;"></div>
+    </div>
+  </div>
+
+  <!-- 번호 — 값마다 칸을 나눠 이름을 붙인다 -->
+  <div class="bay" id="bay-prefix">
+    <span class="bay-label">머릿말</span>
+    <div class="bay-body">
+      <input type="text" id="prefix-num" placeholder="1F-" style="width:62px;">
+    </div>
+  </div>
+
+  <div class="bay" id="bay-start">
+    <span class="bay-label">시작번호</span>
+    <div class="bay-body">
+      <input type="number" id="start-num" min="1" value="1" style="width:46px;text-align:center;">
+    </div>
+  </div>
+
+  <div class="bay">
+    <span class="bay-label">글씨색</span>
+    <div class="bay-body">
+      <input type="color" id="color-text" value="#ffffff" class="color-swatch" title="번호 글씨 색상" style="width:26px;height:26px;">
+    </div>
+  </div>
+
 </div>
 
 <!-- ===== 메인 ===== -->
@@ -158,180 +301,6 @@
 
   <!-- 캔버스 영역 (canvas-wrap = flex-column) -->
   <div id="canvas-wrap">
-
-    <!-- ===== 캔버스 상단 컨트롤 바 (Bundle D) ===== -->
-    <div id="canvas-control-bar">
-
-      <!-- 지시점 -->
-      <div class="ctrl-group">
-        <span class="ctrl-label">지시점</span>
-        <button class="tool-btn active" data-tool="arrow" title="화살표">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="19" x2="19" y2="5"/><polyline points="12 5 19 5 19 12"/></svg>
-          화살표
-        </button>
-        <button class="tool-btn" data-tool="dot" title="점">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="5"/></svg>
-          점
-        </button>
-        <button class="tool-btn" data-tool="none" title="지시선 없이 번호만 (1클릭)">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="7" width="18" height="10" rx="2"/></svg>
-          없음
-        </button>
-      </div>
-      <div class="ctrl-sep"></div>
-
-      <!-- 선 스타일 -->
-      <div class="ctrl-group">
-        <span class="ctrl-label">선</span>
-        <button class="tool-btn line-btn active" data-line="straight" title="직선">
-          <svg width="16" height="13" viewBox="0 0 22 18"><line x1="2" y1="16" x2="20" y2="2" stroke="currentColor" stroke-width="2"/></svg>
-          직
-        </button>
-        <button class="tool-btn line-btn" data-line="elbow-h" title="ㄱ자">
-          <svg width="16" height="13" viewBox="0 0 22 18"><polyline points="2,16 2,2 20,2" fill="none" stroke="currentColor" stroke-width="2"/></svg>
-          ㄱ
-        </button>
-        <button class="tool-btn line-btn" data-line="elbow-v" title="ㄴ자">
-          <svg width="16" height="13" viewBox="0 0 22 18"><polyline points="2,16 20,16 20,2" fill="none" stroke="currentColor" stroke-width="2"/></svg>
-          ㄴ
-        </button>
-        <button class="tool-btn line-btn" data-line="zigzag" title="번개">
-          <svg width="16" height="13" viewBox="0 0 22 18"><polyline points="2,16 11,16 11,2 20,2" fill="none" stroke="currentColor" stroke-width="2"/></svg>
-          번
-        </button>
-      </div>
-      <div class="ctrl-sep"></div>
-
-      <!-- 직교 + 반전 -->
-      <div class="ctrl-group" style="flex-direction:column;gap:2px;align-items:flex-start;">
-        <div class="ctrl-toggle-row">
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M12 3v18"/></svg>
-          직교(Q)
-          <label class="toggle">
-            <input type="checkbox" id="ortho-toggle-side">
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-        <div class="ctrl-toggle-row">
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-          반전(R)
-          <label class="toggle">
-            <input type="checkbox" id="arrow-flip-toggle">
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-      </div>
-      <div class="ctrl-sep"></div>
-
-      <!-- 카테고리 (외관 모드) -->
-      <div class="ctrl-group mode-only-exterior" id="cat-ctrl-group">
-        <span class="ctrl-label">구분</span>
-        <button class="cat-btn active" data-cat="defect" style="--cat-c:#e05555">
-          <span class="cat-dot-lg" style="background:#e05555"></span>결함
-          <input type="color" id="cat-color-defect" value="#e05555" class="cat-color-picker" title="색상 변경">
-        </button>
-        <button class="cat-btn" data-cat="repair" style="--cat-c:#4a9eff">
-          <span class="cat-dot-lg" style="background:#4a9eff"></span>보수
-          <input type="color" id="cat-color-repair" value="#4a9eff" class="cat-color-picker" title="색상 변경">
-        </button>
-        <button class="cat-btn" data-cat="other" style="--cat-c:#9b59b6">
-          <span class="cat-dot-lg" style="background:#9b59b6"></span>신규
-          <input type="color" id="cat-color-other" value="#9b59b6" class="cat-color-picker" title="색상 변경">
-        </button>
-      </div>
-
-      <!-- 해치 도형 (외관 모드) -->
-      <div class="ctrl-group mode-only-exterior" id="hatch-ctrl-group">
-        <span class="ctrl-label">도형</span>
-        <button class="tool-btn hatch-btn" data-hatch="hatch-rect" title="사각 해치 도형 — 1클릭: 첫 모서리 / 2클릭: 반대 모서리">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="5" width="18" height="14"/><path d="M3 15 13 5M3 19 17 5M7 19 21 5M11 19 21 9M15 19 21 13"/></svg>
-          사각
-        </button>
-        <button class="tool-btn hatch-btn" data-hatch="hatch-ellipse" title="원형 해치 도형 — 1클릭: 첫 모서리 / 2클릭: 반대 모서리">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><ellipse cx="12" cy="12" rx="9" ry="7"/><path d="M5 17 12 5M8 18.5 18 5.5M12 19 20 8M16 18 21.5 12"/></svg>
-          원형
-        </button>
-        <button type="button" id="hatch-color-btn" class="color-swatch-btn"
-          title="도형 색상 — 새로 그리는 도형에만 적용 (기존 도형 색상 유지)"
-          style="background:#e05555;"></button>
-
-        <!-- 도형 색상 선택 팝업 (구분 색상 프리셋 + 직접 선택) -->
-        <div id="hatch-color-pop" class="color-pop hidden">
-          <div class="color-pop-title">구분 색상</div>
-          <div id="hatch-color-presets"></div>
-          <div class="color-pop-title">직접 선택</div>
-          <label class="color-pop-custom">
-            <input type="color" id="hatch-color" value="#e05555" class="color-swatch">
-            <span id="hatch-color-hex">#E05555</span>
-          </label>
-        </div>
-      </div>
-
-      <!-- 장비 구분 (장비 모드) — app.js가 동적 렌더 -->
-      <div class="ctrl-group mode-only-equip" id="equip-ctrl-group" style="display:none;">
-        <span class="ctrl-label">장비</span>
-        <div id="equip-btns" style="display:flex;gap:4px;flex-wrap:wrap;"></div>
-      </div>
-
-      <!-- 기울기 기준축 (기울기 장비 선택 시에만 노출) -->
-      <div class="ctrl-group" id="tilt-axis-group" style="display:none;">
-        <span class="ctrl-label">기준축</span>
-        <button class="tool-btn tilt-axis-btn active" data-axis="y" title="세로 기준선 — 아랫변이 변위(좌/우 화살표)">
-          <svg width="16" height="13" viewBox="0 0 22 18"><polyline points="16,2 16,15 3,15" fill="none" stroke="currentColor" stroke-width="2"/><line x1="16" y1="2" x2="3" y2="15" stroke="currentColor" stroke-width="1.2"/></svg>
-          y축
-        </button>
-        <button class="tool-btn tilt-axis-btn" data-axis="x" title="가로 기준선 — 오른변이 변위(상/하 화살표)">
-          <svg width="16" height="13" viewBox="0 0 22 18"><polyline points="3,15 19,15 19,3" fill="none" stroke="currentColor" stroke-width="2"/><line x1="3" y1="15" x2="19" y2="3" stroke="currentColor" stroke-width="1.2"/></svg>
-          x축
-        </button>
-      </div>
-
-      <!-- 범례 표시 장비 (장비 모드, 페이지별) — app.js가 동적 렌더 -->
-      <div class="ctrl-group mode-only-equip" id="legend-equip-group" style="display:none;">
-        <span class="ctrl-label">범례표기</span>
-        <div id="legend-equip-checks" style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;"></div>
-      </div>
-      <div class="ctrl-sep"></div>
-
-      <!-- 번호 설정 -->
-      <div class="ctrl-group">
-        <span class="ctrl-label" id="num-group-label">번호</span>
-        <input type="text" id="prefix-num" placeholder="접두어"
-          style="width:52px;background:var(--bg-card);border:1.5px solid var(--border);border-radius:var(--radius);color:var(--text-primary);padding:3px 5px;font-size:11px;font-family:var(--font);">
-        <input type="number" id="start-num" min="1" value="1"
-          style="width:44px;background:var(--bg-card);border:1.5px solid var(--border);border-radius:var(--radius);color:var(--text-primary);padding:3px 5px;font-size:11px;text-align:center;font-family:var(--font);">
-        <input type="color" id="color-text" value="#ffffff" class="color-swatch" title="번호 글씨 색상" style="width:22px;height:22px;">
-      </div>
-      <div class="ctrl-sep"></div>
-
-      <!-- 선 두께 + 배율 슬라이더 -->
-      <div class="ctrl-group" style="flex-direction:column;gap:2px;align-items:flex-start;">
-        <div class="ctrl-slider-row">
-          <span style="min-width:60px;">선 <span id="line-width-val">1.5</span>px</span>
-          <input type="range" id="line-width" min="0.5" max="4" step="0.5" value="1.5" style="width:70px">
-        </div>
-        <div class="ctrl-slider-row">
-          <span style="min-width:60px;">배율 <span id="annotation-scale-val">1.0</span>×</span>
-          <input type="range" id="annotation-scale" min="0.5" max="3.0" step="0.1" value="1.0" style="width:70px">
-        </div>
-        <div class="ctrl-slider-row">
-          <span style="min-width:60px;">범례 <span id="legend-scale-val">1.0</span>×</span>
-          <input type="range" id="legend-scale" min="0.5" max="3.0" step="0.1" value="1.0" style="width:70px">
-        </div>
-        <div class="ctrl-slider-row">
-          <span style="min-width:60px;">도면 <span id="image-scale-val">1.0</span>×</span>
-          <input type="range" id="image-scale" min="0.3" max="2.5" step="0.05" value="1.0" style="width:70px"
-            title="불러온 도면의 크기 — Ctrl+휠로도 조절됩니다. 넘버링도 함께 따라 움직입니다">
-        </div>
-        <label class="ctrl-slider-row" style="cursor:pointer;gap:4px;"
-          title="넘버링을 찍을 수 있는 범위 — 화면에만 보이고 PDF에는 나오지 않습니다">
-          <input type="checkbox" id="bounds-toggle" checked style="margin:0;">
-          <span>작업범위 표시</span>
-        </label>
-      </div>
-
-    </div><!-- /#canvas-control-bar -->
-
     <!-- ===== 실제 캔버스 영역 ===== -->
     <div id="canvas-area">
       <div id="canvas-bg"></div>
@@ -359,15 +328,24 @@
 
       <!-- 상태 바 -->
       <div id="canvas-status">
-        <span><span class="val" id="cursor-hint">클릭: 지시점 지정</span></span>
-        <span>ESC | Enter: 도형완료 | Q: 직교 | R: 반전 | W: 선순환 | 1~4: 선 | A/D/S: 도구 | F5: 맞추기</span>
+        <span class="val" id="cursor-hint">클릭: 지시점 지정</span>
+        <span class="csep"></span>
+        <span class="kbd">ESC</span> 취소
+        <span class="kbd">Q</span> 직교
+        <span class="kbd">R</span> 반전
+        <span class="kbd">Ctrl+Z</span> 되돌리기
+        <span class="csep"></span>
+        <span class="dim">Enter 도형완료 · W 선순환 · 1~4 선 · A/D/S 도구 · F5 맞추기</span>
       </div>
 
-      <!-- 줌 컨트롤 -->
+      <!-- 줌 컨트롤 — 줌은 도면 위 이 자리 하나로 통일 -->
       <div id="zoom-controls">
-        <button class="btn" id="btn-zoom-in2">+</button>
+        <button class="btn" id="btn-zoom-in" title="확대">+</button>
         <div id="zoom-level-float">100%</div>
-        <button class="btn" id="btn-zoom-out2">−</button>
+        <button class="btn" id="btn-zoom-out" title="축소">−</button>
+        <button class="btn" id="btn-fit" title="화면 맞추기 (F5)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+        </button>
       </div>
     </div><!-- /#canvas-area -->
 
@@ -376,10 +354,11 @@
   <!-- ===== 사이드바 (탭만 남김) ===== -->
   <div id="sidebar">
 
-    <!-- 탭: 넘버링 / 사진 -->
+    <!-- 탭: 넘버링 / 사진 / 조절 -->
     <div class="tab-bar">
-      <button class="tab-btn active" data-tab="nums">넘버링 <span id="num-count" style="font-size:10px;opacity:0.6">0</span></button>
+      <button class="tab-btn active" data-tab="nums">넘버링 <span id="num-count" class="cnt">0</span></button>
       <button class="tab-btn" data-tab="photos">사진</button>
+      <button class="tab-btn" data-tab="adjust">조절</button>
     </div>
 
     <!-- 넘버링 탭 -->
@@ -389,6 +368,60 @@
           <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
           <span>도면을 클릭해 넘버링을 추가하세요</span>
         </div>
+      </div>
+
+      <!-- 정리 — 대상(넘버링 목록) 바로 아래 -->
+      <div class="sec foot">
+        <span class="sec-title">정리</span>
+        <div class="sec-row">
+          <button class="btn" id="btn-auto-layout" title="번호 박스 겹침 풀기">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+            자동정렬
+          </button>
+          <button class="btn" id="btn-merge" title="넘버링 합치기 — 대상 클릭 후 Enter">합치기</button>
+          <button class="btn btn-danger" id="btn-clear" title="이 페이지 넘버링 전체 삭제">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+            전체삭제
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 조절 탭 — 계기바에서 내려온 슬라이더류 -->
+    <div class="tab-panel" id="tab-adjust">
+      <div class="sec">
+        <span class="sec-title">크기</span>
+        <div class="slide-row">
+          <span class="lab">선 두께</span>
+          <input type="range" id="line-width" min="0.5" max="4" step="0.5" value="1.5">
+          <span class="val"><span id="line-width-val">1.5</span>px</span>
+        </div>
+        <div class="slide-row">
+          <span class="lab">넘버링</span>
+          <input type="range" id="annotation-scale" min="0.5" max="3.0" step="0.1" value="1.0">
+          <span class="val"><span id="annotation-scale-val">1.0</span>×</span>
+        </div>
+        <div class="slide-row">
+          <span class="lab">범례</span>
+          <input type="range" id="legend-scale" min="0.5" max="3.0" step="0.1" value="1.0">
+          <span class="val"><span id="legend-scale-val">1.0</span>×</span>
+        </div>
+        <div class="slide-row">
+          <span class="lab">도면</span>
+          <input type="range" id="image-scale" min="0.3" max="2.5" step="0.05" value="1.0"
+            title="불러온 도면의 크기 — Ctrl+휠로도 조절됩니다. 넘버링도 함께 따라 움직입니다">
+          <span class="val"><span id="image-scale-val">1.0</span>×</span>
+        </div>
+        <span class="sec-hint">Shift+휠 넘버링 · Ctrl+휠 도면</span>
+      </div>
+
+      <div class="sec">
+        <span class="sec-title">화면 표시</span>
+        <label class="check-row" title="넘버링을 찍을 수 있는 범위">
+          <input type="checkbox" id="bounds-toggle" checked>
+          작업범위 안내선
+        </label>
+        <span class="sec-hint">화면 전용 — PDF에는 나오지 않습니다</span>
       </div>
     </div>
 
@@ -718,8 +751,32 @@
 
 <script>
   document.getElementById('btn-open-drop').addEventListener('click', () => document.getElementById('file-input').click());
-  document.getElementById('btn-zoom-in2').addEventListener('click',  () => CanvasManager.zoomIn());
-  document.getElementById('btn-zoom-out2').addEventListener('click', () => CanvasManager.zoomOut());
+
+  /* 화면 테마 전환 (우측 상단) — 선택은 localStorage 에 남는다 */
+  (function () {
+    const btn  = document.getElementById('btn-theme');
+    const root = document.documentElement;
+    if (!btn) return;
+    const apply = t => {
+      root.setAttribute('data-theme', t);
+      btn.title = t === 'light' ? '다크 테마로 전환' : '라이트 테마로 전환';
+      try { localStorage.setItem('numdraw-theme', t); } catch (e) {}
+    };
+    apply(root.getAttribute('data-theme') === 'light' ? 'light' : 'dark');
+    btn.addEventListener('click', () => {
+      apply(root.getAttribute('data-theme') === 'light' ? 'dark' : 'light');
+    });
+  })();
+
+  /* 계기바 높이를 --bar-h 에 실측 반영 — 장비 모드처럼 칸이 늘어 줄바꿈되면
+     도곽 서랍(#modal-titleblock)의 상단 위치가 따라와야 한다 */
+  (function() {
+    const bar = document.getElementById('canvas-control-bar');
+    if (!bar) return;
+    const sync = () => document.documentElement.style.setProperty('--bar-h', bar.offsetHeight + 'px');
+    new ResizeObserver(sync).observe(bar);
+    sync();
+  })();
   document.getElementById('ortho-toggle-side').addEventListener('change', e => {
     document.getElementById('ortho-toggle').checked = e.target.checked;
     document.getElementById('ortho-toggle').dispatchEvent(new Event('change'));

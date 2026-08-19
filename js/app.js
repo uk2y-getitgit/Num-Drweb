@@ -250,13 +250,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (lgG)  lgG.style.display  = isEquip ? 'flex' : 'none';
     const hint = document.getElementById('mode-bar-hint');
     if (hint) hint.textContent = isEquip ? '장비시험망도 — 장비별 넘버링' : '';
-    /* 장비 모드에서는 전역 접두어·시작번호가 무의미 — 장비별 설정으로 대체 */
-    const pfxEl = document.getElementById('prefix-num');
-    const stEl  = document.getElementById('start-num');
-    const numLb = document.getElementById('num-group-label');
-    if (pfxEl) pfxEl.style.display = isEquip ? 'none' : '';
-    if (stEl)  stEl.style.display  = isEquip ? 'none' : '';
-    if (numLb) numLb.textContent   = isEquip ? '글씨색' : '번호';
+    /* 장비 모드에서는 전역 접두어·시작번호가 무의미 — 장비별 설정으로 대체.
+       입력칸만 숨기면 이름표만 남은 빈 칸이 되므로 칸(bay) 통째로 숨긴다. */
+    const pfxBay = document.getElementById('bay-prefix');
+    const stBay  = document.getElementById('bay-start');
+    if (pfxBay) pfxBay.style.display = isEquip ? 'none' : 'flex';
+    if (stBay)  stBay.style.display  = isEquip ? 'none' : 'flex';
     if (isEquip) _renderLegendEquip();
     _syncTiltAxisUI();
   }

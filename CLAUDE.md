@@ -118,7 +118,9 @@
 Num-Drweb/
 ├── index.html            # 단일 진입점, 모든 UI 마크업
 ├── css/
-│   └── style.css         # 전역 스타일, CSS 변수 기반 다크테마
+│   ├── style.css         # 기존 전역 스타일 (건드리지 않음)
+│   ├── ui-tokens.css     # 제도 콘솔 토큰 + 신규 컴포넌트 (.bay 등)
+│   └── ui-skin.css       # 이행 레이어 — 기존 요소를 새 시스템에 맞춤
 ├── js/
 │   ├── annotation.js     # 넘버링 데이터 모델, 자동정렬 알고리즘
 │   ├── canvas.js         # 도면 렌더링, 줌/팬, 지시선 그리기
@@ -155,25 +157,51 @@ Num-Drweb/
 
 ---
 
-## 8. 디자인 시스템 (Figma + Linear 조합, 라이트 테마)
+## 8. 디자인 시스템 (제도 콘솔 — Drafting Console)
 
-**테마:** 라이트 모드 (흰색 패널, 연회색 앱 배경)
-**폰트:** Inter (Google Fonts) + 시스템 폰트 폴백
-**강조색:** 인디고 보라 (#5B5BD6) — Figma 브랜드 컬러 기반
+**테마:** 다크(기본) / 라이트 두 벌. 우측 상단 버튼으로 전환하고 `localStorage`에 남는다.
+다크는 흑연 계기판 + 흰 도면, 라이트는 백색 도면대. 라이트는 단순 반전이 아니라
+신호색 채도를 낮춰(`--sig:#D99B10`) 흰 바탕에서 읽히게 맞춘 별도 팔레트다.
+테마별로 뒤집히는 값은 전부 토큰이다 — `--fg-strong` `--key-bg` `--float-bg`
+`--grid-line` `--scrim` `--sheet-shadow` 등. **새 컴포넌트에 색을 하드코딩하면 한쪽 테마가 깨진다.**
+**폰트:** IBM Plex Sans KR (UI) + IBM Plex Mono (숫자·라벨·판독값)
+**구조:** 모든 버튼은 `.bay`(칸) 안에 담는다 — 도곽의 `라벨 │ 내용` 셀 문법.
+**램프 규칙:** 선택된 버튼은 아래 2px 램프가 켜진다. 램프색 = 그 도구의 색
+(색이 없는 도구는 `--sig`, 색을 가진 도구는 자기 잉크색).
+**강조색 사용 제한:** `--sig`(amber)는 "지금 선택된 것" 전용.
+주요 버튼(`.btn-accent`)은 강조색 대신 종이색 키(밝은 흰 버튼)다.
 
 ```css
---accent:       #5B5BD6   /* 인디고 보라 — 버튼, 선택, 포커스 */
---bg-app:       #EEEEF0   /* 앱 배경 */
---bg-panel:     #FFFFFF   /* 툴바·사이드바·모달 */
---bg-canvas:    #D8D8DC   /* 도면 캔버스 배경 */
---text-primary: #1A1A1F   /* 본문 */
---border:       #E2E2E8   /* 기본 보더 */
---success:      #2D9E6B   /* 매칭·저장 */
---danger:       #D93025   /* 삭제·오류 */
---warning:      #C7830A   /* 미저장 */
+--c-900:#15181C  /* 상단 레일 */      --c-850:#1A1E23  /* 계기바·패널 */
+--c-800:#21262C  /* 칸 본체 */        --c-750:#272D34  /* 칸 라벨셀·입력 */
+--c-700:#333A42  /* 보더 */           --edge:#0E1114   /* 패널 경계 */
+--t-0:#EEF1F4    /* 본문 */           --t-1:#A8B1BB    /* 보조 */
+--t-2:#828B95    /* 흐림 */           --t-lab:#8E97A1  /* 칸 라벨 */
+--apron:#464D55  /* 도면 뒤 바닥 */
+--sig:#F0B429    /* 선택 상태 전용 */  --ok:#3DB88B     --dgr:#F2705F
+--mk-defect:#E05555  --mk-repair:#4A9EFF  --mk-new:#9B59B6   /* 표기 잉크 */
 ```
 
-새 UI 컴포넌트 추가 시 반드시 위 변수를 사용한다. 하드코딩 색상 금지.
+**파일 구성**
+- `css/fonts.css` — 로컬 폰트 `@font-face` (CDN 없음). 실제 파일은 `lib/fonts/*.woff2`.
+- `css/style.css` — 기존 스타일. 건드리지 않는다.
+- `css/ui-tokens.css` — 토큰 + 신규 컴포넌트(`.bay`, `.tbtn`, `.key` …). 디자인 원본.
+- `css/ui-skin.css` — 이행 레이어. 옛 변수명 별칭 + 기존 요소를 새 시스템에 맞추는 오버라이드.
+
+`index.html` 의 `<link>` 두 줄(`ui-tokens.css`, `ui-skin.css`)을 빼면 예전 UI로 즉시 돌아간다.
+
+**주의**
+- 새 UI 컴포넌트는 반드시 위 변수를 쓴다. 하드코딩 색상 금지.
+- 잉크 3색은 캔버스 출력값과 같아야 한다. UI 색과 PDF 결과가 달라 보이면 안 된다.
+- `.tool-btn` / `.cat-btn` / `.equip-btn` / `.mode-seg-btn` / `.tab-btn` 은 JS가
+  클래스로 직접 잡는다(`app.js`, `sidebar.js`). **이름을 바꾸지 말고 겉모습만 바꾼다.**
+- 폰트는 `lib/fonts/` 로컬 번들(약 2.2MB, IBM Plex / OFL 1.1)이다. **CDN 참조를 다시 넣지 말 것.**
+  한글·라틴 서브셋을 `unicode-range` 로 나눠 선언했고, 두 범위 밖 기호(● ✕ ▶ ∠ ▭)는
+  일부러 시스템 폰트로 떨어뜨린다 — IBM Plex 에 없는 글자라 잡으면 두부(□)가 된다.
+- **셀렉터 특이성 함정**: `ui-skin.css` [O]의 `#canvas-control-bar input[type=text]`(1-0-1)가
+  `.equip-btn .equip-prefix`(0-2-0)를 이긴다. 계기바 안 입력칸을 손볼 때는
+  `#canvas-control-bar` 를 앞에 붙여야 한다. 안 붙이면 조용히 무시된다.
+- 설계 근거·이식 기록: `docs/ui-redesign/README.md`, 예시화면 `mockup.html`.
 
 ---
 
@@ -334,10 +362,19 @@ Num-Drweb/
 
 **주의**: `photoBook.js` 의 색상 리터럴은 캔버스 렌더라 CSS 변수를 쓸 수 없다 (§8 예외).
 
+### Phase 3-f — UI 전면 개편 (v1.2.4)
+- [x] 제도 콘솔 디자인 시스템 도입 — 칸(bay) 기반 버튼 그룹, 램프 규칙, IBM Plex
+- [x] 레이아웃 재편 — 모드바+툴바 → 상단 레일 / 계기바 한 줄 / 슬라이더는 사이드바 `조절` 탭
+      `자동정렬·합치기·전체삭제` 는 넘버링 목록 아래로, 줌은 도면 위 플로팅 하나로 통일
+- [x] 도곽 설정 = 오버레이 없는 우측 도킹 서랍 (Phase 3-c-3 해결)
+- [x] 다크 / 라이트 테마 + 우측 상단 전환 버튼 (`localStorage` 보존)
+- [x] 폰트 로컬 번들 (`lib/fonts/`, IBM Plex, OFL 1.1) — CDN 의존 제거
+- [x] 장비 버튼 선택 강조가 입력칸에서 끊기던 문제 수정
+
 ### Phase 3-d — 장기 예정
 - [x] Electron 패키징 (Windows .exe 설치파일) — `electron-builder` 구성 완료, `npm run build`로
-      `dist\NumDraw Setup 1.2.3.exe` 생성 확인 (2026-08-13)
-- [ ] CDN → 로컬 lib 파일 교체 (오프라인 지원)
+      설치파일 생성 확인 (2026-08-13, v1.2.3 기준)
+- [x] CDN → 로컬 폰트 교체 (v1.2.4, `lib/fonts/` 2.2MB) — PDF.js·jsPDF·SheetJS 는 Electron 실행 시 이미 `lib/` 사용
 - [x] ~~Excel 사진첩 보고서 내보내기 (SheetJS)~~ — **제외**. Phase 3-e에서 PDF 단일 출력으로 대체
 
 ### Phase 4 — 온라인 확장 (장기)
