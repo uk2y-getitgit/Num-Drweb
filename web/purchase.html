@@ -110,7 +110,14 @@ h2{ font-size:clamp(24px,3.3vw,32px); font-weight:700; letter-spacing:-.02em; li
 h3{ font-size:16.5px; font-weight:600; letter-spacing:-.008em; margin-bottom:6px; }
 .lead{ font-size:clamp(15.5px,1.6vw,17px); color:var(--ink-2); max-width:64ch; }
 .band--dark .lead{ color:var(--on-panel-1); }
-.phero{ padding:clamp(36px,6vw,60px) var(--pad) 4px; max-width:76ch; }
+.phero{
+  padding:clamp(36px,6vw,60px) var(--pad) 4px; max-width:76ch;
+  background:var(--panel); color:var(--on-panel-0);
+  background-image:
+    linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px);
+  background-size:26px 26px;
+}
 
 /* ── 요금 카드 ──────────────────────────────────────────────── */
 .plans{ display:grid; gap:14px; margin-top:34px; }
@@ -195,6 +202,45 @@ h3{ font-size:16.5px; font-weight:600; letter-spacing:-.008em; margin-bottom:6px
   .reveal{ opacity:1; transform:none; }
   html{ scroll-behavior:auto; }
 }
+
+/* ══ 지면 통일 — 계기반 위에 도면지를 얹는다 ═══════════════════ */
+.sheet{ background:var(--panel); }
+.phero{ max-width:none; }
+.phero > *{ max-width:76ch; }
+.phero .lead{ color:var(--on-panel-1); }
+.phero .eyebrow{ color:var(--on-panel-2); }
+.phero .eyebrow::after{ background:var(--panel-edge); }
+
+/* 요금 카드 — 계기반 위 패널 */
+.band--dark .plan{ background:var(--panel-2); border-color:var(--panel-edge); }
+.band--dark .plan__tag{ color:var(--on-panel-2); }
+.band--dark .plan__price{ color:var(--on-panel-0); }
+.band--dark .plan__price small{ color:var(--on-panel-2); }
+.band--dark .plan__sub{ color:var(--on-panel-2); }
+.band--dark .plan li{ color:var(--on-panel-1); }
+.band--dark .plan li b{ color:var(--on-panel-0); }
+.band--dark .tick{ color:var(--sig); }
+.band--dark .tick--muted{ color:var(--on-panel-2); }
+.band--dark .plan--full{ box-shadow:0 0 0 3px rgba(240,180,41,.18); }
+.band--dark .plan--full .plan__tag{ color:var(--sig); }
+
+/* 공통 혜택 띠 */
+.band--dark .perks{ background:rgba(240,180,41,.07); color:var(--on-panel-1); }
+.band--dark .perks b{ color:var(--on-panel-0); }
+.band--dark .price-note{ color:var(--on-panel-2); }
+
+/* 다운로드 */
+.band--dark .dl__file{ color:var(--on-panel-2); }
+.band--dark .dl__warn{ color:var(--on-panel-1); }  /* 브라우저 경고 안내 — 읽혀야 한다 */
+
+/* 도곽 푸터 */
+.titleblock{ border-top-color:var(--sig); background:var(--panel-2); color:var(--on-panel-0); }
+.tb__row{ border-bottom-color:var(--panel-edge); }
+.tb__label{ color:var(--on-panel-2); background:var(--panel-3); border-right-color:var(--panel-edge); }
+.tb__value{ border-right-color:var(--panel-edge); color:var(--on-panel-0); }
+.tb__value a{ color:var(--on-panel-0); text-decoration-color:var(--panel-edge); }
+.tb__value a:hover{ text-decoration-color:var(--sig); }
+.tb__foot{ color:var(--on-panel-2); }
 </style>
 </head>
 <body>
@@ -222,7 +268,7 @@ h3{ font-size:16.5px; font-weight:600; letter-spacing:-.008em; margin-bottom:6px
 </section>
 
 <!-- ═══ 가격 ═══ -->
-<section class="band" id="가격">
+<section class="band band--dark" id="가격">
   <p class="eyebrow reveal">체험판과 정품</p>
   <h2 class="reveal"><span class="mark-num mark-num--defect">1</span>요금제</h2>
   <p class="lead reveal">아래 가격은 확정 전 <b>예시 가격</b>입니다. 실제 판매 개시 전 변경될 수 있습니다.</p>
@@ -338,7 +384,7 @@ h3{ font-size:16.5px; font-weight:600; letter-spacing:-.008em; margin-bottom:6px
 </section>
 
 <!-- ═══ 다운로드 ═══ -->
-<section class="band" id="다운로드">
+<section class="band band--dark" id="다운로드">
   <p class="eyebrow reveal">내려받기</p>
   <h2 class="reveal"><span class="mark-num mark-num--repair">2</span>체험판 설치</h2>
   <div class="dl reveal">

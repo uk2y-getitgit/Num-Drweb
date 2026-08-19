@@ -275,6 +275,7 @@ h3{ font-size:16.5px; font-weight:600; letter-spacing:-.008em; margin-bottom:6px
 /* ── 6칸 예시 카드 ──────────────────────────────────────────── */
 .grid6{
   border:1px solid var(--rule); border-radius:8px; background:#fff; padding:10px;
+  box-shadow:0 20px 44px -20px rgba(0,0,0,.55);
   display:grid; grid-template-columns:1fr 1fr; grid-template-rows:repeat(3,1fr); gap:8px;
 }
 .grid6__cell{ border:1px dashed var(--rule); border-radius:6px; padding:8px; display:grid; grid-template-columns:34px 1fr; gap:8px; align-items:center; font-size:10.5px; color:var(--ink-3); }
@@ -282,8 +283,8 @@ h3{ font-size:16.5px; font-weight:600; letter-spacing:-.008em; margin-bottom:6px
 .grid6__photo{ width:34px; height:26px; border-radius:4px; background:linear-gradient(135deg,#E3E5EB,#F4F5F7); }
 .grid6__cell--empty{ color:var(--defect); }
 .grid6__cell--empty .grid6__photo{ background:repeating-linear-gradient(45deg,#FBE5E5,#FBE5E5 4px,#fff 4px,#fff 8px); }
-.grid6__caption{ max-width:520px; margin:0 auto; padding:0 var(--pad) 28px; font-size:12.5px; color:var(--ink-3); text-align:center; }
-.grid6__caption code{ font-family:var(--mono); background:var(--paper); padding:1px 5px; border-radius:3px; }
+.grid6__caption{ max-width:520px; margin:0 auto; padding:16px var(--pad) 0; font-size:12.5px; color:var(--on-panel-1); text-align:center; }
+.grid6__caption code{ font-family:var(--mono); background:var(--panel-3); color:var(--on-panel-0); padding:1px 5px; border-radius:3px; }
 
 /* ── 실행 검증 배지 ─────────────────────────────────────────── */
 .verify-note{
@@ -416,6 +417,20 @@ h3{ font-size:16.5px; font-weight:600; letter-spacing:-.008em; margin-bottom:6px
   .reveal{ opacity:1; transform:none; }
   html{ scroll-behavior:auto; }
 }
+
+/* ══ 지면 통일 — 계기반 위에 도면지를 얹는다 ═══════════════════
+   흰 배경은 실제 종이·앱 화면을 재현하는 목업(.grid6 · .mismatch-mock ·
+   .console-mock__stage · .anatomy__fig)에만 남긴다. */
+.sheet{ background:var(--panel); }
+
+/* 도곽 푸터 */
+.titleblock{ border-top-color:var(--sig); background:var(--panel-2); color:var(--on-panel-0); }
+.tb__row{ border-bottom-color:var(--panel-edge); }
+.tb__label{ color:var(--on-panel-2); background:var(--panel-3); border-right-color:var(--panel-edge); }
+.tb__value{ border-right-color:var(--panel-edge); color:var(--on-panel-0); }
+.tb__value a{ color:var(--on-panel-0); text-decoration-color:var(--panel-edge); }
+.tb__value a:hover{ text-decoration-color:var(--sig); }
+.tb__foot{ color:var(--on-panel-2); }
 </style>
 </head>
 <body>
@@ -633,9 +648,8 @@ h3{ font-size:16.5px; font-weight:600; letter-spacing:-.008em; margin-bottom:6px
       <span class="btn btn--key btn--sm" style="--key-bg:var(--ink); --key-fg:#fff;">그대로 생성</span>
     </div>
   </div>
-</section>
 
-<div class="grid6 reveal" style="max-width:520px; margin:0 auto; padding:28px var(--pad) 8px;" role="img" aria-label="사진첩 PDF 예시 — 사진 5장이 매칭되고, 현장에서 촬영을 놓친 1장(4F-01)만 사진 없음으로 표시된다.">
+<div class="grid6 reveal" style="max-width:420px; margin:26px auto 0;" role="img" aria-label="사진첩 PDF 예시 — 사진 5장이 매칭되고, 현장에서 촬영을 놓친 1장(4F-01)만 사진 없음으로 표시된다.">
   <div class="grid6__cell"><div class="grid6__photo"></div><div><b>1F-01</b>지상1층 외벽 균열 (0.2x1.5)</div></div>
   <div class="grid6__cell"><div class="grid6__photo"></div><div><b>1F-02</b>지상1층 외벽 박리 (보수완료)</div></div>
   <div class="grid6__cell"><div class="grid6__photo"></div><div><b>2F-01</b>(신규) 지상2층 창호 누수</div></div>
@@ -644,6 +658,7 @@ h3{ font-size:16.5px; font-weight:600; letter-spacing:-.008em; margin-bottom:6px
   <div class="grid6__cell grid6__cell--empty"><div class="grid6__photo"></div><div><b>4F-01</b>지상4층 외벽 균열 (0.3x2.1)</div></div>
 </div>
 <p class="grid6__caption reveal">칸 구성·문구 서식·"사진 없음" 표기는 실제 생성 결과와 동일합니다. 사진 5장은 매칭되고 1장(4F-01)만 현장에서 촬영을 놓친, 실제로 자주 있는 상황을 예시로 구성했습니다.</p>
+</section>
 
 <!-- ═══ 3. 도곽 · 테마 · 출력 ═══ -->
 <section class="band band--dark" id="출력">

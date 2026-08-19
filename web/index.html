@@ -272,6 +272,34 @@ h3{ font-size:16.5px; font-weight:600; letter-spacing:-.008em; margin-bottom:6px
   .reveal{ opacity:1; transform:none; }
   html{ scroll-behavior:auto; }
 }
+
+/* ══ 지면 통일 — 계기반 위에 도면지를 얹는다 ═══════════════════
+   흰 배경은 "실제 종이·앱 화면"을 재현하는 목업에만 남기고,
+   페이지 자체의 바닥(시트·밴드·도곽 푸터)은 계기반 색으로 맞춘다. */
+.sheet{ background:var(--panel); }
+
+/* 다크 밴드 안의 칸(bay) — 계기반 위 패널 */
+.band--dark .bay{ background:var(--panel-2); border-color:var(--panel-edge); color:var(--on-panel-0); }
+.band--dark .bay:hover{ border-color:var(--sig); box-shadow:0 12px 24px -14px rgba(0,0,0,.6); }
+.band--dark .bay__label{ background:var(--panel-3); border-bottom-color:var(--panel-edge); color:var(--on-panel-2); }
+.band--dark .bay__body p{ color:var(--on-panel-1); }
+.band--dark .bay__more{ color:var(--on-panel-2); }
+.band--dark .bay:hover .bay__more{ color:var(--sig); }
+.band--dark .tag-new{ color:#5FD696; background:rgba(95,214,150,.12); border-color:rgba(95,214,150,.32); }
+
+/* 가격 예고 스트립 */
+.band--dark .price-cta{ background:var(--panel-2); border-color:var(--panel-edge); }
+.band--dark .price-cta p{ color:var(--on-panel-1); }
+.band--dark .price-cta strong{ color:var(--on-panel-0); }
+
+/* 도곽 푸터 — 계기반 바닥의 표제란 */
+.titleblock{ border-top-color:var(--sig); background:var(--panel-2); color:var(--on-panel-0); }
+.tb__row{ border-bottom-color:var(--panel-edge); }
+.tb__label{ color:var(--on-panel-2); background:var(--panel-3); border-right-color:var(--panel-edge); }
+.tb__value{ border-right-color:var(--panel-edge); color:var(--on-panel-0); }
+.tb__value a{ color:var(--on-panel-0); text-decoration-color:var(--panel-edge); }
+.tb__value a:hover{ text-decoration-color:var(--sig); }
+.tb__foot{ color:var(--on-panel-2); }
 </style>
 </head>
 <body>
@@ -363,7 +391,7 @@ h3{ font-size:16.5px; font-weight:600; letter-spacing:-.008em; margin-bottom:6px
 </section>
 
 <!-- ═══ 핵심 기능 4가지 ══════════════════════════════════════ -->
-<section class="band" id="기능">
+<section class="band band--dark" id="기능">
   <p class="eyebrow reveal">한 프로그램 안에서 끝나는 것</p>
   <h2 class="reveal">도면부터 사진첩까지, 네 가지로 정리됩니다</h2>
   <p class="lead reveal">번호 하나가 도면, 사진 파일명, 사진첩 자리까지 그대로 이어집니다.</p>
