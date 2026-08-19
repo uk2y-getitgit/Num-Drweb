@@ -122,7 +122,7 @@ h3{ font-size:16.5px; font-weight:600; letter-spacing:-.008em; margin-bottom:6px
 /* ── 요금 카드 ──────────────────────────────────────────────── */
 .plans{ display:grid; gap:14px; margin-top:34px; }
 @media(min-width:640px){ .plans{ grid-template-columns:1fr 1fr; } }
-@media(min-width:1180px){ .plans{ grid-template-columns:repeat(5,1fr); } }
+@media(min-width:1180px){ .plans{ grid-template-columns:repeat(3,1fr); } }
 .plan{ border:1px solid var(--rule); border-radius:8px; overflow:hidden; background:#fff; display:flex; flex-direction:column; position:relative; }
 .plan--full{ border-color:var(--sig); box-shadow:0 0 0 3px rgba(240,180,41,.14); }
 .plan__badge{
@@ -291,38 +291,6 @@ h3{ font-size:16.5px; font-weight:600; letter-spacing:-.008em; margin-bottom:6px
 
     <div class="plan reveal">
       <div class="plan__head">
-        <p class="plan__tag">월 구독</p>
-        <p class="plan__price">5,990원 <small>/ 월</small></p>
-        <p class="plan__sub">부담 없이 시작하는 정기결제.</p>
-      </div>
-      <div class="plan__body">
-        <ul>
-          <li><span class="tick">+</span><span>PDF 저장 <b>제한 없음</b>, 워터마크 없음</span></li>
-          <li><span class="tick">+</span><span>구독 기간 동안 <b>업데이트 포함</b></span></li>
-          <li><span class="tick">+</span><span><b>PC 2대</b>까지 사용</span></li>
-        </ul>
-        <span class="btn btn--ghost btn--disabled">출시 예정</span>
-      </div>
-    </div>
-
-    <div class="plan reveal">
-      <div class="plan__head">
-        <p class="plan__tag">연간 구독</p>
-        <p class="plan__price">59,900원 <small>/ 년</small></p>
-        <p class="plan__sub">월 구독보다 <b>20% 저렴</b>(월 환산 약 4,992원).</p>
-      </div>
-      <div class="plan__body">
-        <ul>
-          <li><span class="tick">+</span><span>PDF 저장 <b>제한 없음</b>, 워터마크 없음</span></li>
-          <li><span class="tick">+</span><span>구독 기간 동안 <b>업데이트 포함</b></span></li>
-          <li><span class="tick">+</span><span><b>PC 2대</b>까지 사용</span></li>
-        </ul>
-        <span class="btn btn--ghost btn--disabled">출시 예정</span>
-      </div>
-    </div>
-
-    <div class="plan reveal">
-      <div class="plan__head">
         <p class="plan__tag">일회성 결제</p>
         <p class="plan__price">29,900원 <small>1회</small></p>
         <p class="plan__sub">그 시점 버전을 계속 사용. <b>업데이트 미적용</b>.</p>
@@ -357,12 +325,13 @@ h3{ font-size:16.5px; font-weight:600; letter-spacing:-.008em; margin-bottom:6px
   </div>
 
   <div class="perks reveal">
-    <span>🎁 <b>모든 유료 플랜 공통 혜택</b></span>
-    <span>외관조사 집계표 엑셀 양식 제공</span>
+    <span>🎁 <b>모든 유료 플랜 공통 혜택 — 준비 중</b></span>
+    <span>외관조사 집계표 엑셀 양식 <b>(준비 중)</b></span>
     <span>·</span>
-    <span>사진번호 자동입력 안드로이드 앱 제공</span>
+    <span>사진번호 자동입력 안드로이드 앱 <b>(준비 중)</b></span>
   </div>
-  <p class="price-note">위 가격·혜택은 확정 전 예시이며, 실제 구매 접수는 아직 시작하지 않았습니다. 출시 소식을 먼저 받고 싶으시면 아래 메일로 문의해 주세요.</p>
+  <p class="price-note">위 두 가지는 아직 제공 준비 중이라 <b>현재 구매 혜택에 포함되지 않습니다.</b> 준비되는 대로 제공 방법을 이 페이지에 함께 안내합니다.</p>
+  <p class="price-note">위 가격은 확정 전 예시이며, 실제 구매 접수는 아직 시작하지 않았습니다. 출시 소식을 먼저 받고 싶으시면 아래 메일로 문의해 주세요.</p>
 </section>
 
 <!-- ═══ 구매 ═══ -->
@@ -372,7 +341,7 @@ h3{ font-size:16.5px; font-weight:600; letter-spacing:-.008em; margin-bottom:6px
   <p class="lead reveal">아직 구매 접수 전입니다. 오픈 후에는 무통장입금으로 받을 예정이며, 아래 절차를 따릅니다.</p>
 
   <div class="steps">
-    <div class="step reveal"><span class="step__n">STEP 01</span><h3>구매 문의</h3><p>메일로 원하시는 플랜(월/연간/일회성/평생)을 적어 <code>구매 문의</code>라고 보내면 계좌와 금액을 안내받습니다.</p></div>
+    <div class="step reveal"><span class="step__n">STEP 01</span><h3>구매 문의</h3><p>메일로 원하시는 플랜(일회성/평생)을 적어 <code>구매 문의</code>라고 보내면 계좌와 금액을 안내받습니다.</p></div>
     <div class="step reveal"><span class="step__n">STEP 02</span><h3>입금</h3><p>안내받은 계좌로 입금하고, 입금자명을 메일로 알려줍니다.</p></div>
     <div class="step reveal"><span class="step__n">STEP 03</span><h3>인증키 받기</h3><p>확인되면 <code>ND2-</code>로 시작하는 인증키를 메일로 받습니다.</p></div>
     <div class="step reveal"><span class="step__n">STEP 04</span><h3>인증</h3><p>설치한 프로그램에 인증키를 붙여넣고 인증을 누르면 바로 정품이 됩니다.</p></div>
