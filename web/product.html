@@ -8,7 +8,7 @@
 <meta property="og:title" content="NumDraw — 제품 소개">
 <meta property="og:description" content="도면 넘버링부터 사진첩 자동생성까지, 결과보고서용 도면 작업을 한 프로그램에서 끝냅니다.">
 <meta property="og:type" content="website">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2315171B'/%3E%3Ctext x='16' y='23' font-family='monospace' font-size='19' font-weight='700' fill='%23F0B429' text-anchor='middle'%3E7%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2315171B'/%3E%3Cg fill='none' stroke='%23F0B429' stroke-width='3' stroke-linecap='round'%3E%3Ccircle cx='16' cy='16' r='3.4'/%3E%3Cpath d='M16 5v6M16 21v6M5 16h6M21 16h6'/%3E%3C/g%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -438,7 +438,7 @@ h3{ font-size:16.5px; font-weight:600; letter-spacing:-.008em; margin-bottom:6px
 <div class="sheet">
 
 <header class="topbar">
-  <a class="mark" href="index.html"><span class="mark__box">7</span>NumDraw</a>
+  <a class="mark" href="index.html"><span class="mark__box"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><circle cx="12" cy="12" r="2.6"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/></svg></span>NumDraw</a>
   <nav class="topbar__nav">
     <a class="topbar__link topbar__link--on" href="product.html">제품 소개</a>
     <a class="topbar__link" href="purchase.html#가격">가격</a>
@@ -668,9 +668,9 @@ h3{ font-size:16.5px; font-weight:600; letter-spacing:-.008em; margin-bottom:6px
 
   <!-- ═══ 도면 → 표제란 자동 배치 → PDF 저장, 한눈에 보는 애니메이션 ═══ -->
   <div class="flow-demo reveal" id="pdfDemo" role="img"
-       aria-label="불러온 도면 여러 장에 표제란이 자동으로 채워지고, PDF로 저장되어 완성된 A4 한 장이 만들어지는 과정을 순서대로 보여준다">
+       aria-label="불러온 도면 여러 장에 한 번 입력한 표제란이 배치되고, PDF로 저장되어 완성된 A4 한 장이 만들어지는 과정을 순서대로 보여준다">
     <div class="flow-demo__bar">
-      <span class="flow-demo__label">실제 동작 · 도면 불러오기 → 표제란 자동 배치 → PDF 저장</span>
+      <span class="flow-demo__label">실제 동작 · 도면 불러오기 → 표제란 입력·배치 → PDF 저장</span>
       <button class="flow-demo__replay" type="button" id="pdfReplay">다시보기</button>
     </div>
     <div class="flow-stage" style="align-items:center;">
@@ -680,12 +680,12 @@ h3{ font-size:16.5px; font-weight:600; letter-spacing:-.008em; margin-bottom:6px
         <div class="flow-chip" style="--d:1">외관조사망도(2F).pdf</div>
         <div class="flow-chip flow-chip--muted" style="--d:2">외관조사망도(3F).pdf</div>
       </div>
-      <div class="flow-arrow" style="--d:3">→<span>표제란<br>자동 배치</span></div>
+      <div class="flow-arrow" style="--d:3">→<span>표제란<br>한 번 입력</span></div>
       <div class="flow-col">
         <p class="flow-col__label">표제란(도곽) 채움</p>
-        <div class="flow-match" style="--d:4"><b>PROJECT TITLE</b><i class="ok">✓ 자동입력</i></div>
-        <div class="flow-match" style="--d:5"><b>DRAWING NAME</b><i class="ok">✓ 자동입력</i></div>
-        <div class="flow-match" style="--d:6"><b>SCALE</b><i class="ok">✓ 자동입력</i></div>
+        <div class="flow-match" style="--d:4"><b>PROJECT TITLE</b><i class="ok">✓ 전 페이지 공통</i></div>
+        <div class="flow-match" style="--d:5"><b>DRAWING NAME</b><i class="ok">✓ 페이지별 저장</i></div>
+        <div class="flow-match" style="--d:6"><b>SCALE</b><i class="ok">✓ 전 페이지 공통</i></div>
       </div>
       <div class="flow-arrow" style="--d:7">→<span>PDF로<br>저장</span></div>
       <div class="pdf-preview" style="--d:8">
@@ -736,7 +736,7 @@ h3{ font-size:16.5px; font-weight:600; letter-spacing:-.008em; margin-bottom:6px
       </div>
     </div>
     <p class="flow-demo__foot">
-      배치·표제란 구조·잉크 3색은 실제 출력과 동일한 구성입니다. 여러 페이지를 불러오면 페이지 수만큼 PDF 한 개에 그대로 담깁니다.
+      표제란은 한 번 입력하면 PROJECT TITLE·SCALE은 전 페이지에 그대로 적용되고, DRAWING NAME만 페이지별로 따로 저장됩니다. 배치·표제란 구조·잉크 3색은 실제 출력과 동일한 구성이며, 여러 페이지를 불러오면 페이지 수만큼 PDF 한 개에 그대로 담깁니다.
     </p>
   </div>
 
@@ -794,7 +794,7 @@ h3{ font-size:16.5px; font-weight:600; letter-spacing:-.008em; margin-bottom:6px
 <!-- ═══ CTA ═══ -->
 <section class="band band--dark" style="text-align:center;">
   <h2>먼저 써 보고 정하세요</h2>
-  <p class="lead" style="margin:0 auto 4px;">체험판은 기간 제한이 없습니다. 사진첩 생성까지 모두 체험판에서 시도해볼 수 있습니다.</p>
+  <p class="lead" style="margin:0 auto 4px;">체험판은 기간 제한이 없습니다. 사진첩 생성까지 전부 써 보고, PDF 저장만 1장·워터마크로 제한됩니다.</p>
   <div class="cta" style="justify-content:center;">
     <a class="btn btn--key" href="purchase.html#다운로드">체험판 내려받기</a>
     <a class="btn btn--ghost" href="purchase.html#가격">가격 보기</a>
