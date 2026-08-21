@@ -185,6 +185,6 @@ export function requireAdmin(request, env, handler) {
   recordAdminFailure(ip, now);
   return new Response('Authentication required', {
     status: 401,
-    headers: { 'WWW-Authenticate': 'Basic realm="NumDraw Admin"' },
+    headers: { 'WWW-Authenticate': 'Basic realm="Quickspect Admin"' },
   });
 }

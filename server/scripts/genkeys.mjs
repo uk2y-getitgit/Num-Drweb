@@ -20,7 +20,7 @@ async function main() {
   const privB64 = toBase64Url(privPkcs8);
 
   console.log('=================================================================');
-  console.log(' NumDraw 활성화 서버 — Ed25519 키쌍 생성 완료');
+  console.log(' Quickspect 활성화 서버 — Ed25519 키쌍 생성 완료');
   console.log('=================================================================');
   console.log('');
   console.log('[공개키] — 앱에 내장한다. 유출돼도 안전하다 (검증 전용).');

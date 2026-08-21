@@ -14,7 +14,7 @@ const fs     = require('fs');
 const path   = require('path');
 const { execFileSync } = require('child_process');
 
-const SALT = 'NumDraw/device-fingerprint/v1';
+const SALT = 'NumDraw/device-fingerprint/v1';   // ⚠ 리브랜딩해도 바꾸지 말 것 — 바꾸면 모든 기기 지문이 달라져 활성화가 전부 깨진다 (리브랜딩_실행계획.md D8)
 
 let _cache = null;
 

@@ -182,7 +182,7 @@ const LicenseUI = (() => {
 
     const api = window.electronAPI && window.electronAPI.license;
     if (!api) {
-      _showResult(resEl, '정품 인증은 설치판(NumDraw 앱)에서만 가능합니다.', 'fail');
+      _showResult(resEl, '정품 인증은 설치판(Quickspect 앱)에서만 가능합니다.', 'fail');
       return;
     }
 

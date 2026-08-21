@@ -35,7 +35,7 @@ const PAGE_STYLE = `
 function layout(title, bodyHtml) {
   return `<!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${escapeHtml(title)} · NumDraw 관리</title>
+<title>${escapeHtml(title)} · Quickspect 관리</title>
 <style>${PAGE_STYLE}</style></head>
 <body><div class="wrap">
 <div class="topnav"><a href="/admin/issue">키 발급</a><a href="/admin/list">발급 대장</a></div>

@@ -12,7 +12,7 @@ tools: ["Read", "Write", "Edit", "Grep", "Glob", "WebSearch", "WebFetch"]
 
 | 항목 | 현재 상태 |
 |---|---|
-| 제품 | NumDraw — Windows 설치형 데스크톱 소프트웨어 |
+| 제품 | Quickspect — Windows 설치형 데스크톱 소프트웨어 |
 | 판매 모델 | 1회성 라이선스 구매 (구독 아님) |
 | 결제 | **무통장입금(계좌이체) 수동 처리** — PG 없음 |
 | 사업자등록 | **아직 없음, 등록 예정** |

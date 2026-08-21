@@ -1,6 +1,6 @@
 # 홍보용 화면 촬영기
 
-`docs/archive/NumDraw_홍보자료.html` 에 들어가는 실행 화면을 **실제 앱을 띄워** 찍는다.
+`docs/archive/Quickspect_홍보자료.html` 에 들어가는 실행 화면을 **실제 앱을 띄워** 찍는다.
 목업을 그리지 않는다 — UI 가 바뀌면 여기서 다시 찍어 갈아 끼운다.
 
 ## 왜 있나
@@ -56,7 +56,7 @@ SHOT_JS="$(sed 's/__MODE__/after/' scripts/promo-shots/sc_outline.js)" \
 
 ## 삽입
 
-찍은 PNG 를 WebP 로 줄여 `NumDraw_홍보자료.html` 의 `<img src="data:image/webp;base64,…">`
+찍은 PNG 를 WebP 로 줄여 `Quickspect_홍보자료.html` 의 `<img src="data:image/webp;base64,…">`
 자리에 넣는다. **`width` · `height` 속성도 새 크기로 같이 고친다.**
 
 `img{ max-width:100%; height:auto; }` 의 `height:auto` 를 지우면 모든 이미지가

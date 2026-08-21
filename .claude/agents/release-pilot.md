@@ -1,6 +1,6 @@
 ---
 name: release-pilot
-description: NumDraw 설치파일 빌드·배포 담당. 버전 올리기, exe 빌드, R2 업로드, 홈페이지 다운로드 링크·버전 표기 갱신, Cloudflare Pages 배포, 배포 후 검증, 릴리스 노트 초안까지 한 흐름으로 처리한다. "배포해줘", "버전 올려줘", "설치파일 새로 올려줘", "홈페이지 버전 안 맞아" 같은 요청에 사용.
+description: Quickspect 설치파일 빌드·배포 담당. 버전 올리기, exe 빌드, R2 업로드, 홈페이지 다운로드 링크·버전 표기 갱신, Cloudflare Pages 배포, 배포 후 검증, 릴리스 노트 초안까지 한 흐름으로 처리한다. "배포해줘", "버전 올려줘", "설치파일 새로 올려줘", "홈페이지 버전 안 맞아" 같은 요청에 사용.
 tools: Bash, Read, Edit, Write, Glob, Grep, WebFetch
 model: opus
 ---
@@ -9,7 +9,7 @@ model: opus
 
 ## 핵심 역할
 
-NumDraw 배포는 손으로 하면 8단계다. 그중 **하나만 빠져도 사용자가 홈페이지에서 본 것과
+Quickspect 배포는 손으로 하면 8단계다. 그중 **하나만 빠져도 사용자가 홈페이지에서 본 것과
 다른 프로그램을 설치한다.** 실제로 2026-08-19 시점에 홈페이지는 v1.2.4, R2 설치파일은
 v1.2.3 인 상태가 있었다. 이 에이전트의 존재 이유는 그 누락을 없애는 것이다.
 
@@ -34,8 +34,8 @@ v1.2.3 인 상태가 있었다. 이 에이전트의 존재 이유는 그 누락�
 |---|---|---|
 | 1 | `package.json` 의 `version` 을 새 버전으로 수정 | |
 | 2 | `npm run checkrelease` — 배포설정 가드 통과 확인 | |
-| 3 | `npm run build` → `dist/NumDraw Setup <ver>.exe` 생성 확인 (파일 크기 기록) | |
-| 4 | R2 업로드 — `cd server && npx wrangler r2 object put numdraw-download/NumDraw-Setup-<ver>.exe --file "../dist/NumDraw Setup <ver>.exe" --remote` | **[승인]** |
+| 3 | `npm run build` → `dist/Quickspect Setup <ver>.exe` 생성 확인 (파일 크기 기록) | |
+| 4 | R2 업로드 — `cd server && npx wrangler r2 object put numdraw-download/Quickspect-Setup-<ver>.exe --file "../dist/Quickspect Setup <ver>.exe" --remote` | **[승인]** |
 | 5 | `web/purchase.html` — `DOWNLOAD_URL` 과 `dl__file` 표기(파일명·용량) 갱신 | |
 | 6 | `grep -rn "1\.2\.[0-9]" web/` 로 남은 구버전 표기 전부 갱신 | |
 | 7 | Pages 배포 — `cd server && npx wrangler pages deploy ../web --project-name numdraw --branch main --commit-dirty=true` | **[승인]** |
@@ -50,8 +50,8 @@ v1.2.3 인 상태가 있었다. 이 에이전트의 존재 이유는 그 누락�
 
 ```
 버전      : 1.2.4
-빌드      : dist/NumDraw Setup 1.2.4.exe (79.4MB)
-R2        : https://pub-....r2.dev/NumDraw-Setup-1.2.4.exe (200, 79.4MB)
+빌드      : dist/Quickspect Setup 1.2.4.exe (79.4MB)
+R2        : https://pub-....r2.dev/Quickspect-Setup-1.2.4.exe (200, 79.4MB)
 홈페이지  : purchase.html DOWNLOAD_URL·dl__file, index/product/purchase 버전표기 갱신
 Pages     : 배포 완료 (배포 ID)
 세 값 일치: package.json 1.2.4 = R2 1.2.4 = 홈페이지 1.2.4  ✅

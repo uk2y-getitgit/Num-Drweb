@@ -1158,7 +1158,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     showMsg('범례 ' + (e.target.checked ? 'ON' : 'OFF'), 'info');
   });
 
-  /* ── 프로젝트 저장 (.numdraw) ── */
+  /* ── 프로젝트 저장 (.qspec) ── */
   document.getElementById('btn-save-project').addEventListener('click', async () => {
     try {
       const saved = await StorageManager.exportFile();
@@ -1168,7 +1168,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  /* ── 프로젝트 불러오기 (.numdraw) ── */
+  /* ── 프로젝트 불러오기 (.qspec · 구 .numdraw) ── */
   document.getElementById('btn-load-project').addEventListener('click', () => {
     document.getElementById('numdraw-file-input').click();
   });
@@ -1252,7 +1252,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (pdf) {
       const s     = TitleBlock.getSettings();
-      const fname = (s.projectTitle || 'numdraw') + '_' + (s.drawingName || 'drawing') + '.pdf';
+      const fname = (s.projectTitle || 'quickspect') + '_' + (s.drawingName || 'drawing') + '.pdf';
       pdf.save(fname.replace(/[\\/:*?"<>|]/g, '_'));
 
       if (trimmed > 0) {
@@ -1280,7 +1280,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     c.textBaseline = 'middle';
     c.font         = '700 ' + Math.round(diag * 0.075) + 'px Inter, sans-serif';
     c.fillStyle    = 'rgba(120,120,140,0.20)';
-    c.fillText('NumDraw TRIAL — 체험판', 0, 0);
+    c.fillText('Quickspect TRIAL — 체험판', 0, 0);
     c.restore();
 
     /* 반복 타일 문구 — 잘라내기 어렵게 전면에 옅게 깐다 */
@@ -1296,7 +1296,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         c.save();
         c.translate(stepX * (rx + 0.5), stepY * (ry + 0.5));
         c.rotate(-Math.PI / 9);
-        c.fillText('체험판 NumDraw TRIAL', 0, 0);
+        c.fillText('체험판 Quickspect TRIAL', 0, 0);
         c.restore();
       }
     }
@@ -1436,7 +1436,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     if (!pdf) return;
-    const fname = ((title || 'numdraw') + '_사진첩.pdf').replace(/[\\/:*?"<>|]/g, '_');
+    const fname = ((title || 'quickspect') + '_사진첩.pdf').replace(/[\\/:*?"<>|]/g, '_');
     pdf.save(fname);
 
     if (trimmed > 0) {
@@ -2048,7 +2048,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await StorageManager.init(_onSaveStatusChange);
   StorageManager.setProjectProvider(_buildProjectData);
 
-  /* Electron: .numdraw 더블클릭으로 실행된 경우 해당 파일 우선 로드 */
+  /* Electron: 프로젝트 파일(.qspec·.numdraw) 더블클릭으로 실행된 경우 우선 로드 */
   const startupContent = window.electronAPI ? await window.electronAPI.getStartupFile() : null;
 
   if (startupContent) {
@@ -2073,7 +2073,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  /* Electron: 앱 실행 중 다른 .numdraw 파일 열기 요청 수신 */
+  /* Electron: 앱 실행 중 다른 프로젝트 파일 열기 요청 수신 */
   if (window.electronAPI) {
     window.electronAPI.onOpenFile(async (content) => {
       try {

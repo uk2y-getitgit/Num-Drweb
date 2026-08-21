@@ -1,6 +1,6 @@
 ---
 name: photobook-test
-description: NumDraw 사진첩(Phase 3-e)과 도면 배율 기능을 검증한다. 테스트용 외관집계표 xlsx와 사진 폴더를 생성하고, 집계표 파싱·층키 역변환·3자 대조·A4 격자 렌더·문구 줄바꿈·도면 배율 좌표 동기화를 Node로 자동 검증한 뒤, 브라우저 수동 확인 체크리스트를 안내한다. "사진첩 테스트", "photobook 검증", 사진첩이나 도면 배율 코드를 수정한 뒤 회귀를 확인할 때 사용한다.
+description: Quickspect 사진첩(Phase 3-e)과 도면 배율 기능을 검증한다. 테스트용 외관집계표 xlsx와 사진 폴더를 생성하고, 집계표 파싱·층키 역변환·3자 대조·A4 격자 렌더·문구 줄바꿈·도면 배율 좌표 동기화를 Node로 자동 검증한 뒤, 브라우저 수동 확인 체크리스트를 안내한다. "사진첩 테스트", "photobook 검증", 사진첩이나 도면 배율 코드를 수정한 뒤 회귀를 확인할 때 사용한다.
 ---
 
 # 사진첩 기능 테스트
@@ -13,7 +13,7 @@ description: NumDraw 사진첩(Phase 3-e)과 도면 배율 기능을 검증한�
 python .claude/skills/photobook-test/make_fixture.py
 ```
 
-`AI활용\NumDraw_테스트데이터\` 에 생성된다.
+`AI활용\Quickspect_테스트데이터\` 에 생성된다.
 
 | 산출물 | 내용 |
 |--------|------|
@@ -55,7 +55,7 @@ node .claude/skills/photobook-test/test_bounds.mjs     # 작업범위 안내선 
 `index.html` 을 Chrome/Edge로 연다 (File System Access API 필요).
 
 1. 도면 아무거나 불러오기 → 페이지 접두어를 `1F` 등으로 지정하고 넘버링 몇 개 찍기
-2. **사진 탭 → 사진 폴더 선택** → `NumDraw_테스트데이터\사진`
+2. **사진 탭 → 사진 폴더 선택** → `Quickspect_테스트데이터\사진`
 3. **사진 탭 → 외관집계표 불러오기** → `외관집계표_테스트.xlsx`
    - `✓ 40건 · 외관집계표 · 문구 P열` 이 초록색으로 뜨는가
 4. **사진첩 미리보기**
@@ -101,6 +101,6 @@ node .claude/skills/photobook-test/test_bounds.mjs     # 작업범위 안내선 
 
 ## 주의
 
-- 테스트 데이터는 **저장소 밖**(`AI활용\NumDraw_테스트데이터`)에 만든다. 저장소를 더럽히지 않는다.
+- 테스트 데이터는 **저장소 밖**(`AI활용\Quickspect_테스트데이터`)에 만든다. 저장소를 더럽히지 않는다.
 - `photoBook.js` 의 색상 리터럴은 캔버스 렌더라 CSS 변수를 쓸 수 없다 —
   `no-hardcoded-color` 경고가 떠도 정상이다 (해당 훅의 예외 3번).

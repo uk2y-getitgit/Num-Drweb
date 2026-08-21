@@ -1,6 +1,6 @@
 ---
 name: release
-description: NumDraw 설치파일을 빌드해서 R2에 올리고 홈페이지 다운로드 링크·버전 표기까지 맞춘 뒤 Cloudflare Pages에 배포한다. "배포해줘", "버전 올려줘", "1.2.5 릴리즈", "설치파일 새로 올려줘", "홈페이지 버전이 안 맞아", "배포 다시 해줘", "저번 배포 이어서" 같은 요청이면 반드시 이 스킬을 사용할 것. 배포 절차의 일부만(업로드만·링크만) 요청해도 이 스킬로 처리한다.
+description: Quickspect 설치파일을 빌드해서 R2에 올리고 홈페이지 다운로드 링크·버전 표기까지 맞춘 뒤 Cloudflare Pages에 배포한다. "배포해줘", "버전 올려줘", "1.2.5 릴리즈", "설치파일 새로 올려줘", "홈페이지 버전이 안 맞아", "배포 다시 해줘", "저번 배포 이어서" 같은 요청이면 반드시 이 스킬을 사용할 것. 배포 절차의 일부만(업로드만·링크만) 요청해도 이 스킬로 처리한다.
 ---
 
 # /release — 릴리즈·배포
@@ -42,9 +42,9 @@ Agent(subagent_type: "release-pilot", model: "opus",
 
 1. `package.json` 버전 수정
 2. `npm run checkrelease` — 실패하면 **중단** (공개키·활성화 주소 미주입 상태로 팔면 고객이 활성화 못 함)
-3. `npm run build` → `dist/NumDraw Setup <ver>.exe`
+3. `npm run build` → `dist/Quickspect Setup <ver>.exe`
 4. **[승인]** R2 업로드
-   `cd server && npx wrangler r2 object put numdraw-download/NumDraw-Setup-<ver>.exe --file "../dist/NumDraw Setup <ver>.exe" --remote`
+   `cd server && npx wrangler r2 object put numdraw-download/Quickspect-Setup-<ver>.exe --file "../dist/Quickspect Setup <ver>.exe" --remote`
 5. `web/purchase.html` — `DOWNLOAD_URL`(약 455행) + `dl__file` 표기(약 393행: 파일명·용량)
 6. `grep -rn "1\.2\.[0-9]" web/` 로 남은 표기 전부 갱신
 7. **[승인]** `cd server && npx wrangler pages deploy ../web --project-name numdraw --branch main --commit-dirty=true`
@@ -60,8 +60,8 @@ Agent(subagent_type: "release-pilot", model: "opus",
 
 ```
 버전      : 1.2.4
-빌드      : dist/NumDraw Setup 1.2.4.exe (79.4MB)
-R2        : https://pub-....r2.dev/NumDraw-Setup-1.2.4.exe (200, 79.4MB)
+빌드      : dist/Quickspect Setup 1.2.4.exe (79.4MB)
+R2        : https://pub-....r2.dev/Quickspect-Setup-1.2.4.exe (200, 79.4MB)
 홈페이지  : purchase.html DOWNLOAD_URL·dl__file / index·product·purchase 버전표기
 Pages     : 배포 완료
 세 값 일치: ✅

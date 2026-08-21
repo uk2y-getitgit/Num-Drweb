@@ -1,8 +1,8 @@
 {
-  "name": "numdraw",
+  "name": "quickspect",
   "version": "1.2.4",
-  "description": "시설물 안전점검 넘버링 툴",
-  "author": "NumDraw",
+  "description": "시설물 안전점검 조사보고서 작성 도구",
+  "author": "Goldland",
   "main": "electron/main.js",
   "scripts": {
     "start": "electron .",
@@ -10,15 +10,15 @@
     "prebuild": "node scripts/check-release-config.mjs",
     "build": "electron-builder --win --x64",
     "prebuild:admin": "node scripts/check-release-config.mjs",
-    "build:admin": "electron-builder --win --x64 --config.extraMetadata.version=0.0.0 --config.appId=com.numdraw.app.admin --config.productName=\"NumDraw Admin\" --config.nsis.shortcutName=\"NumDraw Admin\" --config.directories.output=dist-admin"
+    "build:admin": "electron-builder --win --x64 --config.extraMetadata.version=0.0.0 --config.appId=com.goldland.quickspect.admin --config.productName=\"Quickspect Admin\" --config.nsis.shortcutName=\"Quickspect Admin\" --config.directories.output=dist-admin"
   },
   "devDependencies": {
     "electron": "^31.0.0",
     "electron-builder": "^24.13.3"
   },
   "build": {
-    "appId": "com.numdraw.app",
-    "productName": "NumDraw",
+    "appId": "com.goldland.quickspect",
+    "productName": "Quickspect",
     "asar": false,
     "directories": {
       "output": "dist"
@@ -32,9 +32,15 @@
     ],
     "fileAssociations": [
       {
+        "ext": "qspec",
+        "name": "Quickspect Project",
+        "description": "퀵스도면 프로젝트",
+        "role": "Editor"
+      },
+      {
         "ext": "numdraw",
-        "name": "NumDraw Project",
-        "description": "NumDraw 넘버링 프로젝트",
+        "name": "Quickspect Project (legacy)",
+        "description": "퀵스도면 프로젝트 (구 확장자)",
         "role": "Editor"
       }
     ],
@@ -53,7 +59,7 @@
       "allowToChangeInstallationDirectory": false,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "NumDraw",
+      "shortcutName": "Quickspect",
       "deleteAppDataOnUninstall": false
     }
   }

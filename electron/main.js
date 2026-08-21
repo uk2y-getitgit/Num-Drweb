@@ -1,6 +1,6 @@
-/* electron/main.js — NumDraw Electron 진입점
+/* electron/main.js — Quickspect Electron 진입점
    - app:// 커스텀 프로토콜: secure context → File System Access API 정상 동작
-   - .numdraw 파일 연결 자동 등록 (HKCU, 관리자 권한 불필요)
+   - .qspec 파일 연결 자동 등록 (HKCU, 관리자 권한 불필요). .numdraw 는 구 확장자로 계속 받는다
    - 단일 인스턴스: 이미 실행 중이면 기존 창에 파일 전달
    - 창 크기/위치 자동 저장·복원
 */
@@ -12,8 +12,8 @@ const fs   = require('fs');
 
 const ROOT = path.join(__dirname, '..');
 
-/* ── 시작 인자에서 .numdraw 파일 경로 추출 ── */
-let openFilePath = process.argv.find(a => /\.numdraw$/i.test(a)) || null;
+/* ── 시작 인자에서 프로젝트 파일 경로 추출 (.qspec 신규 · .numdraw 구 확장자) ── */
+let openFilePath = process.argv.find(a => /\.(qspec|numdraw)$/i.test(a)) || null;
 
 /* ── 단일 인스턴스 잠금 ──
    이미 앱이 실행 중이면 기존 창에 파일 내용 전달 후 종료 */
@@ -22,14 +22,14 @@ if (!gotLock) {
   app.quit();
 } else {
   app.on('second-instance', (_, argv) => {
-    const fp = argv.find(a => /\.numdraw$/i.test(a));
+    const fp = argv.find(a => /\.(qspec|numdraw)$/i.test(a));
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.focus();
       if (fp) {
         try {
           const content = fs.readFileSync(fp, 'utf8');
-          mainWindow.webContents.send('open-numdraw-file', content);
+          mainWindow.webContents.send('open-project-file', content);
         } catch {}
       }
     }
@@ -110,7 +110,7 @@ function createWindow() {
     y:         saved?.y,
     minWidth:  960,
     minHeight: 600,
-    title:     'NumDraw — 시설물 안전점검 넘버링 툴',
+    title:     'Quickspect — 시설물 안전점검 조사보고서 작성',
     show:      false,
     webPreferences: {
       nodeIntegration:  false,

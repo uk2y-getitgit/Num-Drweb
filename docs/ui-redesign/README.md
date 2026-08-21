@@ -1,4 +1,4 @@
-# NumDraw UI 개선안 — 제도 콘솔 (Drafting Console)
+# Quickspect UI 개선안 — 제도 콘솔 (Drafting Console)
 
 이 폴더는 **예시화면(목업)과 이식 지침**이다. 실제 앱(`index.html`, `css/style.css`)은 아직 건드리지 않았다.
 

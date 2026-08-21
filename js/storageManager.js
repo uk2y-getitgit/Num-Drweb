@@ -223,7 +223,7 @@ const StorageManager = (() => {
     }
   }
 
-  // ── .numdraw 파일로 내보내기
+  // ── .qspec 파일로 내보내기
   async function exportFile() {
     try {
       // 1. 전체 프로젝트 데이터 구성 (provider가 있으면 두 작업공간 + 이미지 인라인)
@@ -246,8 +246,8 @@ const StorageManager = (() => {
       }
 
       const jsonString = JSON.stringify(data, null, 2);
-      const projectTitle = TitleBlock.getSettings().projectTitle || 'numdraw';
-      const suggestedName = projectTitle + '.numdraw';
+      const projectTitle = TitleBlock.getSettings().projectTitle || 'quickspect';
+      const suggestedName = projectTitle + '.qspec';
 
       // 5. showSaveFilePicker 시도 (Chrome/Edge)
       if (window.showSaveFilePicker) {
@@ -256,8 +256,8 @@ const StorageManager = (() => {
             suggestedName: suggestedName,
             types: [
               {
-                description: 'NumDraw 프로젝트 파일',
-                accept: { 'application/json': ['.numdraw'] },
+                description: '퀵스도면 프로젝트 파일',
+                accept: { 'application/json': ['.qspec', '.numdraw'] },
               },
             ],
           });
@@ -293,7 +293,7 @@ const StorageManager = (() => {
     }
   }
 
-  // ── .numdraw 파일 가져오기
+  // ── 프로젝트 파일 가져오기 (.qspec · 구 .numdraw 모두 허용)
   async function importFile(file) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -303,7 +303,7 @@ const StorageManager = (() => {
           const data = JSON.parse(e.target.result);
 
           if (!data.version || (!data.pages && !data.workspaces)) {
-            throw new Error('유효하지 않은 .numdraw 파일 형식입니다');
+            throw new Error('유효하지 않은 프로젝트 파일 형식입니다');
           }
 
           resolve(data);

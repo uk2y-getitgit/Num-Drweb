@@ -9,7 +9,7 @@ cd "$(dirname "$0")"
 FONTS='https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap'
 
 {
-  echo '<title>NumDraw 제도 콘솔</title>'
+  echo '<title>Quickspect 제도 콘솔</title>'
   echo "<link rel=\"stylesheet\" href=\"$FONTS\">"
   echo '<style>'
   cat ui-tokens.css

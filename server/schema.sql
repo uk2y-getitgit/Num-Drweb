@@ -1,4 +1,4 @@
--- NumDraw 활성화 서버 D1 스키마
+-- Quickspect 활성화 서버 D1 스키마
 -- 유료화_Phase1_구현계획.md 6장 그대로.
 -- 적용: wrangler d1 execute numdraw-license --local --file=schema.sql (로컬)
 --       wrangler d1 execute numdraw-license --remote --file=schema.sql (실서비스, 최초 1회)

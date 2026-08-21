@@ -4,7 +4,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 
 const ROOT = 'D:/시스템운영-절대지우지마시오(26년)/user/Desktop/AI활용/Num-Drweb';
-const DATA = 'D:/시스템운영-절대지우지마시오(26년)/user/Desktop/AI활용/NumDraw_테스트데이터';
+const DATA = 'D:/시스템운영-절대지우지마시오(26년)/user/Desktop/AI활용/Quickspect_테스트데이터';
 
 const require = createRequire(import.meta.url);
 const ctx = globalThis;

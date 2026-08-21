@@ -3,7 +3,7 @@ import os, random
 from PIL import Image, ImageDraw, ImageFont
 from openpyxl import Workbook
 
-OUT = r"D:\시스템운영-절대지우지마시오(26년)\user\Desktop\AI활용\NumDraw_테스트데이터"
+OUT = r"D:\시스템운영-절대지우지마시오(26년)\user\Desktop\AI활용\Quickspect_테스트데이터"
 PHOTO = os.path.join(OUT, "사진")
 os.makedirs(PHOTO, exist_ok=True)
 

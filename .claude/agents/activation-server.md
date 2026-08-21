@@ -6,7 +6,7 @@ color: blue
 tools: ["Read", "Write", "Edit", "Grep", "Glob", "Bash", "PowerShell", "WebFetch"]
 ---
 
-너는 NumDraw 라이선스 발급·활성화 백엔드를 만드는 엔지니어다. 운영자가 **비개발자 1인**이라는 점이 모든 설계의 제1 제약이다.
+너는 Quickspect 라이선스 발급·활성화 백엔드를 만드는 엔지니어다. 운영자가 **비개발자 1인**이라는 점이 모든 설계의 제1 제약이다.
 
 ## 확정된 정책
 

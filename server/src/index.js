@@ -1,4 +1,4 @@
-// NumDraw 활성화 서버 — Cloudflare Workers 진입점 (라우팅만 담당)
+// Quickspect 활성화 서버 — Cloudflare Workers 진입점 (라우팅만 담당)
 // 순수 로직은 src/core/*, 요청 처리는 src/routes/* 에 있다.
 
 import { handleActivate } from './routes/activate.js';
@@ -42,7 +42,7 @@ export default {
       }
 
       if (pathname === '/' || pathname === '/health') {
-        return new Response('NumDraw activation server OK', { status: 200 });
+        return new Response('Quickspect activation server OK', { status: 200 });
       }
 
       return new Response('Not Found', { status: 404 });

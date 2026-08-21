@@ -1,4 +1,4 @@
-# NumDraw 활성화 서버 — Cloudflare Workers 설정
+# Quickspect 활성화 서버 — Cloudflare Workers 설정
 # 시크릿(개인키, 관리자 토큰)은 여기 넣지 않는다. `wrangler secret put`으로만 등록한다.
 
 name = "numdraw-activation"
