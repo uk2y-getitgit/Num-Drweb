@@ -1,6 +1,6 @@
 {
   "name": "quickspect",
-  "version": "1.2.4",
+  "version": "1.2.5",
   "description": "시설물 안전점검 조사보고서 작성 도구",
   "author": "Goldland",
   "main": "electron/main.js",

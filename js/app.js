@@ -55,10 +55,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         showMsg('합치기 해제됨', 'warn');
       } else if (subKey) {
         Annotation.removeSub(id, subKey);
-        showMsg('장비 번호 삭제됨', 'warn');
+        showMsg('장비 번호 삭제됨 (Ctrl+Z 복원)', 'warn');
       } else {
         Annotation.remove(id);
-        showMsg('넘버링 삭제됨', 'warn');
+        showMsg('넘버링 삭제됨 (Ctrl+Z 복원)', 'warn');
       }
     },
     onEditNote:   (id, subKey) => _editNote(id, subKey),
@@ -145,6 +145,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   /* ── PageManager 초기화 ── */
   PageManager.init(
     /* onSwitch */ (page) => {
+      /* id 는 페이지마다 1부터라 이전 페이지 선택이 남으면 엉뚱한 항목이 잡힌다 */
+      CanvasManager.clearSelection();
       _loadPageImage(page);
       dropzone.classList.add('has-file');
       document.getElementById('file-name').textContent = page.name;
@@ -723,8 +725,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     showMsg('화살표 방향 ' + (e.target.checked ? '반전' : '기본'), 'info');
   });
 
-  /* ── 접두어 ── */
-  document.getElementById('prefix-num').addEventListener('input', e => {
+  /* 선택한 지시선의 화살표 방향 on/off — 여러 개면 첫 항목 기준으로 모두 같은 방향으로 맞춘다.
+     합쳐진 지시선(merged)은 각자 값을 가지므로 함께 바꿔야 한 번에 뒤집힌다 */
+  function _flipSelected(ids) {
+    const cfgFlip = Annotation.getConfig().arrowFlip;
+    const targets = Annotation.getAll().filter(i => ids.includes(i.id) && !i.shape);
+    if (!targets.length) { showMsg('도형은 화살표 반전 대상이 아닙니다', 'warn'); return; }
+    const next = !(targets[0].arrowFlip ?? cfgFlip);
+    targets.forEach(i => {
+      if (i.merged) i.merged.forEach(m => { m.arrowFlip = next; });
+      Annotation.updateItem(i.id, { arrowFlip: next });
+    });
+    const noArrow = targets.every(i => i.type !== 'arrow');
+    showMsg((targets.length > 1 ? `${targets.length}개 ` : '') + '화살표 방향 ' + (next ? '반전' : '기본') +
+            (noArrow ? ' (화살표 도구일 때 보입니다)' : ''), 'info');
+  }
+
+  /* ── 접두어 — Enter(또는 칸을 벗어날 때) 적용. 타이핑 중 '1-01' 같은 중간 상태를 그리지 않는다 ── */
+  document.getElementById('prefix-num').addEventListener('change', e => {
     const v = e.target.value.trim();
     Annotation.setConfig({ prefix: v });
     /* 현재 페이지에도 prefix 저장 */
@@ -733,6 +751,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     CanvasManager.renderAnnotations(Annotation.getAll());
     Sidebar.renderNumList(Annotation.getAll(), _collectAllPagesData());
     if (!_isRestoring) StorageManager.markDirty();
+    showMsg(v ? `머릿말 "${v}" 적용` : '머릿말 없음', 'info');
+  });
+
+  /* 계기바 입력칸: Enter = 적용 후 칸에서 빠져나와 단축키(A/D/S…)가 다시 먹게 한다.
+     blur 가 change 를 발생시키므로 적용 로직은 각 칸의 change 핸들러 하나로 모인다 */
+  document.getElementById('canvas-control-bar').addEventListener('keydown', e => {
+    if (e.key !== 'Enter' || e.target.tagName !== 'INPUT') return;
+    if (e.target.type === 'color' || e.target.type === 'checkbox') return;
+    e.preventDefault();
+    e.stopPropagation();   // 전역 Enter(도형 확정·합치기 확정)로 새지 않게
+    e.target.blur();
   });
 
   /* ── 글씨 색상 ── */
@@ -774,10 +803,77 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   /* ── 시작 번호 ── */
-  document.getElementById('start-num').addEventListener('change', e => {
+  const startNumEl = document.getElementById('start-num');
+  let _lastStartNum = 1;
+  /* 취소 시 되돌릴 값 — 페이지 전환·불러오기로 바뀐 값도 잡히도록 입력 시작 시점에 기록 */
+  startNumEl.addEventListener('focus', () => { _lastStartNum = parseInt(startNumEl.value, 10) || 1; });
+  startNumEl.addEventListener('change', e => {
     const v = parseInt(e.target.value, 10);
-    if (v >= 1) Annotation.setNextNum(v);
+    if (!(v >= 1)) { e.target.value = _lastStartNum; return; }
+    const apply = n => {
+      Annotation.setNextNum(n);
+      _lastStartNum = n;
+      startNumEl.value = n;
+      _updateNextNumDisplay();
+      showMsg('시작번호 ' + String(n).padStart(2, '0'), 'info');
+    };
+    /* 장비 모드는 장비별 시작번호를 따로 쓰므로 외관 번호 중복만 확인한다 */
+    const info = Annotation.getNumInfo();
+    if (AppMode.get() === AppMode.MODES.EQUIP || !info.used.has(v)) { apply(v); return; }
+    _askNumDup(v, info, n => {
+      if (n === null) { startNumEl.value = _lastStartNum; return; }
+      apply(n);
+    });
+  });
+
+  /* 시작번호 중복 모달 — cb(새 번호 | null=취소) */
+  function _askNumDup(v, info, cb) {
+    const modal = document.getElementById('modal-numdup');
+    const pad   = n => String(n).padStart(2, '0');
+    const last  = info.last;
+    const done  = val => { modal.classList.add('hidden'); cb(val); };
+    const hasGap = info.gaps.length > 0;
+    document.getElementById('modal-numdup-msg').textContent = hasGap
+      ? `${pad(v)}번은 기존에 존재합니다. '비어있는 번호' 또는 '맨뒷번호'로 수정할까요?`
+      : `${pad(v)}번은 기존에 존재합니다. '맨뒷번호'로 수정할까요?`;
+    document.getElementById('modal-numdup-last-title').textContent = `맨뒷번호 (${pad(last)}번)`;
+
+    /* 중간 빈 번호를 하나씩 칩으로 — 너무 많으면 앞쪽 12개만 */
+    const box = document.getElementById('modal-numdup-gaps');
+    box.innerHTML = '';
+    info.gaps.slice(0, 12).forEach(n => {
+      const b = document.createElement('button');
+      b.className = 'btn';
+      b.textContent = pad(n);
+      b.onclick = () => done(n);
+      box.appendChild(b);
+    });
+    if (info.gaps.length > 12) box.insertAdjacentText('beforeend', ` 외 ${info.gaps.length - 12}개`);
+    document.getElementById('modal-numdup-free').style.display = hasGap ? '' : 'none';
+
+    modal.classList.remove('hidden');
+    document.getElementById('modal-numdup-last').onclick   = () => done(last);
+    document.getElementById('modal-numdup-cancel').onclick = () => done(null);
+    document.getElementById('modal-numdup-close').onclick  = () => done(null);
+  }
+
+  /* ── 숫자정렬 — 빠진 번호 메우기 ── */
+  document.getElementById('btn-renumber').addEventListener('click', () => {
+    const changes = Annotation.compactNumbers(true);
+    if (!changes.length) { showMsg('빠진 번호가 없습니다', 'info'); return; }
+    const pfxOf = c => {
+      if (!c.equipment) { const p = Annotation.getConfig().prefix; return p ? p + '-' : ''; }
+      const eq = Equipment.get(c.equipment);
+      return eq && eq.prefix ? eq.prefix + '-' : '';
+    };
+    const lab  = (c, n) => pfxOf(c) + String(n).padStart(2, '0');
+    const list = changes.slice(0, 8).map(c => `${lab(c, c.from)} → ${lab(c, c.to)}`).join('\n');
+    const more = changes.length > 8 ? `\n… 외 ${changes.length - 8}건` : '';
+    if (!confirm(`빠진 번호를 메워 ${changes.length}개 번호를 바꿉니다.\n\n${list}${more}\n\n` +
+                 `사진 매칭번호를 직접 입력한 항목은 그 값을 유지합니다. 진행할까요? (Ctrl+Z 로 되돌릴 수 있습니다)`)) return;
+    Annotation.compactNumbers(false);
     _updateNextNumDisplay();
+    showMsg(`숫자정렬: ${changes.length}개 번호 변경`, 'success');
   });
 
   /* ── 전체 삭제 ── */
@@ -796,6 +892,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const isInput = tag === 'INPUT' || tag === 'TEXTAREA';
 
     if (e.key === 'Escape') {
+      if (_isMenuOpen()) { _closeMenu(); return; }
       /* 합치기 모드가 켜져 있으면 모드 해제가 우선 */
       if (CanvasManager.isMergeMode()) { _setMergeMode(false); showMsg('합치기 취소', 'info'); return; }
       CanvasManager.cancelDraw();
@@ -804,19 +901,41 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     if (e.key === 'F5')     { e.preventDefault(); CanvasManager.fitToView(); return; }
     if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); _undo(); return; }
+    /* Ctrl+S: 프로젝트 저장 — 아래 S(지시선 없음) 단축키로 새지 않게 여기서 끝낸다 */
+    if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
+      e.preventDefault();
+      document.getElementById('btn-save-project').click();
+      return;
+    }
 
     if (isInput) return; // 이하 단축키: 입력 필드에서는 무시
 
     /* Delete: 선택된 항목 삭제 — 해치 도형은 사이드바 목록에 없으므로 이 경로로 지운다 */
     if (e.key === 'Delete' || e.key === 'Backspace') {
-      const sid = CanvasManager.getSelectedId();
-      if (sid !== null) {
+      const ids = CanvasManager.getSelectedIds();
+      if (ids.length) {
         e.preventDefault();
-        Annotation.remove(sid);
+        const n = Annotation.removeMany(ids);
         CanvasManager.clearSelection();
-        showMsg('삭제됨', 'warn');
+        showMsg((n > 1 ? `${n}개 삭제됨` : '삭제됨') + ' (Ctrl+Z 복원)', 'warn');
       }
       return;
+    }
+
+    /* 다중 선택 중 A/D/S·1~4 는 선택 전체의 타입·선 스타일을 바꾼다 (도구 전환 아님) */
+    const multi = CanvasManager.getSelectedIds();
+    if (multi.length > 1 && !e.ctrlKey && !e.metaKey) {
+      const typeMap  = { a: 'arrow', d: 'dot', s: 'none' };
+      const lineMapM = { '1': 'straight', '2': 'elbow-h', '3': 'elbow-v', '4': 'zigzag' };
+      const k = e.key.toLowerCase();
+      const patch = typeMap[k] ? { type: typeMap[k] }
+                  : (!e.shiftKey && lineMapM[e.key]) ? { lineStyle: lineMapM[e.key] } : null;
+      if (patch) {
+        const targets = Annotation.getAll().filter(i => multi.includes(i.id) && !i.shape);
+        targets.forEach(i => Annotation.updateItem(i.id, patch));
+        showMsg(`${targets.length}개 변경`, 'info');
+        return;
+      }
     }
 
     /* Enter: 합치기 확정(모드 ON일 때) | 부동침하 다각형 확정 */
@@ -896,8 +1015,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       orthoToggle.dispatchEvent(new Event('change'));
     }
 
-    /* R: 화살표 반전 (A-3) */
-    if (e.key === 'r' || e.key === 'R') {
+    /* R: 화살표 반전 (A-3) — 선택된 지시선이 있으면 그 지시선만, 없으면 새로 그릴 지시선 기본값 */
+    if ((e.key === 'r' || e.key === 'R') && !e.ctrlKey && !e.metaKey) {
+      const sel = CanvasManager.getSelectedIds();
+      if (sel.length) { _flipSelected(sel); return; }
       const flipToggle = document.getElementById('arrow-flip-toggle');
       if (flipToggle) {
         flipToggle.checked = !flipToggle.checked;
@@ -981,6 +1102,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const ok   = results.filter(r => r.status === 'ok').length;
       const err  = results.filter(r => r.status === 'error').length;
       const skip = results.filter(r => r.status === 'skip').length;
+      const dup  = results.filter(r => r.status === 'conflict').length;
 
       /* 전체 페이지 autoMatch 갱신 */
       pagesData.forEach(p => FileManager.autoMatch(p.items, p.prefix || ''));
@@ -989,6 +1111,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       const msg = `변경 완료: ${ok}건 성공` +
                   (skip ? `, ${skip}건 건너뜀` : '') +
+                  (dup  ? `, ${dup}건 같은 이름 있어 보류` : '') +
                   (err  ? `, ${err}건 오류`    : '');
       showMsg(msg, ok ? 'success' : 'warn');
 
@@ -1166,6 +1289,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (e) {
       showMsg('저장 실패: ' + e.message, 'warn');
     }
+  });
+
+  /* ── 더보기 메뉴 ── */
+  const menuBtn = document.getElementById('btn-menu');
+  const menuPop = document.getElementById('menu-pop');
+  function _isMenuOpen() { return !menuPop.classList.contains('hidden'); }
+  function _closeMenu() {
+    menuPop.classList.add('hidden');
+    menuBtn.setAttribute('aria-expanded', 'false');
+  }
+  menuBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    if (_isMenuOpen()) { _closeMenu(); return; }
+    menuPop.classList.remove('hidden');
+    menuBtn.setAttribute('aria-expanded', 'true');
+  });
+  /* 명령(버튼)은 실행 후 닫고, 토글·색상 칸은 연달아 만질 수 있게 열어 둔다 */
+  menuPop.addEventListener('click', e => { if (e.target.closest('button.menu-item')) _closeMenu(); });
+  document.addEventListener('mousedown', e => {
+    if (_isMenuOpen() && !e.target.closest('.menu-wrap')) _closeMenu();
   });
 
   /* ── 프로젝트 불러오기 (.qspec · 구 .numdraw) ── */
@@ -1451,10 +1594,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   /* ── Undo ── */
   function _undo() {
-    const items = Annotation.getAll();
-    if (!items.length) return;
-    Annotation.remove(items[items.length - 1].id);
-    showMsg('되돌리기', 'info');
+    const r = Annotation.undo();
+    if (!r) return;
+    const label = { move: '이동 되돌리기', remove: '삭제 되돌리기', renum: '숫자정렬 되돌리기' };
+    showMsg(label[r] || '되돌리기', 'info');
   }
 
   /* ── 탭 전환 ── */

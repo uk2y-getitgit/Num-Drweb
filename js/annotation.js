@@ -7,6 +7,10 @@ const Annotation = (() => {
   let nextId  = 1;
   let onChange = null;
 
+  /* Ctrl+Z 기록 — { type:'add', id } | { type:'move', snap } | { type:'remove'|'renum', snap }. 페이지를 바꾸면 비운다 */
+  let undoStack = [];
+  const UNDO_MAX = 50;
+
   /* 전역 설정 */
   let config = {
     prefix:     '',         // 접두어 (예: '1F', 'RF')
@@ -53,6 +57,7 @@ const Annotation = (() => {
       customPhotoNum: null,
     };
     items.push(item);
+    _pushUndo({ type: 'add', id: item.id });
     if (onChange) onChange();
     return item;
   }
@@ -138,6 +143,7 @@ const Annotation = (() => {
       customPhotoNum: null,
     };
     items.push(item);
+    _pushUndo({ type: 'add', id: item.id });
     if (onChange) onChange();
     return item;
   }
@@ -155,6 +161,7 @@ const Annotation = (() => {
       p2: { ...geom.p2 },
     };
     items.push(item);
+    _pushUndo({ type: 'add', id: item.id });
     if (onChange) onChange();
     return item;
   }
@@ -162,6 +169,20 @@ const Annotation = (() => {
   /* 기본 넘버 삭제 — 합쳐진 번호나 묶인 장비 번호가 남아 있으면 그 중 첫 번호가 지시선을 이어받는다.
      합쳐진 번호(같은 박스)를 묶음 라벨(별도 박스)보다 먼저 승계시킨다 — R-01,02 에서 01을 지우면 R-02 */
   function remove(id) {
+    removeMany([id]);
+  }
+
+  /* 여러 항목을 한 번에 삭제 — 되돌리기 기록은 하나로 묶어 Ctrl+Z 한 번에 모두 복원된다 */
+  function removeMany(ids) {
+    const snap = _snapshotItems(ids);
+    if (!snap.length) return 0;
+    snap.forEach(s => _removeOne(s.before.id));
+    _pushUndo({ type: 'remove', snap });
+    if (onChange) onChange();
+    return snap.length;
+  }
+
+  function _removeOne(id) {
     const numId = Number(id);
     const idx = items.findIndex(i => i.id === numId);
     if (idx === -1) return;
@@ -175,7 +196,25 @@ const Annotation = (() => {
       items.splice(idx, 1);
     }
     /* 남은 번호는 그대로 유지 — 삭제된 번호는 빈 자리로 남아 다음 마킹이 채운다 */
-    if (onChange) onChange();
+  }
+
+  /* 삭제 직전 항목 통째 사본 + 배열 위치 — 승계(본체만 바뀜)든 제거든 이 사본으로 되돌린다 */
+  function _snapshotItems(ids) {
+    const set = new Set(ids.map(Number));
+    const out = [];
+    items.forEach((i, idx) => {
+      if (set.has(i.id)) out.push({ idx, before: JSON.parse(JSON.stringify(i)) });
+    });
+    return out;
+  }
+
+  /* 앞쪽 위치부터 넣어야 원래 순서가 맞는다 (사본은 idx 오름차순) */
+  function _restoreItems(snap) {
+    snap.forEach(s => {
+      const cur = items.findIndex(i => i.id === s.before.id);
+      if (cur !== -1) items[cur] = s.before;
+      else            items.splice(Math.min(s.idx, items.length), 0, s.before);
+    });
   }
 
   /* 하위 번호(라벨·합쳐진 번호)를 항목 본체 번호로 승계 — 좌표(p1/p2)는 본체 것을 유지 */
@@ -212,13 +251,15 @@ const Annotation = (() => {
   }
 
   /* 하위 번호 제거 — 라벨은 삭제, 합쳐진 번호는 별도 항목으로 해제(복원) */
-  function removeSub(id, subKey) {
+  /* opts.undo === false: 사용자 삭제가 아닌 내부 정리(더블클릭 오입력 취소 등) — 기록하지 않는다 */
+  function removeSub(id, subKey, opts) {
     const item = items.find(i => i.id === Number(id));
     if (!item || !subKey) return;
     if (subKey[0] === 'M') { unmerge(id, Number(subKey.slice(1))); return; }
     const lid = Number(subKey.slice(1));
     const idx = (item.labels || []).findIndex(l => l.lid === lid);
     if (idx === -1) return;
+    if (!opts || opts.undo !== false) _pushUndo({ type: 'remove', snap: _snapshotItems([item.id]) });
     item.labels.splice(idx, 1);
     /* 번호 유지 — 빈 번호는 다음 마킹이 채운다 */
     if (onChange) onChange();
@@ -312,6 +353,7 @@ const Annotation = (() => {
     items = [];
     nextNum = 1;
     nextId  = 1;
+    undoStack = [];
     if (onChange) onChange();
   }
 
@@ -344,6 +386,84 @@ const Annotation = (() => {
       if (i.merged) i.merged.forEach(each);
     });
     if (onChange) onChange();
+  }
+
+  /* ── 선택 항목 평행이동 (드래그 중 매 프레임 호출) ──
+     onChange 를 부르지 않는다 — 사이드바·자동매칭 재실행을 막고, 드래그가 끝날 때 한 번만 알린다 */
+  function translateItems(ids, dx, dy) {
+    const set  = new Set(ids.map(Number));
+    const move = o => { if (o) { o.x += dx; o.y += dy; } };
+    const each = i => { move(i.p1); move(i.p2); if (i.points) i.points.forEach(move); };
+    items.forEach(i => {
+      if (!set.has(i.id)) return;
+      each(i);
+      if (i.merged) i.merged.forEach(each);
+    });
+  }
+
+  /* ── 되돌리기 ── */
+  function _pushUndo(entry) {
+    undoStack.push(entry);
+    if (undoStack.length > UNDO_MAX) undoStack.shift();
+  }
+
+  /* 이동 전 좌표 사본 — 좌표 외 속성(타입·메모 등)은 담지 않아 되돌려도 건드리지 않는다 */
+  function snapshotGeom(ids) {
+    const set = new Set(ids.map(Number));
+    const geo = i => JSON.parse(JSON.stringify({ p1: i.p1, p2: i.p2, points: i.points, labelOff: i.labelOff }));
+    return items.filter(i => set.has(i.id)).map(i => ({
+      id: i.id, g: geo(i),
+      merged: (i.merged || []).map(m => ({ mid: m.mid, g: geo(m) })),
+    }));
+  }
+
+  function pushMoveUndo(snap) {
+    if (snap && snap.length) _pushUndo({ type: 'move', snap });
+  }
+
+  function _applyGeom(target, g) {
+    ['p1', 'p2', 'points', 'labelOff'].forEach(k => {
+      if (g[k] === undefined) delete target[k];
+      else target[k] = g[k];
+    });
+  }
+
+  function _restoreGeom(snap) {
+    let done = false;
+    snap.forEach(s => {
+      const item = items.find(i => i.id === s.id);
+      if (!item) return;
+      _applyGeom(item, s.g);
+      s.merged.forEach(sm => {
+        const m = (item.merged || []).find(x => x.mid === sm.mid);
+        if (m) _applyGeom(m, sm.g);
+      });
+      done = true;
+    });
+    return done;
+  }
+
+  /* 최근 동작 하나를 되돌린다 — 반환: 'move' | 'add' | 'remove' | 'renum' | null
+     기록이 비었으면(페이지 전환 직후 등) 예전처럼 마지막 항목을 지운다 */
+  function undo() {
+    while (undoStack.length) {
+      const e = undoStack.pop();
+      if (e.type === 'move') {
+        if (_restoreGeom(e.snap)) { if (onChange) onChange(); return 'move'; }
+      } else if (e.type === 'remove' || e.type === 'renum') {
+        _restoreItems(e.snap);
+        if (onChange) onChange();
+        return e.type;
+      } else if (items.some(i => i.id === e.id)) {
+        _removeOne(e.id);
+        if (onChange) onChange();
+        return 'add';
+      }
+    }
+    if (!items.length) return null;
+    _removeOne(items[items.length - 1].id);
+    if (onChange) onChange();
+    return 'add';
   }
 
   /* nextNum = 외관 넘버링의 기준 시작번호. 실제 부여 번호는 빈 자리 우선 */
@@ -411,6 +531,7 @@ const Annotation = (() => {
       const d = JSON.parse(json);
       items   = d.items  || [];
       nextNum = d.nextNum || 1;
+      undoStack = [];
       nextId  = Math.max(d.nextId || 1, _migrateIds());
       if (d.config) {
         /* scale·tbScale은 전 페이지 공통 전역값 — 페이지 복원 시 덮어쓰지 않는다 */
@@ -442,6 +563,49 @@ const Annotation = (() => {
       });
     });
     /* nextNum(기준 시작번호)은 사용자 지정값이므로 유지 */
+  }
+
+  /* ── 숫자정렬: 빠진 번호를 메워 연속 번호로 만든다 ──
+     01,02,03,05,06 → 05·06 이 04·05 로. 현재 번호 순서를 그대로 지키고(배열 순서 무관),
+     외관 번호와 장비별 번호를 각각 따로 메운다. dryRun 이면 바뀔 목록만 돌려준다 */
+  function compactNumbers(dryRun) {
+    const groups = {};
+    items.forEach(i => _entriesOf(i).forEach(e => {
+      const k = e.equipment || '';
+      (groups[k] = groups[k] || []).push(e);
+    }));
+    const changes = [];
+    Object.entries(groups).forEach(([k, list]) => {
+      list.sort((a, b) => a.num - b.num);
+      /* 사용자가 지정한 시작번호보다 작은 번호가 이미 있으면 그 번호부터 */
+      let n = Math.min(k ? _equipStart(k) : nextNum, list[0].num);
+      list.forEach(e => {
+        if (e.num !== n) changes.push({ entry: e, equipment: k || null, from: e.num, to: n });
+        n++;
+      });
+    });
+    if (dryRun || !changes.length) return changes.map(({ entry, ...c }) => c);
+    _pushUndo({ type: 'renum', snap: _snapshotItems(items.map(i => i.id)) });
+    changes.forEach(c => { c.entry.num = c.to; });
+    if (onChange) onChange();
+    return changes.map(({ entry, ...c }) => c);
+  }
+
+  /* 외관 번호 사용 현황 — 시작번호 중복 확인용 */
+  function getNumInfo() {
+    const used = new Set();
+    items.forEach(i => _entriesOf(i).forEach(e => { if (!e.equipment) used.add(e.num); }));
+    const max = used.size ? Math.max(...used) : 0;
+    const min = used.size ? Math.min(...used) : 1;
+    /* 첫 번호와 마지막 번호 사이의 빈 번호 (삭제로 생긴 자리) */
+    const gaps = [];
+    for (let n = min; n < max; n++) if (!used.has(n)) gaps.push(n);
+    return {
+      used,
+      gaps,
+      last: max + 1,
+      firstFreeFrom: start => _firstFreeNum(used, start),
+    };
   }
 
   /* 외부 호출용 재정렬 (장비 시작 번호 변경 시) */
@@ -481,10 +645,11 @@ const Annotation = (() => {
   }
 
   return {
-    init, add, remove, removeSub, updateSub, setNote, clear, updateItem, getAll, transformCoords,
+    init, add, remove, removeMany, removeSub, updateSub, setNote, clear, updateItem, getAll, transformCoords,
+    translateItems, snapshotGeom, pushMoveUndo, undo,
     setNextNum, getNextNum, getNextNumForEquipment, addLabelToItem, addShape, addHatch,
     mergeItems, unmerge, setMergeKeepLeaders,
-    resequence,
+    resequence, compactNumbers, getNumInfo,
     setActiveCategory, getActiveCategory, getCategories, setCategoryColor,
     setConfig, getConfig,
     matchPhoto, toJSON, fromJSON, autoLayout,

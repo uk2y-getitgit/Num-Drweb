@@ -18,7 +18,7 @@ const FileManager = (() => {
         const ext = name.split('.').pop().toLowerCase();
         if (!['jpg','jpeg','png','gif','bmp','webp'].includes(ext)) continue;
         const num = _extractNum(name);
-        photos.push({ name, num, handle });
+        photos.push({ name, num, handle, converted: _isConverted(name) });
       }
       photos.sort((a, b) => (a.num || 0) - (b.num || 0));
       if (onPhotoLoad) onPhotoLoad(photos);
@@ -34,6 +34,24 @@ const FileManager = (() => {
     const base = name.replace(/\.[^.]+$/, '');
     const m    = base.match(/(\d+)\D*$/);
     return m ? parseInt(m[1], 10) : null;
+  }
+
+  /* ── 이미 변환된 사진 판정 ──
+     촬영 원본은 'IMG-001'·'DSC_0042'·'001-외벽' 처럼 숫자 앞뒤에 글자가 붙는다.
+     본 앱이 만드는 이름(101 · R01 · B101)처럼 숫자만 남은 파일은 변환 완료로 본다 */
+  function _isConverted(name) {
+    return /^[RB]?\d+$/i.test(_base(name));
+  }
+  function _base(name) { return String(name).replace(/\.[^.]+$/, ''); }
+
+  /* 변환 완료 사진 중 이 레이블의 결과 이름과 같은 파일 (예: 1F-01 → 101.jpg) */
+  function _findConverted(label) {
+    const want = extractPhotoName(label).toLowerCase();
+    return photos.find(p => p.converted && _base(p.name).toLowerCase() === want) || null;
+  }
+  /* 매칭 후보 = 아직 변환하지 않은 원본 사진만 */
+  function _findRaw(num) {
+    return photos.find(p => !p.converted && p.num === num) || null;
   }
 
   /* ── 레이블 → 파일명 변환 (C-2)
@@ -56,24 +74,18 @@ const FileManager = (() => {
     return prefix + num;
   }
 
-  /* ── 자동 매칭 (customPhotoNum 우선, prefix 있으면 레이블 기반 절대번호 사용) ──
-     prefix가 있으면 '1F-04' → extractPhotoName → '104' → _extractNum → 104 으로 매칭
-     prefix가 없으면 item.num 그대로 매칭 (기존 동작) */
+  /* ── 자동 매칭 (customPhotoNum 우선, 없으면 넘버링 번호) ──
+     촬영 원본은 IMG-001·002 처럼 층과 무관하게 번호가 매겨지므로 1F-04 → 사진번호 4.
+     파일명 변환 미리보기(buildRenamePreview)와 같은 규칙이다. prefix 는 변환 완료 판정에만 쓴다 */
   function autoMatch(annotations, prefix) {
     if (!photos.length) return;
     const pfx = prefix || '';
     const matchOne = (target) => {
-      let matchNum;
-      if (target.customPhotoNum != null) {
-        matchNum = Number(target.customPhotoNum);
-      } else if (pfx) {
-        const label = pfx + '-' + String(target.num).padStart(2, '0');
-        const base  = extractPhotoName(label);
-        matchNum = _extractNum(base) ?? target.num;
-      } else {
-        matchNum = target.num;
-      }
-      const matched = photos.find(p => p.num === matchNum);
+      const matchNum = target.customPhotoNum != null ? Number(target.customPhotoNum) : target.num;
+      /* 자기 번호로 이미 변환된 사진이 있으면 그것, 없으면 원본 사진에서 찾는다.
+         변환된 다른 번호의 사진(105.jpg 등)이 숫자만 보고 엉뚱하게 잡히지 않게 한다 */
+      const label   = (pfx ? pfx + '-' : '') + String(target.num).padStart(2, '0');
+      const matched = _findConverted(label) || _findRaw(matchNum);
       target.photoName = matched ? matched.name : null;
     };
     annotations.forEach(item => {
@@ -92,23 +104,31 @@ const FileManager = (() => {
       const itemPrefix = item._pagePrefix !== undefined ? item._pagePrefix : '';
       const prefix     = itemPrefix ? itemPrefix + '-' : '';
       const matchNum   = item.customPhotoNum != null ? item.customPhotoNum : item.num;
-      const photo      = photos.find(p => p.num === Number(matchNum));
       const numStr     = String(item.num).padStart(2, '0');
       const label      = prefix + numStr;
       const newBaseName = extractPhotoName(label);
 
+      /* 이미 변환 완료 — 다시 바꾸지 않는다 */
+      const done = _findConverted(label);
+      if (done) {
+        return { label, oldName: done.name, newBaseName, newName: done.name, status: 'same' };
+      }
+
+      const photo = _findRaw(Number(matchNum));
       if (!photo) {
         return { label, oldName: null, newBaseName, newName: newBaseName, status: 'nomatch' };
       }
 
       const ext     = photo.name.split('.').pop().toLowerCase();
       const newName = newBaseName + '.' + ext;
+      /* 같은 이름의 파일이 이미 있으면 덮어쓰지 않는다 */
+      const taken = photos.some(p => p !== photo && p.name.toLowerCase() === newName.toLowerCase());
       return {
         label,
         oldName:     photo.name,
         newBaseName,
         newName,
-        status: photo.name === newName ? 'same' : 'ready',
+        status: taken ? 'conflict' : 'ready',
       };
     });
   }
@@ -135,6 +155,12 @@ const FileManager = (() => {
       const photo = photos.find(p => p.name === row.oldName);
       if (!photo) { results.push({ ...row, status: 'error', error: '파일을 찾을 수 없음' }); continue; }
 
+      /* 미리보기 이후 폴더가 바뀌었을 수 있으므로 쓰기 직전에 한 번 더 확인한다 */
+      if (await _exists(row.newName)) {
+        results.push({ ...row, status: 'conflict', error: '같은 이름의 파일이 이미 있음' });
+        continue;
+      }
+
       try {
         const file      = await photo.handle.getFile();
         const buf       = await file.arrayBuffer();
@@ -147,6 +173,7 @@ const FileManager = (() => {
         photo.name   = row.newName;
         photo.handle = newHandle;
         photo.num    = _extractNum(row.newName);
+        photo.converted = true;
         processedOldNames.add(row.oldName); /* 처리 완료 기록 */
         results.push({ ...row, status: 'ok' });
       } catch (e) {
@@ -157,6 +184,11 @@ const FileManager = (() => {
 
     if (onPhotoLoad) onPhotoLoad(photos);
     return results;
+  }
+
+  async function _exists(name) {
+    try { await folderHandle.getFileHandle(name); return true; }
+    catch { return false; }
   }
 
   /* 미리보기 ObjectURL */

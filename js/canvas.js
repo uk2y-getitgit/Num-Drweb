@@ -22,6 +22,10 @@ const CanvasManager = (() => {
   };
 
   let selectedItemId  = null;
+  /* 다중 선택 (Shift/Ctrl+드래그 선택박스) — 2개 이상일 때만 쓰고, 1개면 selectedItemId 로 넘긴다 */
+  let selectedIds     = new Set();
+  /* 선택박스 드래그 중 상태 — { start, cur, additive, screen } */
+  let boxSel          = null;
   let mousedownPos    = null;
   let onSelectItem    = null;
   /* 사이드바 사용 후 캔버스 재진입 여부 — true면 첫 클릭을 입장 클릭으로 소비 */
@@ -210,6 +214,21 @@ const CanvasManager = (() => {
     if (e.button !== 0 || !paperW) return;
 
     const cp = _toCanvasPos(e.clientX, e.clientY);
+
+    /* Shift+드래그 = 선택박스(새로 선택), Ctrl+드래그 = 추가 선택 — 외관 모드 전용.
+       여백에서 시작하는 경우가 많으므로 도면 영역 검사보다 먼저 분기한다 */
+    if ((e.shiftKey || e.ctrlKey || e.metaKey) && _canBoxSelect()) {
+      needsReactivation = false;
+      boxSel = {
+        start: cp, cur: cp,
+        additive: !!(e.ctrlKey || e.metaKey),
+        screen: { x: e.clientX, y: e.clientY },
+      };
+      wrap.style.cursor = 'crosshair';
+      e.preventDefault();   // Shift+클릭의 텍스트 선택 확장 방지
+      return;
+    }
+
     /* 도면 이미지 영역 밖 클릭 무시 (drawOffX/Y/W/H 는 마지막 renderAnnotations 에서 갱신됨) */
     if (drawW === 0) return;
     if (cp.x < drawOffX || cp.y < drawOffY ||
@@ -220,8 +239,9 @@ const CanvasManager = (() => {
     if (needsReactivation) {
       needsReactivation = false;
       wrap.style.cursor = 'crosshair';
-      if (selectedItemId !== null) {
+      if (selectedItemId !== null || selectedIds.size) {
         selectedItemId = null;
+        selectedIds.clear();
         if (onSelectItem) onSelectItem(null);
         renderAnnotations(Annotation.getAll());
       }
@@ -255,7 +275,13 @@ const CanvasManager = (() => {
         dragState.item    = hit.item;
         dragState.handle  = hit.handle;
         dragState.sub     = hit.sub || null;
-        if (hit.handle === 'mergedP1') {
+        /* 다중 선택된 항목을 잡으면 어느 핸들이든 선택 전체를 평행이동한다 */
+        dragState.group   = (selectedIds.size > 1 && selectedIds.has(hit.item.id))
+          ? [...selectedIds] : null;
+        dragState.undoSnap = Annotation.snapshotGeom(dragState.group || [hit.item.id]);
+        if (dragState.group) {
+          dragState.lastCp = { x: cp.x, y: cp.y };
+        } else if (hit.handle === 'mergedP1') {
           /* 합쳐진(유지된) 지시선의 지시점 개별 이동 */
           dragState.offsetX = cp.x - hit.sub.p1.x;
           dragState.offsetY = cp.y - hit.sub.p1.y;
@@ -271,6 +297,7 @@ const CanvasManager = (() => {
       }
       /* 빈 공간 클릭 시 선택 해제 */
       selectedItemId = null;
+      selectedIds.clear();
       if (onSelectItem) onSelectItem(null);
       renderAnnotations(Annotation.getAll());
 
@@ -321,6 +348,11 @@ const CanvasManager = (() => {
       _applyTransform();
       return;
     }
+    if (boxSel) {
+      boxSel.cur = _toCanvasPos(e.clientX, e.clientY);
+      renderAnnotations(Annotation.getAll());
+      return;
+    }
     if (shapeState.collecting) {
       shapeState.cursor = _settlePoint(_toCanvasPos(e.clientX, e.clientY));
       renderAnnotations(Annotation.getAll());
@@ -328,6 +360,12 @@ const CanvasManager = (() => {
     }
     if (dragState.active) {
       const cp = _toCanvasPos(e.clientX, e.clientY);
+      if (dragState.group) {
+        Annotation.translateItems(dragState.group, cp.x - dragState.lastCp.x, cp.y - dragState.lastCp.y);
+        dragState.lastCp = { x: cp.x, y: cp.y };
+        renderAnnotations(Annotation.getAll());
+        return;
+      }
       if (dragState.handle === 'mergedP1' && dragState.sub) {
         dragState.sub.p1 = { x: cp.x - dragState.offsetX, y: cp.y - dragState.offsetY };
         renderAnnotations(Annotation.getAll());
@@ -369,6 +407,7 @@ const CanvasManager = (() => {
   }
 
   function _onMouseUp(e) {
+    if (boxSel) { _finishBoxSel(e); return; }
     if (dragState.active) {
       const moved = mousedownPos
         ? Math.hypot(e.clientX - mousedownPos.x, e.clientY - mousedownPos.y)
@@ -378,10 +417,16 @@ const CanvasManager = (() => {
       dragState.active = false;
       const clickedItem = dragState.item;
       const clickedHandle = dragState.handle;
+      const group    = dragState.group;
+      const undoSnap = dragState.undoSnap;
       dragState.item = null;
       dragState.handle = null;
       dragState.sub = null;
+      dragState.group = null;
+      dragState.undoSnap = null;
       mousedownPos = null;
+
+      if (!wasClick) Annotation.pushMoveUndo(undoSnap);
 
       if (wasClick && e.detail >= 2) {
         /* 더블클릭의 두 번째 클릭 — 메모 편집이므로 넘버 추가·선택 토글을 하지 않는다 */
@@ -394,10 +439,16 @@ const CanvasManager = (() => {
           wrap.style.cursor = 'crosshair';
           return;
         }
-        selectedItemId = (selectedItemId === clickedItem.id) ? null : clickedItem.id;
+        /* 다중 선택 중 한 항목을 클릭하면 그 항목 하나만 남긴다 */
+        if (group) {
+          selectedIds.clear();
+          selectedItemId = clickedItem.id;
+        } else {
+          selectedItemId = (selectedItemId === clickedItem.id) ? null : clickedItem.id;
+        }
         if (onSelectItem) onSelectItem(selectedItemId);
         renderAnnotations(Annotation.getAll());
-      } else if (clickedHandle === 'poly' || clickedHandle === 'shape' ||
+      } else if (group || clickedHandle === 'poly' || clickedHandle === 'shape' ||
                  clickedHandle === 'label' || clickedHandle === 'mergedP1') {
         Annotation.updateItem(clickedItem.id, {});   // 도형·번호박스 이동 저장(markDirty)
       }
@@ -406,8 +457,10 @@ const CanvasManager = (() => {
     }
     if (isPanning) { isPanning = false; wrap.style.cursor = 'crosshair'; }
   }
-  function _onMouseLeave() {
-    dragState.active = false;
+  function _onMouseLeave(e) {
+    if (boxSel) { boxSel = null; renderAnnotations(Annotation.getAll()); }
+    /* 드래그 중 캔버스를 벗어나면 그 자리에서 이동을 확정한다 (저장·되돌리기 기록 포함) */
+    if (dragState.active) { _onMouseUp(e); return; }
     mousedownPos = null;
     if (isPanning) { isPanning = false; wrap.style.cursor = 'crosshair'; }
   }
@@ -415,6 +468,79 @@ const CanvasManager = (() => {
   function _toCanvasPos(cx, cy) {
     const rect = wrap.getBoundingClientRect();
     return { x: (cx - rect.left - panX) / zoom, y: (cy - rect.top - panY) / zoom };
+  }
+
+  /* ── 선택박스 ── */
+  function _canBoxSelect() {
+    if (mergeMode || drawState.phase !== 0 || shapeState.collecting) return false;
+    return typeof AppMode === 'undefined' || AppMode.get() !== AppMode.MODES.EQUIP;
+  }
+
+  function _currentSel() {
+    const s = new Set(selectedIds);
+    if (selectedItemId !== null) s.add(selectedItemId);
+    return s;
+  }
+
+  /* 1개면 단일 선택으로 넘겨 A/D/S·Delete 등 기존 단축키가 그대로 동작하게 한다 */
+  function _setSel(set) {
+    if (set.size === 1) { selectedItemId = [...set][0]; selectedIds = new Set(); }
+    else                { selectedItemId = null;        selectedIds = set; }
+  }
+
+  /* 번호박스 중심이 선택박스 안에 들어온 항목 — 해치 도형은 도형 중심으로 판정한다 */
+  function _itemsInBox(a, b) {
+    const x1 = Math.min(a.x, b.x), x2 = Math.max(a.x, b.x);
+    const y1 = Math.min(a.y, b.y), y2 = Math.max(a.y, b.y);
+    const inside = (x, y) => x >= x1 && x <= x2 && y >= y1 && y <= y2;
+    const scale = Annotation.getConfig().scale || 1;
+    const ids = [];
+    Annotation.getAll().forEach(item => {
+      if (_isHatch(_shapeKind(item.shape))) {
+        const hb = _hatchBounds(item.p1, item.p2);
+        if (inside((hb.x1 + hb.x2) / 2, (hb.y1 + hb.y2) / 2)) ids.push(item.id);
+        return;
+      }
+      const rects = item.shape ? [_shapeLabelRect(item, scale)].filter(Boolean)
+                               : _leaderBoxRects(item, scale);
+      if (rects.some(r => inside(r.x + r.w / 2, r.y + r.h / 2))) ids.push(item.id);
+    });
+    return ids;
+  }
+
+  function _finishBoxSel(e) {
+    const bs = boxSel;
+    boxSel = null;
+    const moved = Math.hypot(e.clientX - bs.screen.x, e.clientY - bs.screen.y);
+    const sel   = bs.additive ? _currentSel() : new Set();
+
+    if (moved < 5) {
+      /* 거의 안 움직인 클릭 — Ctrl+클릭 = 해당 항목 선택 토글, Shift+클릭 = 해당 항목만 선택 */
+      const hit = _hitTestBox(bs.start) || _hitTest(bs.start);
+      if (hit) {
+        if (bs.additive && sel.has(hit.item.id)) sel.delete(hit.item.id);
+        else sel.add(hit.item.id);
+      }
+    } else {
+      _itemsInBox(bs.start, bs.cur).forEach(id => sel.add(id));
+    }
+    _setSel(sel);
+    if (onSelectItem) onSelectItem(selectedItemId);
+    renderAnnotations(Annotation.getAll());
+  }
+
+  /* 선택박스 미리보기 — 화면 전용 (createPageExport 는 renderAnnotations 를 거치지 않는다) */
+  function _drawBoxSel() {
+    const x = Math.min(boxSel.start.x, boxSel.cur.x), y = Math.min(boxSel.start.y, boxSel.cur.y);
+    const w = Math.abs(boxSel.cur.x - boxSel.start.x), h = Math.abs(boxSel.cur.y - boxSel.start.y);
+    ctx.save();
+    ctx.fillStyle   = 'rgba(91, 91, 214, 0.08)';
+    ctx.strokeStyle = '#5B5BD6';
+    ctx.lineWidth   = 1 / zoom;              // 화면 배율과 무관하게 1px
+    ctx.setLineDash([4 / zoom, 3 / zoom]);
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeRect(x, y, w, h);
+    ctx.restore();
   }
 
   /* 장비 모드에서 기존 지시선에 활성 장비 넘버 추가 가능 여부 판단 후 실행 */
@@ -527,7 +653,7 @@ const CanvasManager = (() => {
     /* 첫 클릭이 장비 넘버를 쌓아 버렸다면 되돌린다 — 더블클릭은 메모 편집 의도 */
     if (lastAutoLabel && lastAutoLabel.itemId === hit.item.id &&
         performance.now() - lastAutoLabel.t < 600) {
-      Annotation.removeSub(lastAutoLabel.itemId, 'L' + lastAutoLabel.lid);
+      Annotation.removeSub(lastAutoLabel.itemId, 'L' + lastAutoLabel.lid, { undo: false });
       lastAutoLabel = null;
     }
     dragState.active = false;
@@ -543,6 +669,7 @@ const CanvasManager = (() => {
     if (!mergeMode) mergeSel = [];
     else {
       selectedItemId = null;
+      selectedIds.clear();
       cancelDraw();
       /* 툴바 버튼 클릭으로 켜지므로 재진입 대기가 걸려 있다 — 첫 선택 클릭이 먹히지 않게 해제 */
       needsReactivation = false;
@@ -687,7 +814,7 @@ const CanvasManager = (() => {
     }
 
     items.forEach(item => {
-      const isSelected = (item.id === selectedItemId);
+      const isSelected = (item.id === selectedItemId) || selectedIds.has(item.id);
       const boxList = item.noNum ? [] : _buildBoxList(item, Annotation.getConfig().prefix);
       if (item.shape) _drawShape({ ...item, boxList, selected: isSelected });
       else            _drawLeader({ ...item, boxList, preview: false, selected: isSelected });
@@ -696,6 +823,8 @@ const CanvasManager = (() => {
         if (k !== -1) _drawMergeMark(item, k);
       }
     });
+
+    if (boxSel) _drawBoxSel();
 
     if (afterRenderCb) afterRenderCb(ctx, drawCanvas.width, drawCanvas.height);
   }
@@ -1253,6 +1382,7 @@ const CanvasManager = (() => {
   function cancelDraw()    {
     drawState.phase = 0; drawState.p1 = null; drawState.previewP2 = null;
     shapeState.collecting = false; shapeState.points = []; shapeState.cursor = null;
+    boxSel = null;
     renderAnnotations(Annotation.getAll());
   }
 
@@ -1383,13 +1513,16 @@ const CanvasManager = (() => {
   }
 
   function getSelectedId() { return selectedItemId; }
+  function getSelectedIds() { return [..._currentSel()]; }
   function clearSelection() {
     selectedItemId = null;
+    selectedIds.clear();
     renderAnnotations(Annotation.getAll());
   }
   /* 사이드바 목록에서 선택 — onSelectItem 콜백은 호출하지 않는다(사이드바 선택이 되돌려 지워짐 방지) */
   function selectItem(id) {
     if (mergeMode) return;
+    selectedIds.clear();
     selectedItemId = (id === null || id === undefined) ? null : Number(id);
     renderAnnotations(Annotation.getAll());
   }
@@ -1400,6 +1533,8 @@ const CanvasManager = (() => {
     _imgLayout = null;
     drawState.phase = 0; drawState.p1 = null; drawState.previewP2 = null;
     selectedItemId = null;
+    selectedIds.clear();
+    boxSel = null;
     if (imgEl) { imgEl.onload = null; imgEl.src = ''; imgEl.style.display = 'none'; }
     if (drawCanvas) { drawCanvas.width = 0; drawCanvas.height = 0; }
     if (container) { container.style.width = '0px'; container.style.height = '0px'; }
@@ -1456,7 +1591,7 @@ const CanvasManager = (() => {
     getCanvasSize, getCanvas, getImage,
     zoomIn, zoomOut, onAdd, onStateChange, setAfterRender, onAddLabel, onAddShape, finishShape,
     createPageExport, renderAnnotationsTo,
-    getSelectedId, clearSelection, selectItem, clear, onSelect,
+    getSelectedId, getSelectedIds, clearSelection, selectItem, clear, onSelect,
     onEditNote, onMergeSel, setMergeMode, isMergeMode, getMergeSel,
     onImageScale, setShowBounds, getShowBounds,
   };

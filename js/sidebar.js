@@ -299,8 +299,8 @@ const Sidebar = (() => {
 
     wrap.innerHTML = preview.map(row => {
       const { label, oldName, newName, status } = row;
-      const cls = { ready:'rp-ready', same:'rp-same', nomatch:'rp-nomatch', ok:'rp-ok', error:'rp-error' }[status] || '';
-      const statusText = { ready:'▶', same:'=', nomatch:'−', ok:'✓', error:'✗' }[status] || '';
+      const cls = { ready:'rp-ready', same:'rp-same', nomatch:'rp-nomatch', ok:'rp-ok', error:'rp-error', conflict:'rp-error' }[status] || '';
+      const statusText = { ready:'▶', same:'변환됨', nomatch:'−', ok:'✓', error:'✗', conflict:'중복' }[status] || '';
       return `
         <div class="rename-preview-row ${cls}">
           <span class="rp-label">${label}</span>
