@@ -1281,7 +1281,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     showMsg('범례 ' + (e.target.checked ? 'ON' : 'OFF'), 'info');
   });
 
-  /* ── 프로젝트 저장 (.qspec) ── */
+  /* ── 프로젝트 저장 (.numdraw) ── */
   document.getElementById('btn-save-project').addEventListener('click', async () => {
     try {
       const saved = await StorageManager.exportFile();
@@ -2198,6 +2198,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
       const data = JSON.parse(startupContent);
       await _restoreProject(data);
+      StorageManager.markFileClean();
       showMsg('프로젝트를 열었습니다', 'success');
     } catch (e) {
       showMsg('파일 열기 실패: ' + e.message, 'warn');
@@ -2211,6 +2212,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       );
       if (restored) {
         await _restoreProject(savedSession);
+        StorageManager.markFileClean();
         showMsg('이전 작업을 불러왔습니다', 'success');
       }
     }
@@ -2223,6 +2225,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!confirm('현재 작업을 닫고 선택한 프로젝트를 여시겠습니까?')) return;
         const data = JSON.parse(content);
         await _restoreProject(data);
+        StorageManager.markFileClean();
         showMsg('프로젝트를 열었습니다', 'success');
       } catch (e) {
         showMsg('파일 열기 실패: ' + e.message, 'warn');
@@ -2230,13 +2233,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  /* ── beforeunload 경고 ── */
-  window.addEventListener('beforeunload', e => {
-    if (StorageManager.isDirty()) {
-      e.preventDefault();
-      e.returnValue = '';
-    }
-  });
+  /* ── 종료 시 저장 확인 ──
+     Electron: 메인 프로세스가 예/아니오/취소 대화상자를 띄우고, "예"면 여기서 파일 저장 후 닫는다.
+     Electron 에서 beforeunload 를 막으면 창이 말없이 안 닫히므로 브라우저에서만 건다. */
+  if (window.electronAPI && window.electronAPI.onSaveBeforeClose) {
+    StorageManager.onFileDirtyChange(v => window.electronAPI.setDirty(v));
+    window.electronAPI.setDirty(StorageManager.hasUnsavedFileChanges());
+    window.electronAPI.onSaveBeforeClose(async () => {
+      try {
+        const saved = await StorageManager.exportFile();
+        if (saved !== false) window.electronAPI.closeNow();
+      } catch (e) {
+        showMsg('저장 실패: ' + e.message, 'warn');
+      }
+    });
+  } else {
+    window.addEventListener('beforeunload', e => {
+      if (StorageManager.isDirty()) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    });
+  }
 
   /* ── 초기 상태 ── */
   document.querySelector('.tool-btn[data-tool="arrow"]').classList.add('active');

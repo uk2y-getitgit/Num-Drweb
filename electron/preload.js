@@ -12,6 +12,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('open-project-file', (_, content) => callback(content));
   },
 
+  /* 종료 시 저장 확인 — 렌더러가 파일 미저장 여부를 알려주고, "예"를 고르면 저장 후 닫기 요청 */
+  setDirty:          (v)        => ipcRenderer.send('app:set-dirty', !!v),
+  onSaveBeforeClose: (callback) => ipcRenderer.on('app:save-before-close', () => callback()),
+  closeNow:          ()         => ipcRenderer.send('app:close-now'),
+
   /* 라이선스 — 검증은 전부 메인 프로세스에서 수행하고 결과만 받는다 */
   license: {
     getStatus:  ()    => ipcRenderer.invoke('license:status'),

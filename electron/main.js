@@ -6,7 +6,7 @@
 */
 'use strict';
 
-const { app, BrowserWindow, protocol, net, screen, ipcMain } = require('electron');
+const { app, BrowserWindow, protocol, net, screen, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs   = require('fs');
 
@@ -99,7 +99,40 @@ ipcMain.handle('license:deactivate', () => {
 /* ── BrowserWindow 생성 ── */
 let mainWindow = null;
 
+/* ── 종료 시 저장 확인 ──
+   렌더러가 프로젝트 파일 미저장 여부를 계속 알려준다. 렌더러가 멈춰 있으면 false 로 남아 그냥 닫힌다. */
+let hasUnsaved = false;
+let forceClose = false;
+
+ipcMain.on('app:set-dirty', (_e, v) => { hasUnsaved = !!v; });
+ipcMain.on('app:close-now', () => {
+  forceClose = true;
+  if (mainWindow) mainWindow.close();
+});
+
+function onWindowClose(e) {
+  if (forceClose || !hasUnsaved) return;
+  e.preventDefault();
+  const choice = dialog.showMessageBoxSync(mainWindow, {
+    type:     'question',
+    title:    'Quickspect',
+    message:  '변경사항이 있습니다.',
+    detail:   '저장하시겠습니까?',
+    buttons:  ['예', '아니오', '취소'],
+    defaultId: 0,
+    cancelId:  2,
+    noLink:    true,
+  });
+  if (choice === 0) {
+    mainWindow.webContents.send('app:save-before-close');   // 저장 성공 시 렌더러가 app:close-now 로 응답
+  } else if (choice === 1) {
+    forceClose = true;
+    setImmediate(() => mainWindow && mainWindow.close());
+  }
+}
+
 function createWindow() {
+  forceClose = false;
   const saved = loadWindowState();
   const { width: sw, height: sh } = screen.getPrimaryDisplay().workAreaSize;
 
@@ -130,6 +163,8 @@ function createWindow() {
   mainWindow.loadURL('app://localhost/index.html');
   mainWindow.once('ready-to-show', () => mainWindow.show());
   ['resize', 'move'].forEach(ev => mainWindow.on(ev, () => saveWindowState(mainWindow)));
+  mainWindow.on('close', onWindowClose);
+  mainWindow.on('closed', () => { mainWindow = null; });
 }
 
 app.whenReady().then(() => {

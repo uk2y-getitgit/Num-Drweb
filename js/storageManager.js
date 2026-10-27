@@ -7,6 +7,9 @@ const StorageManager = (() => {
   let _debounceTimer = null;
   let _onStatusChange = null;
   let _getProject = null;   // app.js가 등록하는 전체 프로젝트(두 작업공간) 빌더
+  // 자동저장과 별개로 "프로젝트 파일에 아직 안 쓴 변경"이 있는지 — 종료 시 저장 확인용
+  let _fileDirty = false;
+  let _onFileDirtyChange = null;
 
   // ── 탭 고유 ID (sessionStorage 기반 — F5 새로고침 후 유지, 탭 닫으면 소멸)
   let _tabId = sessionStorage.getItem('numdraw_tabId');
@@ -25,6 +28,15 @@ const StorageManager = (() => {
 
   // ── 전체 프로젝트 빌더 등록 (두 작업공간 내보내기용)
   function setProjectProvider(fn) { _getProject = fn; }
+
+  // ── 파일 미저장 상태 변경 알림 등록
+  function onFileDirtyChange(fn) { _onFileDirtyChange = fn; }
+
+  function _setFileDirty(v) {
+    if (_fileDirty === v) return;
+    _fileDirty = v;
+    if (_onFileDirtyChange) _onFileDirtyChange(v);
+  }
 
   // ── 30일 이상 된 세션 정리 (다른 탭이 닫힌 뒤 남은 잔류 데이터 제거)
   function _cleanupOldSessions() {
@@ -223,7 +235,7 @@ const StorageManager = (() => {
     }
   }
 
-  // ── .qspec 파일로 내보내기
+  // ── .numdraw 파일로 내보내기 (리브랜딩 배포 전까지 .numdraw 유지)
   async function exportFile() {
     try {
       // 1. 전체 프로젝트 데이터 구성 (provider가 있으면 두 작업공간 + 이미지 인라인)
@@ -247,7 +259,7 @@ const StorageManager = (() => {
 
       const jsonString = JSON.stringify(data, null, 2);
       const projectTitle = TitleBlock.getSettings().projectTitle || 'quickspect';
-      const suggestedName = projectTitle + '.qspec';
+      const suggestedName = projectTitle + '.numdraw';
 
       // 5. showSaveFilePicker 시도 (Chrome/Edge)
       if (window.showSaveFilePicker) {
@@ -257,7 +269,7 @@ const StorageManager = (() => {
             types: [
               {
                 description: '퀵스도면 프로젝트 파일',
-                accept: { 'application/json': ['.qspec', '.numdraw'] },
+                accept: { 'application/json': ['.numdraw', '.qspec'] },
               },
             ],
           });
@@ -267,6 +279,7 @@ const StorageManager = (() => {
           await writable.close();
 
           _isDirty = false;
+          _setFileDirty(false);
           return;
         } catch (e) {
           if (e.name === 'AbortError') {
@@ -288,6 +301,7 @@ const StorageManager = (() => {
       setTimeout(() => URL.revokeObjectURL(url), 5000);
 
       _isDirty = false;
+      _setFileDirty(false);
     } catch (e) {
       throw new Error('파일 저장 실패: ' + e.message);
     }
@@ -323,6 +337,7 @@ const StorageManager = (() => {
   // ── 미저장 상태로 변경 + debounce 저장
   function markDirty() {
     _isDirty = true;
+    _setFileDirty(true);
     if (_onStatusChange) _onStatusChange('unsaved');
 
     clearTimeout(_debounceTimer);
@@ -344,6 +359,14 @@ const StorageManager = (() => {
     return _isDirty;
   }
 
+  // ── 프로젝트 파일 기준 미저장 여부 / 깨끗한 상태로 표시 (파일 열기·세션 복원 직후)
+  function hasUnsavedFileChanges() {
+    return _fileDirty;
+  }
+  function markFileClean() {
+    _setFileDirty(false);
+  }
+
   // ── 전체 세션 삭제 (현재 탭 데이터만)
   async function clearSession() {
     localStorage.removeItem(_sessionKey);
@@ -355,6 +378,9 @@ const StorageManager = (() => {
   return {
     init,
     setProjectProvider,
+    onFileDirtyChange,
+    hasUnsavedFileChanges,
+    markFileClean,
     markDirty,
     saveSession,
     loadSession,
