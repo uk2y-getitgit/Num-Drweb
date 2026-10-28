@@ -12,6 +12,13 @@ const fs   = require('fs');
 
 const ROOT = path.join(__dirname, '..');
 
+/* ── 데이터 폴더는 리브랜딩 전 이름(%APPDATA%\NumDraw)을 그대로 쓴다 ──
+   앱 이름이 바뀌면 userData 경로도 바뀌어 license.json·자동저장(IndexedDB)·테마가 전부 끊긴다.
+   단일 인스턴스 잠금·창 상태 파일이 userData 를 쓰므로 그보다 먼저 지정해야 한다.
+   ⚠ 리브랜딩해도 바꾸지 말 것 (fingerprint.js SALT 와 같은 이유) */
+app.setPath('userData', path.join(app.getPath('appData'),
+  app.getName().replace(/^quickspect/i, 'NumDraw')));
+
 /* ── 시작 인자에서 프로젝트 파일 경로 추출 (.qspec 신규 · .numdraw 구 확장자) ── */
 let openFilePath = process.argv.find(a => /\.(qspec|numdraw)$/i.test(a)) || null;
 
