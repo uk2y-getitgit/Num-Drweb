@@ -4,25 +4,56 @@
 const FileManager = (() => {
   let photos       = [];
   let folderHandle = null;
+  let folderName   = null;
+  let exePath      = null;
   let onPhotoLoad  = null;
 
+  /* Electron 이면 메인 프로세스 경로(fs.rename), 브라우저면 File System Access API */
+  const NATIVE = (typeof window !== 'undefined' && window.electronAPI && window.electronAPI.photos) || null;
+  const IMG_EXT = ['jpg','jpeg','png','gif','bmp','webp'];
+
   function init(callback) { onPhotoLoad = callback; }
+
+  function _addPhoto(name, handle) {
+    const ext = name.split('.').pop().toLowerCase();
+    if (!IMG_EXT.includes(ext)) return;
+    photos.push({ name, num: _extractNum(name), handle, converted: _isConverted(name) });
+  }
+
+  /* 메인 프로세스에서 읽어 오는 파일 핸들 — FSA 핸들과 같은 getFile() 모양 */
+  function _nativeHandle(name) {
+    return {
+      kind: 'file', name,
+      async getFile() {
+        const bytes = await NATIVE.read(name);
+        const ext   = name.split('.').pop().toLowerCase();
+        return new File([bytes], name, { type: 'image/' + (ext === 'jpg' ? 'jpeg' : ext) });
+      },
+    };
+  }
 
   /* ── 폴더 선택 (readwrite 모드 — 파일명 변경 지원) ── */
   async function selectFolder() {
     try {
-      folderHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
-      photos = [];
-      for await (const [name, handle] of folderHandle.entries()) {
-        if (handle.kind !== 'file') continue;
-        const ext = name.split('.').pop().toLowerCase();
-        if (!['jpg','jpeg','png','gif','bmp','webp'].includes(ext)) continue;
-        const num = _extractNum(name);
-        photos.push({ name, num, handle, converted: _isConverted(name) });
+      if (NATIVE) {
+        const res = await NATIVE.pickFolder();
+        if (!res) return null;
+        folderHandle = null;
+        folderName   = res.name;
+        exePath      = res.exePath || null;
+        photos = [];
+        res.files.forEach(name => _addPhoto(name, _nativeHandle(name)));
+      } else {
+        folderHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+        folderName   = folderHandle.name;
+        photos = [];
+        for await (const [name, handle] of folderHandle.entries()) {
+          if (handle.kind === 'file') _addPhoto(name, handle);
+        }
       }
       photos.sort((a, b) => (a.num || 0) - (b.num || 0));
       if (onPhotoLoad) onPhotoLoad(photos);
-      return folderHandle.name;
+      return folderName;
     } catch (e) {
       if (e.name !== 'AbortError') console.error('폴더 선택 오류', e);
       return null;
@@ -135,7 +166,7 @@ const FileManager = (() => {
 
   /* ── 일괄 파일명 변경 ── */
   async function renameAll(annotations) {
-    if (!folderHandle) throw new Error('폴더가 선택되지 않았습니다');
+    if (!folderName) throw new Error('폴더가 선택되지 않았습니다');
     const preview = buildRenamePreview(annotations);
     const results = [];
     const processedOldNames = new Set(); /* 중복 원본 파일 재처리 방지 */
@@ -154,6 +185,24 @@ const FileManager = (() => {
 
       const photo = photos.find(p => p.name === row.oldName);
       if (!photo) { results.push({ ...row, status: 'error', error: '파일을 찾을 수 없음' }); continue; }
+
+      if (NATIVE) {
+        /* 이름만 바꾼다 — 파일 내용을 다시 쓰지 않으므로 보안 프로그램 차단을 덜 받는다 */
+        const r = await NATIVE.rename(photo.name, row.newName);
+        if (r.ok) {
+          photo.name      = row.newName;
+          photo.handle    = _nativeHandle(row.newName);
+          photo.num       = _extractNum(row.newName);
+          photo.converted = true;
+          processedOldNames.add(row.oldName);
+          results.push({ ...row, status: 'ok' });
+        } else if (r.code === 'EEXIST') {
+          results.push({ ...row, status: 'conflict', error: r.message });
+        } else {
+          results.push({ ...row, status: 'error', error: r.message, blocked: _isBlockCode(r.code) });
+        }
+        continue;
+      }
 
       /* 미리보기 이후 폴더가 바뀌었을 수 있으므로 쓰기 직전에 한 번 더 확인한다 */
       if (await _exists(row.newName)) {
@@ -178,13 +227,17 @@ const FileManager = (() => {
         results.push({ ...row, status: 'ok' });
       } catch (e) {
         /* 개별 파일 오류는 기록 후 다음 항목으로 계속 진행 */
-        results.push({ ...row, status: 'error', error: e.message });
+        results.push({ ...row, status: 'error', error: e.message,
+                       blocked: e.name === 'NotAllowedError' || e.name === 'NoModificationAllowedError' });
       }
     }
 
     if (onPhotoLoad) onPhotoLoad(photos);
     return results;
   }
+
+  /* 권한 거부·사용 중 — 보안 프로그램이 막았을 때 나오는 오류 코드 */
+  function _isBlockCode(code) { return ['EPERM', 'EACCES', 'EBUSY'].includes(code); }
 
   async function _exists(name) {
     try { await folderHandle.getFileHandle(name); return true; }
@@ -200,11 +253,12 @@ const FileManager = (() => {
   }
 
   function getPhotos()    { return photos; }
-  function getFolderName() { return folderHandle ? folderHandle.name : null; }
+  function getFolderName() { return folderName; }
+  function getExePath()    { return exePath; }
 
   return {
     init, selectFolder,
     extractPhotoName, autoMatch, buildRenamePreview, renameAll,
-    getPhotoURL, getPhotos, getFolderName,
+    getPhotoURL, getPhotos, getFolderName, getExePath,
   };
 })();

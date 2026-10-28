@@ -189,6 +189,10 @@
         <label class="toggle"><input type="checkbox" id="ortho-toggle-side"><span class="toggle-slider"></span></label>
         <span class="kbd">Q</span>
       </span>
+      <span class="ctrl-toggle-row" title="번호박스를 주변 번호박스의 가로·세로 줄에 맞춥니다">스냅
+        <label class="toggle"><input type="checkbox" id="snap-toggle-side" checked><span class="toggle-slider"></span></label>
+        <span class="kbd">G</span>
+      </span>
     </div>
   </div>
 
@@ -326,6 +330,9 @@
         <button class="btn btn-accent drop-btn" id="btn-open-drop">파일 선택</button>
       </div>
 
+      <!-- 그리기 2단계 안내 — 커서 옆에 따라다닌다 -->
+      <div id="cursor-tip" class="hidden"></div>
+
       <!-- 도면 컨테이너 -->
       <div id="canvas-container">
         <img id="drawing-img" alt="" draggable="false" style="display:block;user-select:none;">
@@ -342,7 +349,7 @@
         <span class="kbd">Shift+드래그</span> 여러 개 선택
         <span class="kbd">Del</span> 삭제
         <span class="csep"></span>
-        <span class="dim">Q 직교 · R 반전(선택 시 해당 지시선) · A/D/S 도구 · 1~4 선 · W 선순환 · Enter 도형완료 · F5 맞추기</span>
+        <span class="dim">Q 직교 · G 스냅 · R 반전(선택 시 해당 지시선) · A/D/S 도구 · 1~4 선 · W 선순환 · Enter 도형완료 · F5 맞추기</span>
       </div>
 
       <!-- 줌 컨트롤 — 줌은 도면 위 이 자리 하나로 통일 -->

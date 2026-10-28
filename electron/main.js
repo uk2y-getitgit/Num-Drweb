@@ -103,6 +103,47 @@ ipcMain.handle('license:deactivate', () => {
   catch { return TRIAL_FALLBACK; }
 });
 
+/* ── 사진 폴더 ──
+   파일명 변환을 '읽기 → 새 파일 쓰기 → 원본 삭제'로 하면 보안 프로그램(알약 등)의
+   랜섬웨어 차단에 걸린다. 메인 프로세스에서 fs.rename 으로 이름만 바꾼다.
+   렌더러는 파일 이름만 넘기고, 경로는 사용자가 고른 폴더 밖으로 나갈 수 없다. */
+let photoDir = null;
+
+function _photoPath(name) {
+  if (!photoDir) throw new Error('폴더가 선택되지 않았습니다');
+  const base = path.basename(String(name || ''));
+  if (!base || base !== name || base === '.' || base === '..') throw new Error('잘못된 파일명: ' + name);
+  return path.join(photoDir, base);
+}
+
+ipcMain.handle('photos:pick', async () => {
+  const r = await dialog.showOpenDialog(mainWindow, { properties: ['openDirectory'] });
+  refocusWindow();
+  if (r.canceled || !r.filePaths.length) return null;
+  photoDir = r.filePaths[0];
+  const ents = await fs.promises.readdir(photoDir, { withFileTypes: true });
+  return {
+    name:    path.basename(photoDir),
+    files:   ents.filter(e => e.isFile()).map(e => e.name),
+    exePath: process.execPath,
+  };
+});
+
+ipcMain.handle('photos:read', (_e, name) => fs.promises.readFile(_photoPath(name)));
+
+ipcMain.handle('photos:rename', async (_e, oldName, newName) => {
+  try {
+    const from = _photoPath(oldName);
+    const to   = _photoPath(newName);
+    /* Windows 의 rename 은 대상이 있으면 덮어쓰므로 먼저 막는다 */
+    if (fs.existsSync(to)) return { ok: false, code: 'EEXIST', message: '같은 이름의 파일이 이미 있음' };
+    await fs.promises.rename(from, to);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, code: e.code || 'ERROR', message: e.message };
+  }
+});
+
 /* ── BrowserWindow 생성 ── */
 let mainWindow = null;
 
@@ -110,6 +151,17 @@ let mainWindow = null;
    렌더러가 프로젝트 파일 미저장 여부를 계속 알려준다. 렌더러가 멈춰 있으면 false 로 남아 그냥 닫힌다. */
 let hasUnsaved = false;
 let forceClose = false;
+
+/* ── 대화상자 뒤 키보드 포커스 복구 ──
+   Windows 의 Electron 은 confirm()·alert()·대화상자가 닫힌 뒤 창이 키보드 포커스를 되찾지 못해
+   입력칸을 클릭해도 글자가 안 들어간다(다른 창을 눌렀다 오면 풀림). 그 동작을 대신 해 준다. */
+function refocusWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.blur();
+  mainWindow.focus();
+  mainWindow.webContents.focus();
+}
+ipcMain.on('app:refocus', refocusWindow);
 
 ipcMain.on('app:set-dirty', (_e, v) => { hasUnsaved = !!v; });
 ipcMain.on('app:close-now', () => {
@@ -135,6 +187,8 @@ function onWindowClose(e) {
   } else if (choice === 1) {
     forceClose = true;
     setImmediate(() => mainWindow && mainWindow.close());
+  } else {
+    refocusWindow();
   }
 }
 

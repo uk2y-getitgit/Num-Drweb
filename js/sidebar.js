@@ -7,6 +7,28 @@ const Sidebar = (() => {
   let onMatchPhoto = null;
   let onEditNote   = null;
   let selectedId   = null;
+  let editingId    = null;   // 결함종류 선택칸을 연 항목 — 행 선택과 분리해 ✎ 버튼으로만 연다
+  let pendingFocusRow = null; // 클릭으로 옮겨 가려던 사진번호 칸 (data-row)
+
+  /* 방금 추가·변경된 행 강조 — 목록이 연달아 다시 그려져도 애니메이션이 끊기지 않게 시작 시각을 기억한다 */
+  const FLASH_MS = 900;
+  const flashAt  = new Map();     // id → 시작 시각
+  let seenIds    = null;          // 직전 렌더의 현재 페이지 id 목록
+  let seenPage   = null;
+
+  function flash(id) { flashAt.set(String(id), Date.now()); }
+
+  function _trackAdded(items, allPages) {
+    const page = allPages ? ((allPages.find(p => p.isActive) || {}).id ?? null) : 'single';
+    const ids  = items.map(i => String(i.id));
+    /* 같은 페이지에서 몇 개만 새로 생긴 경우만 — 페이지 전환·불러오기는 강조하지 않는다 */
+    if (seenIds && seenPage === page) {
+      const added = ids.filter(id => !seenIds.has(id));
+      if (added.length && added.length <= 3) added.forEach(flash);
+    }
+    seenIds  = new Set(ids);
+    seenPage = page;
+  }
 
   function init(callbacks) {
     onSelectNum  = callbacks.onSelectNum;
@@ -27,6 +49,7 @@ const Sidebar = (() => {
     if (counter) counter.textContent = items.length;
     const cv = document.querySelector('.count-val');
     if (cv)  cv.textContent = items.length;
+    _trackAdded(items, allPages);
 
     const cats = Annotation.getCategories();
     const cfg  = Annotation.getConfig();
@@ -81,17 +104,31 @@ const Sidebar = (() => {
 
     wrap.innerHTML = html;
 
+    /* 강조 행 — 이미 흐른 시간만큼 애니메이션을 앞당겨 이어 붙이고, 막 생긴 행은 보이게 스크롤 */
+    const now = Date.now();
+    flashAt.forEach((t, id) => {
+      const age = now - t;
+      if (age >= FLASH_MS) { flashAt.delete(id); return; }
+      const row = wrap.querySelector(`.num-item[data-active="true"][data-id="${id}"]:not(.num-item-sub)`);
+      if (!row) return;
+      row.classList.add('flash');
+      row.style.animationDelay = `-${age}ms`;
+      if (age < 60) row.scrollIntoView({ block: 'nearest' });
+    });
+
     /* ── 이벤트 바인딩 (현재 페이지 활성 항목만) ── */
     wrap.querySelectorAll('.num-item[data-active="true"]').forEach(el => {
       el.addEventListener('click', e => {
-        if (e.target.closest('.num-del') || e.target.closest('.photo-num-input')) return;
+        if (e.target.closest('.num-del') || e.target.closest('.num-edit') ||
+            e.target.closest('.num-category-selector') || e.target.closest('.photo-num-input')) return;
         selectedId = el.dataset.id;
         if (onSelectNum) onSelectNum(Number(el.dataset.id));
         renderNumList(items, allPages);
       });
       /* 더블클릭 → 메모 편집 (캔버스 번호박스 더블클릭과 동일) */
       el.addEventListener('dblclick', e => {
-        if (e.target.closest('.num-del') || e.target.closest('.photo-num-input')) return;
+        if (e.target.closest('.num-del') || e.target.closest('.num-edit') ||
+            e.target.closest('.num-category-selector') || e.target.closest('.photo-num-input')) return;
         if (onEditNote) onEditNote(Number(el.dataset.id), el.dataset.sub || '');
       });
     });
@@ -107,10 +144,16 @@ const Sidebar = (() => {
     wrap.querySelectorAll('.photo-num-input').forEach((input, _i, arr) => {
       input.addEventListener('click', e => e.stopPropagation());
       input.addEventListener('dblclick', e => e.stopPropagation());
+      /* 다른 칸을 누르면 이전 칸 blur → 목록이 다시 그려져 누른 칸이 사라진다.
+         눌린 칸을 기억해 두었다가 다시 그린 뒤 그 칸에 포커스를 돌려준다 (한 번 클릭으로 이동) */
+      input.addEventListener('mousedown', () => { pendingFocusRow = input.dataset.row; });
+      /* 들어가면 값 전체 선택 — 바로 새 번호를 쳐서 덮어쓴다 (클릭 위치에 커서가 놓여 '97' 이 되는 것 방지) */
+      input.addEventListener('focus',     () => { pendingFocusRow = null; setTimeout(() => input.select(), 0); });
       input.addEventListener('blur', e => {
+        const val = e.target.value.trim();
+        if (val === e.target.defaultValue.trim()) return;   // 값이 그대로면 다시 그리지 않는다
         const id     = Number(e.target.dataset.id);
         const subKey = e.target.dataset.sub || '';
-        const val    = e.target.value.trim();
         Annotation.updateSub(id, subKey, { customPhotoNum: val !== '' ? Number(val) : null });
       });
       /* Tab 키 순차 이동 — blur로 DOM 재구성 후 포커스 복구 */
@@ -131,15 +174,31 @@ const Sidebar = (() => {
       });
     });
 
+    wrap.querySelectorAll('.num-edit').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        editingId = editingId === btn.dataset.id ? null : btn.dataset.id;
+        renderNumList(items, allPages);
+      });
+    });
+
     wrap.querySelectorAll('.num-cat-btn').forEach(btn => {
       btn.addEventListener('click', e => {
         e.stopPropagation();
         const id  = Number(btn.dataset.id);
         const cat = btn.dataset.cat;
+        editingId = null;
+        flash(id);
         Annotation.updateItem(id, { category: cat });
         renderNumList(items, allPages);
       });
     });
+
+    if (pendingFocusRow) {
+      const target = wrap.querySelector(`.photo-num-input[data-row="${pendingFocusRow}"]`);
+      pendingFocusRow = null;
+      if (target) { target.focus(); target.select(); }
+    }
   }
 
   /* 목록 표시 순서 — 장비별로 묶어 번호순 (삭제 후 재마킹해도 번호 자리에 표시) */
@@ -247,7 +306,11 @@ const Sidebar = (() => {
     }
 
     const isSelected = String(item.id) === String(selectedId);
-    const catBtns = (isSelected && !isEquipItem && !sub) ? `
+    const canEdit    = !isEquipItem && !sub;
+    const isEditing  = canEdit && String(item.id) === String(editingId);
+    const editBtn    = canEdit ? `<button class="num-edit${isEditing ? ' on' : ''}" data-id="${item.id}"
+          title="결함종류 수정">✎</button>` : '';
+    const catBtns = isEditing ? `
       <div class="num-category-selector">
         ${Object.entries(cats).map(([key, info2]) => {
           const active = item.category === key;
@@ -271,6 +334,7 @@ const Sidebar = (() => {
         <input type="number" class="photo-num-input" value="${customVal}"
           placeholder="${num}" data-id="${item.id}" data-sub="${subKey}"
           data-row="${rowKey}" title="사진 매칭 번호 (빈칸: 기본)">
+        ${editBtn}
         <button class="num-del" data-id="${item.id}" data-sub="${subKey}"
           title="${delTitle}">✕</button>
       </div>`;

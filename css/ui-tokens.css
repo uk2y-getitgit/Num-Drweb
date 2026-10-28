@@ -472,6 +472,16 @@ button,input{font-family:inherit}
 }
 .num-item:hover .num-del{opacity:1}
 .num-del:hover{background:var(--dgr-soft)}
+.num-edit{
+  width:20px; height:20px; flex-shrink:0; padding:0; border:0; border-radius:var(--r-1);
+  background:transparent; color:var(--t-1); font-size:12px; cursor:pointer; opacity:0;
+}
+.num-item:hover .num-edit, .num-item.selected .num-edit{opacity:1}
+.num-edit:hover{background:var(--c-750); color:var(--t-0)}
+.num-edit.on{opacity:1; color:var(--sig); box-shadow:inset 0 -2px 0 var(--sig)}
+/* 결함종류 선택칸 — 행 아래 한 줄로 펼쳐 번호·종류 글자를 가리지 않는다 */
+.num-item{flex-wrap:wrap}
+.num-category-selector{order:99; flex-basis:100%; margin:2px 0 0 46px}
 
 /* 사이드바 섹션 (사진 · 조절 탭) */
 .sec{
@@ -614,3 +624,39 @@ body:not(:has(#dropzone.has-file)) #rail #btn-export-pdf:hover{
 /* 정리 버튼 4개(자동정렬·숫자정렬·합치기·전체삭제) — 사이드바 폭에서 2×2 로 접힌다 */
 #tab-nums .sec-row{flex-wrap:wrap}
 #tab-nums .sec-row .btn{min-width:calc(50% - 3px); justify-content:center}
+
+/* ── 조작 피드백 (v1.2.6) ─────────────────────────────────────
+   1 도면 재진입 대기  2 버튼 눌림  3 입력칸 포커스  4 커서 옆 안내  5 목록 강조
+   움직임은 0.2초 이내로 짧게, 반복 깜빡임은 쓰지 않는다 */
+
+/* 1. 사이드바·툴바를 쓴 뒤 도면의 첫 클릭은 입장 클릭 — 그동안 도면을 흐리게 */
+#canvas-container{transition:opacity .15s, filter .15s}
+#canvas-area.canvas-idle #canvas-container{opacity:.7; filter:saturate(.75)}
+
+/* 2. 누르는 순간 살짝 눌림 */
+button:not(:disabled):active{transform:translateY(1px); filter:brightness(.88)}
+
+/* 3. 지금 글자를 칠 수 있는 칸 — 테두리 + 번짐 링 */
+input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):focus,
+textarea:focus, select:focus{box-shadow:0 0 0 3px var(--sig-soft)}
+
+/* 4. 그리기 2단계 안내 — 커서를 따라다니며 클릭을 막지 않는다 */
+#cursor-tip{
+  position:absolute; left:0; top:0; z-index:30; pointer-events:none;
+  padding:4px 8px; border-radius:var(--r-1);
+  background:var(--float-bg-solid); color:var(--t-0); border:1px solid var(--c-700);
+  font:500 11px/1.2 var(--f-ui); white-space:nowrap;
+}
+#cursor-tip.hidden{display:none}
+
+/* 5. 방금 추가·변경된 넘버링 행 — 한 번만 옅게 번졌다 사라진다 */
+@keyframes num-flash{
+  from{background:var(--ok-soft); box-shadow:inset 3px 0 0 var(--ok)}
+  to  {background:transparent;    box-shadow:inset 3px 0 0 transparent}
+}
+/* backwards — 끝난 뒤에는 원래 배경(선택 행이면 선택색)으로 돌아간다 */
+.num-item.flash{animation:num-flash .9s ease-out backwards}
+
+@media (prefers-reduced-motion: reduce){
+  #canvas-container, .num-item.flash{transition:none; animation:none}
+}

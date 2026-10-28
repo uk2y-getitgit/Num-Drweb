@@ -17,6 +17,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onSaveBeforeClose: (callback) => ipcRenderer.on('app:save-before-close', () => callback()),
   closeNow:          ()         => ipcRenderer.send('app:close-now'),
 
+  /* confirm()·alert() 뒤 키보드 포커스 복구 (Windows Electron 버그 우회) */
+  refocus:           ()         => ipcRenderer.send('app:refocus'),
+
+  /* 사진 폴더 — 파일명 변환은 메인 프로세스의 fs.rename 으로 처리한다 */
+  photos: {
+    pickFolder: ()                 => ipcRenderer.invoke('photos:pick'),
+    read:       (name)             => ipcRenderer.invoke('photos:read', name),
+    rename:     (oldName, newName) => ipcRenderer.invoke('photos:rename', oldName, newName),
+  },
+
   /* 라이선스 — 검증은 전부 메인 프로세스에서 수행하고 결과만 받는다 */
   license: {
     getStatus:  ()    => ipcRenderer.invoke('license:status'),

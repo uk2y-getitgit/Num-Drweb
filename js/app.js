@@ -1,6 +1,20 @@
 /* app.js — 메인 진입점 & 이벤트 연결 */
 'use strict';
 
+/* ── 대화상자 뒤 입력 먹통 방지 (Electron · Windows) ──
+   confirm()·alert() 가 닫힌 뒤 창이 키보드 포커스를 잃어 입력칸에 글자가 안 들어간다.
+   대화상자가 닫히면 메인 프로세스에 포커스 복구를 요청한다. */
+if (window.electronAPI && window.electronAPI.refocus) {
+  const _confirm = window.confirm.bind(window);
+  const _alert   = window.alert.bind(window);
+  window.confirm = (msg) => { const r = _confirm(msg); window.electronAPI.refocus(); return r; };
+  window.alert   = (msg) => { _alert(msg); window.electronAPI.refocus(); };
+  /* 파일 선택 창 등 다른 경로로 포커스를 잃은 채 입력칸을 누르면 한 번 더 복구한다 */
+  document.addEventListener('mousedown', e => {
+    if (!document.hasFocus() && e.target.closest('input, textarea, select')) window.electronAPI.refocus();
+  }, true);
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   /* ── DOM 참조 ── */
   const wrap           = document.getElementById('canvas-wrap');   // 드래그앤드롭용
@@ -685,9 +699,27 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   /* ── 직교모드 ── */
   orthoToggle.addEventListener('change', () => {
-    CanvasManager.setOrtho(orthoToggle.checked);
-    showMsg('직교모드 ' + (orthoToggle.checked ? 'ON' : 'OFF'), 'info');
+    const on = orthoToggle.checked;
+    CanvasManager.setOrtho(on);
+    /* 선택된 지시선이 있으면 그 자리에서 바로 직교 정렬 / 원위치 */
+    const n = CanvasManager.applyOrthoToSelection(on);
+    showMsg('직교모드 ' + (on ? 'ON' : 'OFF') +
+            (n ? ` — 선택 ${n}개 ${on ? '직교 정렬' : '원위치'} (Ctrl+Z 복원)` : ''), 'info');
   });
+
+  /* ── 스냅(줄맞춤) — 기본 ON, 사용자별로 기억 ── */
+  const snapToggle = document.getElementById('snap-toggle-side');
+  let _snapSaved = null;
+  try { _snapSaved = localStorage.getItem('numdraw-snap'); } catch {}
+  CanvasManager.setSnap(_snapSaved !== '0');
+  if (snapToggle) {
+    snapToggle.checked = CanvasManager.isSnap();
+    snapToggle.addEventListener('change', () => {
+      CanvasManager.setSnap(snapToggle.checked);
+      try { localStorage.setItem('numdraw-snap', snapToggle.checked ? '1' : '0'); } catch {}
+      showMsg('스냅(줄맞춤) ' + (snapToggle.checked ? 'ON' : 'OFF'), 'info');
+    });
+  }
 
   /* ── 카테고리 ── */
   document.querySelectorAll('.cat-btn').forEach(btn => {
@@ -1015,6 +1047,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       orthoToggle.dispatchEvent(new Event('change'));
     }
 
+    /* G: 스냅(줄맞춤) */
+    if ((e.key === 'g' || e.key === 'G') && !e.ctrlKey && !e.metaKey && snapToggle) {
+      snapToggle.checked = !snapToggle.checked;
+      snapToggle.dispatchEvent(new Event('change'));
+    }
+
     /* R: 화살표 반전 (A-3) — 선택된 지시선이 있으면 그 지시선만, 없으면 새로 그릴 지시선 기본값 */
     if ((e.key === 'r' || e.key === 'R') && !e.ctrlKey && !e.metaKey) {
       const sel = CanvasManager.getSelectedIds();
@@ -1070,6 +1108,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   /* ── 파일명 일괄 변경 (C-3) ── */
+  const RENAME_COPY_NOTE = '\n\n※ 파일변환은 원본이름이 변경될 수 있으니 꼭 복사본을 사용하시기 바랍니다.';
   document.getElementById('btn-rename-all').addEventListener('click', async () => {
     /* 전체 페이지 항목 수집 (페이지별 접두어 포함) */
     const pagesData = _collectAllPagesData();
@@ -1089,11 +1128,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       const proceed = confirm(
         `매칭되지 않은 넘버링 ${nomatchItems.length}건이 있습니다.\n` +
         `[${nomatchLabels}]\n\n` +
-        `해당 항목은 변경에서 제외됩니다. 계속 진행하시겠습니까?`
+        `해당 항목은 변경에서 제외됩니다. 계속 진행하시겠습니까?` +
+        RENAME_COPY_NOTE
       );
       if (!proceed) return;
     } else {
-      if (!confirm('미리보기의 [▶ 준비] 항목을 모두 파일명 변경하시겠습니까?')) return;
+      if (!confirm('미리보기의 [▶ 준비] 항목을 모두 파일명 변경하시겠습니까?' + RENAME_COPY_NOTE)) return;
     }
 
     showMsg('파일명 변경 중...', 'info');
@@ -1114,6 +1154,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                   (dup  ? `, ${dup}건 같은 이름 있어 보류` : '') +
                   (err  ? `, ${err}건 오류`    : '');
       showMsg(msg, ok ? 'success' : 'warn');
+
+      /* 권한 거부로 실패 — 보안 프로그램 차단일 가능성이 높으므로 예외 등록 방법을 알린다 */
+      const blocked = results.filter(r => r.blocked).length;
+      if (blocked) {
+        const exe = FileManager.getExePath() || 'Quickspect.exe';
+        alert(
+          `파일 ${blocked}건의 이름을 바꾸지 못했습니다.\n\n` +
+          `알약·V3 등 보안 프로그램이 Quickspect 의 파일 작업을 차단했을 수 있습니다.\n` +
+          `보안 프로그램의 랜섬웨어 차단 설정(또는 Windows 보안 > 제어된 폴더 액세스)에서\n` +
+          `아래 프로그램을 예외로 추가한 뒤 다시 시도하세요.\n\n${exe}` +
+          RENAME_COPY_NOTE
+        );
+      }
 
       // 변환 완료 안내 영역 표시
       if (ok > 0) {
@@ -2013,6 +2066,34 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function _updateCursorHint(state) {
+    _setCursorHintText(state);
+    _updateCursorTip(state);
+  }
+
+  /* 커서 옆 안내 — 첫 클릭 뒤(2단계)에만 띄운다. 문구는 계기바 안내에서 '클릭:' 만 뗀다 */
+  /* 단계는 함수 속성에 둔다 — 초기화 중 cancelDraw() 가 먼저 불려도 let 선언 전 접근 오류가 나지 않게 */
+  function _updateCursorTip(state) {
+    const tip = document.getElementById('cursor-tip');
+    if (!tip) return;
+    if (state) _updateCursorTip.phase = state.phase || 0;
+    const hint = document.getElementById('cursor-hint');
+    const on   = _updateCursorTip.phase === 1 && !CanvasManager.isMergeMode() && !!hint;
+    if (on) tip.textContent = hint.textContent.replace(/^클릭:\s*/, '').replace(/\s*\|\s*/g, ' · ');
+    tip.classList.toggle('hidden', !on);
+  }
+  canvasArea.addEventListener('mousemove', e => {
+    const tip = document.getElementById('cursor-tip');
+    if (!tip || tip.classList.contains('hidden')) return;
+    const r = canvasArea.getBoundingClientRect();
+    tip.style.transform = `translate(${e.clientX - r.left + 16}px, ${e.clientY - r.top + 18}px)`;
+  });
+  canvasArea.addEventListener('mouseleave', () => {
+    const tip = document.getElementById('cursor-tip');
+    if (tip) tip.classList.add('hidden');
+  });
+  canvasArea.addEventListener('mouseenter', () => _updateCursorTip(null));
+
+  function _setCursorHintText(state) {
     const el = document.getElementById('cursor-hint');
     if (!el) return;
     /* 합치기 모드 중에는 합치기 안내를 유지 */

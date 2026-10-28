@@ -31,6 +31,12 @@ const CanvasManager = (() => {
   /* 사이드바 사용 후 캔버스 재진입 여부 — true면 첫 클릭을 입장 클릭으로 소비 */
   let needsReactivation = false;
 
+  /* 스냅(줄맞춤) — 번호박스를 주변 번호박스의 가로·세로 줄에 붙인다 */
+  let snapOn     = true;
+  let snapGuides = [];             // 화면 전용 안내선 [{ axis, v, a, b }]
+  /* 직교모드로 옮긴 번호박스의 원래 자리 — OFF 하면 되돌린다 (id → { from, to }) */
+  const orthoBackup = new Map();
+
   let drawState = {
     tool:      'arrow',
     ortho:     false,
@@ -218,7 +224,7 @@ const CanvasManager = (() => {
     /* Shift+드래그 = 선택박스(새로 선택), Ctrl+드래그 = 추가 선택 — 외관 모드 전용.
        여백에서 시작하는 경우가 많으므로 도면 영역 검사보다 먼저 분기한다 */
     if ((e.shiftKey || e.ctrlKey || e.metaKey) && _canBoxSelect()) {
-      needsReactivation = false;
+      _setIdle(false);
       boxSel = {
         start: cp, cur: cp,
         additive: !!(e.ctrlKey || e.metaKey),
@@ -237,7 +243,7 @@ const CanvasManager = (() => {
     /* 사이드바 사용 후 캔버스 재진입: 첫 클릭은 입장 클릭으로 소비.
        이때 사이드바에서 선택해 둔 항목도 함께 해제한다 (결함종류 버튼 닫기) */
     if (needsReactivation) {
-      needsReactivation = false;
+      _setIdle(false);
       wrap.style.cursor = 'crosshair';
       if (selectedItemId !== null || selectedIds.size) {
         selectedItemId = null;
@@ -323,7 +329,8 @@ const CanvasManager = (() => {
     } else {
       const savedP1 = drawState.p1;
       const kind    = drawState.shapeTool;
-      const p2      = kind ? cp : _applyOrtho(savedP1, cp);
+      const p2      = kind ? cp : _snapP2(_applyOrtho(savedP1, cp), savedP1, null);
+      snapGuides = [];
       drawState.phase     = 0;
       drawState.p1        = null;
       drawState.previewP2 = null;
@@ -381,10 +388,20 @@ const CanvasManager = (() => {
         renderAnnotations(Annotation.getAll());
         return;
       }
-      const newPos = {
+      let newPos = {
         x: cp.x - dragState.offsetX,
         y: cp.y - dragState.offsetY,
       };
+      /* 지시선 끝점 이동 — 직교모드면 반대쪽 점 기준으로 고정, 번호박스(p2)는 주변 줄에 스냅 */
+      const it = dragState.item;
+      if (!it.shape && it.type !== 'none' && (dragState.handle === 'p1' || dragState.handle === 'p2')) {
+        const other = dragState.handle === 'p1' ? it.p2 : it.p1;
+        newPos = _applyOrtho(other, newPos);
+        if (dragState.handle === 'p2') newPos = _snapP2(newPos, it.p1, it.id);
+        orthoBackup.delete(it.id);
+      } else if (!it.shape && it.type === 'none') {
+        newPos = _snapP2(newPos, null, it.id);
+      }
       const patch = { [dragState.handle]: newPos };
       /* 지시선 없음 항목은 p1·p2가 같은 점 — 함께 이동 */
       if (dragState.item.type === 'none') { patch.p1 = { ...newPos }; patch.p2 = { ...newPos }; }
@@ -395,7 +412,7 @@ const CanvasManager = (() => {
     if (drawState.phase === 1) {
       const cp = _toCanvasPos(e.clientX, e.clientY);
       /* 도형은 대각 두 점으로 정의되므로 직교모드를 적용하지 않는다 */
-      drawState.previewP2 = drawState.shapeTool ? cp : _applyOrtho(drawState.p1, cp);
+      drawState.previewP2 = drawState.shapeTool ? cp : _snapP2(_applyOrtho(drawState.p1, cp), drawState.p1, null);
       if (onDrawStateChange) onDrawStateChange(drawState);
       renderAnnotations(Annotation.getAll());
     } else if (drawState.phase === 0 && !isPanning) {
@@ -407,6 +424,7 @@ const CanvasManager = (() => {
   }
 
   function _onMouseUp(e) {
+    if (snapGuides.length) { snapGuides = []; renderAnnotations(Annotation.getAll()); }
     if (boxSel) { _finishBoxSel(e); return; }
     if (dragState.active) {
       const moved = mousedownPos
@@ -672,7 +690,7 @@ const CanvasManager = (() => {
       selectedIds.clear();
       cancelDraw();
       /* 툴바 버튼 클릭으로 켜지므로 재진입 대기가 걸려 있다 — 첫 선택 클릭이 먹히지 않게 해제 */
-      needsReactivation = false;
+      _setIdle(false);
     }
     wrap.style.cursor = mergeMode ? 'pointer' : 'crosshair';
     if (onMergeSelCb) onMergeSelCb(mergeSel.slice());
@@ -731,8 +749,49 @@ const CanvasManager = (() => {
 
   function _applyOrtho(p1, p2) {
     if (!drawState.ortho) return p2;
+    return _orthoPoint(p1, p2);
+  }
+  function _orthoPoint(p1, p2) {
     const dx = Math.abs(p2.x - p1.x), dy = Math.abs(p2.y - p1.y);
     return dx >= dy ? { x: p2.x, y: p1.y } : { x: p1.x, y: p2.y };
+  }
+
+  /* 번호박스 위치 p 를 주변 번호박스 중심의 x·y 에 붙인다 (화면 8px 이내).
+     직교모드로 고정된 축(지시점과 같은 x 또는 y)은 건드리지 않는다. 붙으면 안내선을 남긴다 */
+  function _snapP2(p, anchor, excludeId) {
+    snapGuides = [];
+    if (!snapOn) return p;
+    const tol   = 8 / zoom;
+    const lockX = !!(drawState.ortho && anchor && p.x === anchor.x);
+    const lockY = !!(drawState.ortho && anchor && p.y === anchor.y);
+    let bx = null, by = null;
+    Annotation.getAll().forEach(it => {
+      if (it.shape || !it.p2 || it.id === excludeId) return;
+      const dx = Math.abs(it.p2.x - p.x), dy = Math.abs(it.p2.y - p.y);
+      if (!lockX && dx <= tol && (!bx || dx < bx.d)) bx = { d: dx, o: it.p2 };
+      if (!lockY && dy <= tol && (!by || dy < by.d)) by = { d: dy, o: it.p2 };
+    });
+    const out = { x: bx ? bx.o.x : p.x, y: by ? by.o.y : p.y };
+    if (bx) snapGuides.push({ axis: 'x', v: out.x, a: bx.o.y, b: out.y });
+    if (by) snapGuides.push({ axis: 'y', v: out.y, a: by.o.x, b: out.x });
+    return out;
+  }
+
+  /* 스냅 안내선 — 화면 1px 두께로 보이도록 줌을 나눈다. renderAnnotations 에서만 그려 출력물에는 없다 */
+  function _drawSnapGuides() {
+    const ext = 40 / zoom;
+    ctx.save();
+    ctx.globalAlpha = 1;
+    ctx.setLineDash([6 / zoom, 4 / zoom]);
+    snapGuides.forEach(g => {
+      const lo = Math.min(g.a, g.b) - ext, hi = Math.max(g.a, g.b) + ext;
+      ctx.beginPath();
+      if (g.axis === 'x') { ctx.moveTo(g.v, lo); ctx.lineTo(g.v, hi); }
+      else                { ctx.moveTo(lo, g.v); ctx.lineTo(hi, g.v); }
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3 / zoom;   ctx.stroke();
+      ctx.strokeStyle = '#E0399B'; ctx.lineWidth = 1.5 / zoom; ctx.stroke();
+    });
+    ctx.restore();
   }
 
   function _buildPath(p1, p2, style) {
@@ -811,6 +870,7 @@ const CanvasManager = (() => {
           num: 0, preview: true,
         });
       }
+      if (!drawState.shapeTool) _drawP1Mark(drawState.p1, _preColor());
     }
 
     items.forEach(item => {
@@ -825,6 +885,7 @@ const CanvasManager = (() => {
     });
 
     if (boxSel) _drawBoxSel();
+    if (snapGuides.length) _drawSnapGuides();
 
     if (afterRenderCb) afterRenderCb(ctx, drawCanvas.width, drawCanvas.height);
   }
@@ -1025,22 +1086,18 @@ const CanvasManager = (() => {
       ctx.fill();
     }
 
-    /* 선택 하이라이트 */
+    /* 선택 하이라이트 — 번호박스 테두리 + 지시점 고리 (화면 전용, PDF 출력은 selected:false) */
     if (selected && !preview) {
-      ctx.save();
-      ctx.strokeStyle = '#5B5BD6';
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash([3, 3]);
-      ctx.globalAlpha = 0.9;
+      const pad   = 4 * scale;
+      const boxes = boxList || ((num > 0) ? [{ text: label || String(num) }] : []);
+      boxes.forEach((b, i) => {
+        const m = _measureNumBox(b.text, scale);
+        _strokeSel(() => _roundRect(p2.x - m.bw / 2 - pad, p2.y + i * stepY - m.bh / 2 - pad,
+                                    m.bw + pad * 2, m.bh + pad * 2, Math.max(4, 6 * scale)), scale);
+      });
       if (!noLeader) {
-        ctx.beginPath();
-        ctx.arc(p1.x, p1.y, 12 * scale, 0, Math.PI * 2);
-        ctx.stroke();
+        _strokeSel(() => { ctx.beginPath(); ctx.arc(p1.x, p1.y, 11 * scale, 0, Math.PI * 2); }, scale);
       }
-      ctx.beginPath();
-      ctx.arc(p2.x, p2.y, 14 * scale, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.restore();
     }
 
     ctx.restore();
@@ -1302,13 +1359,25 @@ const CanvasManager = (() => {
     }
     if (selected) {
       const m = 6 * scale;
-      ctx.save();
-      ctx.strokeStyle = '#5B5BD6'; ctx.lineWidth = 1.5;
-      ctx.setLineDash([3, 3]); ctx.globalAlpha = 0.9;
-      ctx.strokeRect(bounds.x1 - m, bounds.y1 - m,
-                     (bounds.x2 - bounds.x1) + 2 * m, (bounds.y2 - bounds.y1) + 2 * m);
-      ctx.restore();
+      _strokeSel(() => {
+        ctx.beginPath();
+        ctx.rect(bounds.x1 - m, bounds.y1 - m,
+                 (bounds.x2 - bounds.x1) + 2 * m, (bounds.y2 - bounds.y1) + 2 * m);
+      }, scale);
     }
+  }
+
+  /* 선택 표시 선 — 흰 바탕선 위에 선택색(--sig)을 겹쳐 어떤 도면 위에서도 보이게 한다 */
+  function _strokeSel(buildPath, scale) {
+    const sig = getComputedStyle(document.documentElement).getPropertyValue('--sig').trim() || '#F0B429';
+    ctx.save();
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 1;
+    ctx.lineJoin    = 'round';
+    buildPath();
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(4, 6 * scale);   ctx.stroke();
+    ctx.strokeStyle = sig;       ctx.lineWidth = Math.max(2.5, 3 * scale); ctx.stroke();
+    ctx.restore();
   }
 
   /* 스택 번호박스 세로 간격 (박스 높이 + 여백) */
@@ -1379,10 +1448,47 @@ const CanvasManager = (() => {
   function getShapeTool()  { return drawState.shapeTool; }
   function setOrtho(v)     { drawState.ortho    = v; }
   function setLineWidth(w) { drawState.lineWidth = w; renderAnnotations(Annotation.getAll()); }
+  function setSnap(v)      { snapOn = !!v; }
+  function isSnap()        { return snapOn; }
+
+  /* 직교모드 전환을 선택된 지시선에 바로 반영한다.
+     ON  — 번호박스를 지시점 기준 수평·수직 자리로 옮기고 원래 자리를 기억한다
+     OFF — 그 뒤로 옮기지 않은 항목만 원래 자리로 되돌린다. 한 번의 Ctrl+Z 로 되돌릴 수 있다 */
+  function applyOrthoToSelection(on) {
+    const sel  = _currentSel();
+    const list = Annotation.getAll().filter(i =>
+      sel.has(i.id) && !i.shape && !i.noNum && i.type !== 'none' && i.p1 && i.p2);
+    if (!list.length) return 0;
+    const snap = Annotation.snapshotGeom(list.map(i => i.id));
+    let n = 0;
+    list.forEach(it => {
+      if (on) {
+        const to = _orthoPoint(it.p1, it.p2);
+        if (to.x === it.p2.x && to.y === it.p2.y) return;
+        orthoBackup.set(it.id, { from: { ...it.p2 }, to: { ...to } });
+        it.p2 = to;
+        n++;
+      } else {
+        const b = orthoBackup.get(it.id);
+        orthoBackup.delete(it.id);
+        if (!b || b.to.x !== it.p2.x || b.to.y !== it.p2.y) return;
+        it.p2 = { ...b.from };
+        n++;
+      }
+    });
+    if (n) {
+      Annotation.pushMoveUndo(snap);
+      Annotation.updateItem(list[0].id, {});   // 저장·사이드바 갱신 알림
+    }
+    return n;
+  }
+
   function cancelDraw()    {
+    snapGuides = [];
     drawState.phase = 0; drawState.p1 = null; drawState.previewP2 = null;
     shapeState.collecting = false; shapeState.points = []; shapeState.cursor = null;
     boxSel = null;
+    if (onDrawStateChange) onDrawStateChange(drawState);   // 안내 문구·커서 옆 안내를 대기 단계로 되돌린다
     renderAnnotations(Annotation.getAll());
   }
 
@@ -1398,7 +1504,21 @@ const CanvasManager = (() => {
     }
   }
   /* 사이드바 사용 후 캔버스 재진입 대기 상태로 전환 */
-  function deactivate()    { needsReactivation = true; wrap.style.cursor = 'default'; }
+  /* 첫 클릭(P1)이 찍힌 자리 표시 — 미리보기 단계에서만 그려지므로 PDF·사진첩에는 나오지 않는다 */
+  function _drawP1Mark(p, color) {
+    const r = 9 * (Annotation.getConfig().scale || 1);
+    ctx.save();
+    ctx.setLineDash([]);
+    ctx.lineWidth = 3;   ctx.strokeStyle = '#ffffff';
+    ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.stroke();
+    ctx.lineWidth = 1.5; ctx.strokeStyle = color;
+    ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  }
+
+  function deactivate()    { _setIdle(true); wrap.style.cursor = 'default'; }
+  /* 재진입 대기 중에는 도면을 흐리게 — 첫 클릭이 입장 클릭으로 쓰인다는 표시 */
+  function _setIdle(v)     { needsReactivation = v; if (wrap) wrap.classList.toggle('canvas-idle', v); }
   function getCanvasSize() { return { w: paperW || imgW, h: paperH || imgH }; }
   function getCanvas()     { return drawCanvas; }
   function getImage()      { return imgEl; }
@@ -1594,5 +1714,6 @@ const CanvasManager = (() => {
     getSelectedId, getSelectedIds, clearSelection, selectItem, clear, onSelect,
     onEditNote, onMergeSel, setMergeMode, isMergeMode, getMergeSel,
     onImageScale, setShowBounds, getShowBounds,
+    setSnap, isSnap, applyOrthoToSelection,
   };
 })();
